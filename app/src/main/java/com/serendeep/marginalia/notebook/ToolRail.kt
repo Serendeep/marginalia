@@ -33,8 +33,6 @@ import com.serendeep.marginalia.ui.theme.ChromeDark
 import com.serendeep.marginalia.ui.theme.ChromeLight
 import com.serendeep.marginalia.ui.theme.LocalDarkTheme
 import com.serendeep.marginalia.ui.theme.LocalPenPalette
-import kotlin.math.cos
-import kotlin.math.sin
 
 private val IconColor = Color(0xFFEDEFF2)
 private val RingColor = Color.White.copy(alpha = 0.85f)
@@ -42,15 +40,18 @@ private val DimSpec = tween<Float>(180)
 private const val TOUCH_TARGET_DP = 44
 private const val SWATCH_DIAMETER_DP = 18
 
-/** Floating vertical icon rail: pen swatches, eraser, undo. */
+/** Floating vertical icon rail: pen swatches, eraser, undo/redo. */
 @Composable
 fun ToolRail(
     tool: InkTool,
     selectedPen: Pen,
     penDown: Boolean,
+    canUndo: Boolean,
+    canRedo: Boolean,
     onSelectPen: (Pen) -> Unit,
     onEraser: () -> Unit,
     onUndo: () -> Unit,
+    onRedo: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val chrome = if (LocalDarkTheme.current) ChromeDark else ChromeLight
@@ -80,7 +81,8 @@ fun ToolRail(
             color = Color.White.copy(alpha = 0.14f),
         )
         EraserButton(selected = tool == InkTool.ERASER, onClick = onEraser)
-        UndoButton(onClick = onUndo)
+        HistoryButton(enabled = canUndo, mirrored = false, onClick = onUndo)
+        HistoryButton(enabled = canRedo, mirrored = true, onClick = onRedo)
     }
 }
 
@@ -136,35 +138,41 @@ private fun EraserButton(selected: Boolean, onClick: () -> Unit) {
     }
 }
 
+/**
+ * Undo ([mirrored] = false) or redo ([mirrored] = true): a flat-topped arc
+ * curving down-left with an arrowhead at its start, the standard glyph pair.
+ */
 @Composable
-private fun UndoButton(onClick: () -> Unit) {
+private fun HistoryButton(enabled: Boolean, mirrored: Boolean, onClick: () -> Unit) {
     Box(
-        Modifier.size(TOUCH_TARGET_DP.dp).clickable(onClick = onClick),
+        Modifier.size(TOUCH_TARGET_DP.dp).clickable(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Canvas(Modifier.size(22.dp)) {
+        Canvas(
+            Modifier
+                .size(22.dp)
+                .graphicsLayer {
+                    scaleX = if (mirrored) -1f else 1f
+                    this.alpha = if (enabled) 1f else 0.35f
+                },
+        ) {
             val strokeWidth = 2.dp.toPx()
-            val inset = 3.dp.toPx()
-            val diameter = size.width - inset * 2
-            val startAngle = -30f
+            val w = size.width
+            val h = size.height
+            // Arrow tip at the arc's left end pointing down; the arc climbs
+            // from it over the top and hooks down the right side.
+            val tip = Offset(w * 0.2f, h * 0.5f)
             drawArc(
                 color = IconColor,
-                startAngle = startAngle,
-                sweepAngle = 260f,
+                startAngle = 180f,
+                sweepAngle = 225f,
                 useCenter = false,
-                topLeft = Offset(inset, inset),
-                size = Size(diameter, diameter),
+                topLeft = Offset(w * 0.2f, h * 0.2f),
+                size = Size(w * 0.6f, h * 0.6f),
                 style = Stroke(strokeWidth, cap = StrokeCap.Round),
             )
-            val radius = diameter / 2f
-            val center = Offset(size.width / 2f, size.height / 2f)
-            val angleRad = Math.toRadians(startAngle.toDouble())
-            val tip = Offset(
-                center.x + radius * cos(angleRad).toFloat(),
-                center.y + radius * sin(angleRad).toFloat(),
-            )
-            drawLine(IconColor, tip, Offset(tip.x - 5.dp.toPx(), tip.y - 2.dp.toPx()), strokeWidth, cap = StrokeCap.Round)
-            drawLine(IconColor, tip, Offset(tip.x - 1.dp.toPx(), tip.y + 5.dp.toPx()), strokeWidth, cap = StrokeCap.Round)
+            drawLine(IconColor, tip, Offset(tip.x + 5.5.dp.toPx(), tip.y), strokeWidth, cap = StrokeCap.Round)
+            drawLine(IconColor, tip, Offset(tip.x + 1.5.dp.toPx(), tip.y - 5.5.dp.toPx()), strokeWidth, cap = StrokeCap.Round)
         }
     }
 }

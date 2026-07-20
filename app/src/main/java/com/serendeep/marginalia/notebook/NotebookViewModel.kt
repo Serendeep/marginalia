@@ -75,6 +75,13 @@ class NotebookViewModel @Inject constructor(
     val document: StateFlow<DocumentEntity?> = _document.asStateFlow()
 
     private val ops = ArrayDeque<EditOp>()
+    private val redos = ArrayDeque<EditOp>()
+
+    private val _canUndo = MutableStateFlow(false)
+    val canUndo: StateFlow<Boolean> = _canUndo.asStateFlow()
+
+    private val _canRedo = MutableStateFlow(false)
+    val canRedo: StateFlow<Boolean> = _canRedo.asStateFlow()
     private var lectureId: String? = null
     private var lectureJob: Job? = null
     private var documentId: String = ""
@@ -107,6 +114,8 @@ class NotebookViewModel @Inject constructor(
         firstVisiblePage = 0
         pdfPos = 0f
         ops.clear()
+        redos.clear()
+        syncUndoState()
         driver = Driver.NONE
         drivenAt = 0L
         penActive = false
@@ -170,7 +179,7 @@ class NotebookViewModel @Inject constructor(
             batch = stroke.inputs,
         )
         _strokes.value = _strokes.value + RenderedStroke(record, stroke)
-        ops.addLast(EditOp.Add(record))
+        pushOp(EditOp.Add(record))
         viewModelScope.launch { repository.saveStroke(record) }
     }
 
@@ -197,7 +206,7 @@ class NotebookViewModel @Inject constructor(
         if (removed.isEmpty()) return
 
         _strokes.value = next
-        ops.addLast(EditOp.Erase(removed, added))
+        pushOp(EditOp.Erase(removed, added))
         viewModelScope.launch {
             removed.forEach { repository.deleteStroke(it.id) }
             repository.saveStrokes(added)
@@ -205,7 +214,8 @@ class NotebookViewModel @Inject constructor(
     }
 
     fun undo() {
-        when (val op = ops.removeLastOrNull() ?: return) {
+        val op = ops.removeLastOrNull() ?: return
+        when (op) {
             is EditOp.Add -> {
                 _strokes.value = _strokes.value.filterNot { it.record.id == op.record.id }
                 viewModelScope.launch { repository.deleteStroke(op.record.id) }
@@ -229,6 +239,51 @@ class NotebookViewModel @Inject constructor(
                 viewModelScope.launch { repository.restoreAnchor(op.anchor, op.boundStrokeIds) }
             }
         }
+        redos.addLast(op)
+        syncUndoState()
+    }
+
+    /** Re-applies the most recently undone operation. */
+    fun redo() {
+        val op = redos.removeLastOrNull() ?: return
+        when (op) {
+            is EditOp.Add -> {
+                _strokes.value = _strokes.value + RenderedStroke(op.record, op.record.toStroke())
+                viewModelScope.launch { repository.saveStroke(op.record) }
+            }
+
+            is EditOp.Erase -> {
+                val removedIds = op.removed.map { it.id }.toSet()
+                val pieces = op.added.map { RenderedStroke(it, it.toStroke()) }
+                _strokes.value = _strokes.value.filterNot { it.record.id in removedIds } + pieces
+                viewModelScope.launch {
+                    removedIds.forEach { repository.deleteStroke(it) }
+                    repository.saveStrokes(op.added)
+                }
+            }
+
+            is EditOp.RemoveAnchor -> {
+                val ids = op.boundStrokeIds.toSet()
+                _strokes.value = _strokes.value.map {
+                    if (it.record.id in ids) it.copy(record = it.record.copy(anchorId = null)) else it
+                }
+                viewModelScope.launch { repository.removeAnchorAndUnbind(op.anchor.id) }
+            }
+        }
+        ops.addLast(op)
+        syncUndoState()
+    }
+
+    /** Records a fresh edit; anything undone before it can no longer be redone. */
+    private fun pushOp(op: EditOp) {
+        ops.addLast(op)
+        redos.clear()
+        syncUndoState()
+    }
+
+    private fun syncUndoState() {
+        _canUndo.value = ops.isNotEmpty()
+        _canRedo.value = redos.isNotEmpty()
     }
 
     /** Removes a link. The bound ink stays; only the connection goes. Undoable. */
@@ -241,7 +296,7 @@ class NotebookViewModel @Inject constructor(
             _strokes.value = _strokes.value.map {
                 if (it.record.id in ids) it.copy(record = it.record.copy(anchorId = null)) else it
             }
-            ops.addLast(EditOp.RemoveAnchor(anchor, bound))
+            pushOp(EditOp.RemoveAnchor(anchor, bound))
         }
     }
 

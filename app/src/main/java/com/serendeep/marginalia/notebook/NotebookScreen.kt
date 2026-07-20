@@ -249,13 +249,18 @@ fun NotebookScreen(
                 onPenActive = viewModel::setPenActive,
             )
 
+            val canUndo by viewModel.canUndo.collectAsStateWithLifecycle()
+            val canRedo by viewModel.canRedo.collectAsStateWithLifecycle()
             ToolRail(
                 tool = tool,
                 selectedPen = selectedPen,
                 penDown = penDown,
+                canUndo = canUndo,
+                canRedo = canRedo,
                 onSelectPen = viewModel::selectPen,
                 onEraser = { viewModel.setTool(InkTool.ERASER) },
                 onUndo = viewModel::undo,
+                onRedo = viewModel::redo,
                 modifier = Modifier.align(Alignment.TopEnd).padding(12.dp),
             )
 
