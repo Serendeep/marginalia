@@ -27,6 +27,9 @@ interface LectureDao {
     @Query("SELECT * FROM lectures WHERE courseId = :courseId ORDER BY orderIndex, createdAt")
     fun observeByCourse(courseId: String): Flow<List<LectureEntity>>
 
+    @Query("SELECT * FROM lectures ORDER BY createdAt DESC")
+    fun observeAll(): Flow<List<LectureEntity>>
+
     @Delete
     suspend fun delete(lecture: LectureEntity)
 }
@@ -38,6 +41,9 @@ interface DocumentDao {
 
     @Query("SELECT * FROM documents WHERE lectureId = :lectureId ORDER BY versionIndex")
     fun observeByLecture(lectureId: String): Flow<List<DocumentEntity>>
+
+    @Query("SELECT * FROM documents")
+    fun observeAll(): Flow<List<DocumentEntity>>
 
     @Query("SELECT * FROM documents WHERE lectureId = :lectureId ORDER BY versionIndex")
     suspend fun getByLecture(lectureId: String): List<DocumentEntity>
@@ -61,8 +67,13 @@ interface AnchorDao {
     suspend fun deleteById(id: String)
 }
 
+/** When a lecture's ink was last touched; drives "continue" ordering. */
+data class LectureTouch(val lectureId: String, val lastAt: Long)
+
 @Dao
 interface StrokeDao {
+    @Query("SELECT lectureId AS lectureId, MAX(endedAt) AS lastAt FROM strokes GROUP BY lectureId")
+    fun observeLastWritten(): Flow<List<LectureTouch>>
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(stroke: StrokeEntity)
 
