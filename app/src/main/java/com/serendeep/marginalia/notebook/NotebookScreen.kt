@@ -3,9 +3,12 @@ package com.serendeep.marginalia.notebook
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.geometry.Rect
@@ -56,6 +59,8 @@ import com.serendeep.marginalia.ui.theme.DotGridDark
 import com.serendeep.marginalia.ui.theme.DotGridLight
 import com.serendeep.marginalia.ui.theme.LocalDarkTheme
 import com.serendeep.marginalia.ui.theme.LocalPenPalette
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.hazeSource
 import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -116,7 +121,12 @@ fun NotebookScreen(
                 },
         ) {
             Row(
-                Modifier.padding(horizontal = 16.dp),
+                Modifier
+                    .padding(horizontal = 16.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(MaterialTheme.colorScheme.surface)
+                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(14.dp))
+                    .padding(horizontal = 12.dp, vertical = 2.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -131,6 +141,7 @@ fun NotebookScreen(
                     Text(
                         "Hold a spot on the page to link it to your notes",
                         style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }
@@ -203,51 +214,56 @@ fun NotebookScreen(
         VerticalDivider()
 
         val dotColor = if (LocalDarkTheme.current) DotGridDark else DotGridLight
-        Box(
-            Modifier
-                .weight(1f)
-                .fillMaxHeight()
-                .background(MaterialTheme.colorScheme.surface)
-                .onSizeChanged { viewModel.onInkPaneHeight(it.height.toFloat()) }
-                .drawWithCache {
-                    // Dot grid on the note sheet, 22dp pitch. Built once per size
-                    // (one extra row so it can slide), drawn as a single path and
-                    // shifted with the canvas scroll so the paper moves with the ink.
-                    val step = 22.dp.toPx()
-                    val radius = 1.dp.toPx()
-                    val grid = Path()
-                    var x = step
-                    while (x < size.width) {
-                        var y = 0f
-                        while (y < size.height + step) {
-                            grid.addOval(Rect(Offset(x, y), radius))
-                            y += step
+        val hazeState = remember { HazeState() }
+        Box(Modifier.weight(1f).fillMaxHeight()) {
+            // The sheet is the rail's blur source, so it lives in its own node
+            // beneath the rail rather than as the rail's parent.
+            Box(
+                Modifier
+                    .matchParentSize()
+                    .hazeSource(hazeState)
+                    .background(MaterialTheme.colorScheme.surface)
+                    .onSizeChanged { viewModel.onInkPaneHeight(it.height.toFloat()) }
+                    .drawWithCache {
+                        // Dot grid on the note sheet, 22dp pitch. Built once per size
+                        // (one extra row so it can slide), drawn as a single path and
+                        // shifted with the canvas scroll so the paper moves with the ink.
+                        val step = 22.dp.toPx()
+                        val radius = 1.dp.toPx()
+                        val grid = Path()
+                        var x = step
+                        while (x < size.width) {
+                            var y = 0f
+                            while (y < size.height + step) {
+                                grid.addOval(Rect(Offset(x, y), radius))
+                                y += step
+                            }
+                            x += step
                         }
-                        x += step
-                    }
-                    onDrawBehind {
-                        translate(top = -(canvasOffset % step)) { drawPath(grid, dotColor) }
-                    }
-                },
-        ) {
-            val penPalette = LocalPenPalette.current
-            val penColor = when (selectedPen) {
-                Pen.GRAPHITE -> penPalette.graphite
-                Pen.INDIGO -> penPalette.indigo
-                Pen.RUST -> penPalette.rust
+                        onDrawBehind {
+                            translate(top = -(canvasOffset % step)) { drawPath(grid, dotColor) }
+                        }
+                    },
+            ) {
+                val penPalette = LocalPenPalette.current
+                val penColor = when (selectedPen) {
+                    Pen.GRAPHITE -> penPalette.graphite
+                    Pen.INDIGO -> penPalette.indigo
+                    Pen.RUST -> penPalette.rust
+                }
+                InkCanvas(
+                    strokes = strokeList,
+                    tool = tool,
+                    penColor = penColor.toArgb(),
+                    penSizePx = Pens.DEFAULT_SIZE_PX,
+                    canvasOffset = canvasOffset,
+                    onStrokeFinished = viewModel::onStrokeFinished,
+                    onErase = viewModel::eraseAt,
+                    onScrollBy = viewModel::onCanvasScrolledBy,
+                    modifier = Modifier.fillMaxSize(),
+                    onPenActive = viewModel::setPenActive,
+                )
             }
-            InkCanvas(
-                strokes = strokeList,
-                tool = tool,
-                penColor = penColor.toArgb(),
-                penSizePx = Pens.DEFAULT_SIZE_PX,
-                canvasOffset = canvasOffset,
-                onStrokeFinished = viewModel::onStrokeFinished,
-                onErase = viewModel::eraseAt,
-                onScrollBy = viewModel::onCanvasScrolledBy,
-                modifier = Modifier.fillMaxSize(),
-                onPenActive = viewModel::setPenActive,
-            )
 
             val canUndo by viewModel.canUndo.collectAsStateWithLifecycle()
             val canRedo by viewModel.canRedo.collectAsStateWithLifecycle()
@@ -261,6 +277,7 @@ fun NotebookScreen(
                 onEraser = { viewModel.setTool(InkTool.ERASER) },
                 onUndo = viewModel::undo,
                 onRedo = viewModel::redo,
+                hazeState = hazeState,
                 modifier = Modifier.align(Alignment.TopEnd).padding(12.dp),
             )
 
