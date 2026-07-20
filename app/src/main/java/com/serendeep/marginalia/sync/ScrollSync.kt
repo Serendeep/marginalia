@@ -69,6 +69,9 @@ class ScrollSync(
     fun pageForCanvasOffset(offset: Float): Int {
         if (pageCount <= 0) return 0
         val o = offset.coerceAtLeast(0f)
+        // The top of the canvas is always the first page: forward mapping clamps
+        // early pages to offset zero, so zero must invert to page zero.
+        if (o == 0f) return 0
         val within = runs.asReversed().firstOrNull { o >= it.canvasStart && o <= it.canvasEnd }
         if (within != null) return clampPage(pageWithin(within, o))
         val prev = runs.filter { it.canvasEnd < o }.maxByOrNull { it.canvasEnd }

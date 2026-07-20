@@ -43,10 +43,12 @@ fun InkCanvas(
     onErase: (x: Float, y: Float) -> Unit,
     onScrollBy: (deltaPx: Float) -> Unit,
     modifier: Modifier = Modifier,
+    onPenActive: (Boolean) -> Unit = {},
 ) {
     val onFinished by rememberUpdatedState(onStrokeFinished)
     val onEraseAt by rememberUpdatedState(onErase)
     val onScroll by rememberUpdatedState(onScrollBy)
+    val onPen by rememberUpdatedState(onPenActive)
     val currentTool by rememberUpdatedState(tool)
 
     AndroidView(
@@ -75,6 +77,7 @@ fun InkCanvas(
                         // Erasing works on stored strokes, so hit-test in canvas space.
                         onErase = { x, y -> onEraseAt(x, y + container.canvasOffset) },
                         onScrollBy = onScroll,
+                        onPenActive = { onPen(it) },
                     )
                 }
             }
@@ -133,10 +136,14 @@ private class DryInkView(context: Context) : View(context) {
     private var canvasOffset = 0f
     private var strokes: List<Stroke> = emptyList()
     private var handoffStrokes: List<Stroke> = emptyList()
+    private var handoffSeen: Set<Stroke> = emptySet()
 
     fun setStrokes(value: List<Stroke>) {
         strokes = value
-        handoffStrokes = handoffStrokes.filter { it !in value }
+        // A handoff only bridges until the state list catches up. One that is
+        // still absent after a second update was deliberately removed (undo).
+        handoffStrokes = handoffStrokes.filter { it !in value && it !in handoffSeen }
+        handoffSeen = handoffStrokes.toSet()
         invalidate()
     }
 
@@ -177,7 +184,14 @@ private class InkTouchHandler(
         erasing: Boolean,
         onErase: (Float, Float) -> Unit,
         onScrollBy: (Float) -> Unit,
+        onPenActive: (Boolean) -> Unit,
     ): Boolean {
+        if (event.getToolType(0) == MotionEvent.TOOL_TYPE_STYLUS) {
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> onPenActive(true)
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> onPenActive(false)
+            }
+        }
         if (event.getToolType(0) != MotionEvent.TOOL_TYPE_STYLUS) {
             // Fingers never ink; a single-finger drag scrolls the sheet.
             when (event.actionMasked) {

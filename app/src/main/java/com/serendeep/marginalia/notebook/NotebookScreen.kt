@@ -223,6 +223,7 @@ fun NotebookScreen(viewModel: NotebookViewModel = hiltViewModel()) {
                 onErase = viewModel::eraseAt,
                 onScrollBy = viewModel::onCanvasScrolledBy,
                 modifier = Modifier.fillMaxSize(),
+                onPenActive = viewModel::setPenActive,
             )
 
             Row(
