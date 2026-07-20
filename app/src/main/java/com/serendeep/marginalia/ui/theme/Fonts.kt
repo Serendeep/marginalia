@@ -15,9 +15,9 @@ private val provider = GoogleFont.Provider(
 )
 
 val DisplayFamily = FontFamily(
-    Font(GoogleFont("Outfit"), provider, FontWeight.Normal),
-    Font(GoogleFont("Outfit"), provider, FontWeight.Medium),
-    Font(GoogleFont("Outfit"), provider, FontWeight.SemiBold),
+    Font(GoogleFont("Space Grotesk"), provider, FontWeight.Normal),
+    Font(GoogleFont("Space Grotesk"), provider, FontWeight.Medium),
+    Font(GoogleFont("Space Grotesk"), provider, FontWeight.SemiBold),
 )
 
 val BodyFamily = FontFamily(

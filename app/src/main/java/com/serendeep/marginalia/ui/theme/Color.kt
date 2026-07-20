@@ -2,34 +2,39 @@ package com.serendeep.marginalia.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// Light mode
-val BgLight = Color(0xFFE7EBEF)
-val SheetLight = Color(0xFFFFFFFF)
-val InkLight = Color(0xFF1F2933)
-val AccentLight = Color(0xFF3557A6)
-val SoftInkLight = Color(0xFF64727E)
-val RuleLight = Color(0xFFCBD5DF)
-val DividerLight = Color(0xFFB7C3CE)
-val ChromeLight = Color(0xFF1B2530)
+// Liquid Glass. Dark is the primary mode; light is its frosted-porcelain twin.
 
 // Dark mode
-val BgDark = Color(0xFF0D1013)
-val SheetDark = Color(0xFF15191F)
-val InkDark = Color(0xFFE4E8EC)
+val BgDark = Color(0xFF101318)
+val SheetDark = Color(0xFF161A21)
+val InkDark = Color(0xFFE8EAEE)
 val AccentDark = Color(0xFF7C9BD9)
-val SoftInkDark = Color(0xFF8B98A6)
-val RuleDark = Color(0xFF262C33)
-val DividerDark = Color(0xFF333B44)
-val ChromeDark = Color(0xFF1A1F26)
+val SoftInkDark = Color(0xFF8A93A0)
+val RuleDark = Color(0xFF262C35)
+val DividerDark = Color(0x1FFFFFFF)
+val GlassTintDark = Color(0x14FFFFFF)
+val GlassBorderDark = Color(0x24FFFFFF)
+
+// Light mode
+val BgLight = Color(0xFFEEF1F5)
+val SheetLight = Color(0xFFF9FAFC)
+val InkLight = Color(0xFF1B2027)
+val AccentLight = Color(0xFF4A6FB5)
+val SoftInkLight = Color(0xFF66707C)
+val RuleLight = Color(0xFFD5DBE3)
+val DividerLight = Color(0x1F000000)
+val GlassTintLight = Color(0x99FFFFFF)
+val GlassBorderLight = Color(0xCCFFFFFF)
 
 // Dot grid overlays for the note sheet
 val DotGridLight = InkLight.copy(alpha = 0.10f)
-val DotGridDark = Color.White.copy(alpha = 0.06f)
+val DotGridDark = Color.White.copy(alpha = 0.07f)
 
-// Pen colors
+// Pen colors: silver-graphite, periwinkle-indigo, amber-rust families,
+// each remapped per mode so ink stays legible on its sheet.
 val PenGraphiteLight = Color(0xFF2B333B)
-val PenGraphiteDark = Color(0xFFC7CDD3)
-val PenIndigoLight = Color(0xFF3557A6)
-val PenIndigoDark = Color(0xFF6E85B0)
-val PenRustLight = Color(0xFFB0552E)
+val PenGraphiteDark = Color(0xFFC9CFD8)
+val PenIndigoLight = Color(0xFF4A6FB5)
+val PenIndigoDark = Color(0xFF7C9BD9)
+val PenRustLight = Color(0xFFA9663A)
 val PenRustDark = Color(0xFFC98A5E)

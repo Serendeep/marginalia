@@ -64,6 +64,7 @@ dependencies {
     implementation(libs.androidx.ui.text.google.fonts)
 
     implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.haze)
     implementation(libs.pdfium)
 
     implementation(libs.room.runtime)

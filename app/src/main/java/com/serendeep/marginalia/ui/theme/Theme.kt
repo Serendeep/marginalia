@@ -46,7 +46,7 @@ private val LightColors = lightColorScheme(
     onSurfaceVariant = SoftInkLight,
     outline = RuleLight,
     outlineVariant = DividerLight,
-    inverseSurface = ChromeLight,
+    inverseSurface = InkLight,
     inverseOnSurface = BgLight,
 )
 
@@ -63,12 +63,12 @@ private val DarkColors = darkColorScheme(
     onBackground = InkDark,
     surface = SheetDark,
     onSurface = InkDark,
-    surfaceVariant = ChromeDark,
+    surfaceVariant = Color(0xFF1C212A),
     onSurfaceVariant = SoftInkDark,
     outline = RuleDark,
     outlineVariant = DividerDark,
-    inverseSurface = ChromeDark,
-    inverseOnSurface = InkDark,
+    inverseSurface = InkDark,
+    inverseOnSurface = BgDark,
 )
 
 @Composable
