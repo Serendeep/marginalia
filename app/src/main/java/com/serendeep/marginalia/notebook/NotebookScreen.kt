@@ -2,9 +2,6 @@ package com.serendeep.marginalia.notebook
 
 import android.content.Intent
 import android.net.Uri
-import android.provider.OpenableColumns
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -25,7 +22,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
-import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
@@ -35,6 +31,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -59,24 +56,27 @@ import com.serendeep.marginalia.ui.theme.DotGridDark
 import com.serendeep.marginalia.ui.theme.DotGridLight
 import com.serendeep.marginalia.ui.theme.LocalDarkTheme
 import com.serendeep.marginalia.ui.theme.LocalPenPalette
+import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun NotebookScreen(viewModel: NotebookViewModel = hiltViewModel()) {
+fun NotebookScreen(
+    viewModel: NotebookViewModel = hiltViewModel(),
+    lectureId: String,
+    onBack: () -> Unit,
+) {
     val context = LocalContext.current
     var source by remember { mutableStateOf<PdfDocumentSource?>(null) }
     var pendingWebLink by remember { mutableStateOf<String?>(null) }
     var showOutline by remember { mutableStateOf(false) }
 
-    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
-        if (uri == null) return@rememberLauncherForActivityResult
+    LaunchedEffect(lectureId) { viewModel.openLecture(lectureId) }
+
+    val document by viewModel.document.collectAsStateWithLifecycle()
+    LaunchedEffect(document) {
         source?.close()
-        val opened = context.contentResolver.openFileDescriptor(uri, "r")?.let {
-            PdfDocumentSource.open(context, it)
-        }
-        source = opened
-        if (opened != null) {
-            viewModel.onDocumentOpened(displayName(context, uri), opened.pageCount)
+        source = document?.let { doc ->
+            runCatching { PdfDocumentSource.open(context, File(doc.localPath)) }.getOrNull()
         }
     }
 
@@ -118,8 +118,8 @@ fun NotebookScreen(viewModel: NotebookViewModel = hiltViewModel()) {
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Button(onClick = { picker.launch(arrayOf("application/pdf")) }) {
-                    Text("Open PDF")
+                TextButton(onClick = onBack) {
+                    Text("Library")
                 }
                 val outline = source?.outline().orEmpty()
                 if (outline.isNotEmpty()) {
@@ -134,7 +134,7 @@ fun NotebookScreen(viewModel: NotebookViewModel = hiltViewModel()) {
             }
             val current = source
             if (current == null) {
-                CenteredHint("Pick a lecture PDF")
+                CenteredHint("Import a PDF from the library")
             } else {
                 PdfPane(
                     source = current,
@@ -279,12 +279,4 @@ private fun CenteredHint(text: String) {
     ) {
         Text(text, style = MaterialTheme.typography.bodyLarge)
     }
-}
-
-private fun displayName(context: android.content.Context, uri: Uri): String {
-    context.contentResolver.query(uri, null, null, null, null)?.use { c ->
-        val idx = c.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-        if (idx >= 0 && c.moveToFirst()) return c.getString(idx)
-    }
-    return uri.lastPathSegment ?: "document.pdf"
 }
