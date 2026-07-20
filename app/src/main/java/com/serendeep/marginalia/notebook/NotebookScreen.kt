@@ -39,7 +39,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -84,6 +86,8 @@ fun NotebookScreen(viewModel: NotebookViewModel = hiltViewModel()) {
     val tool by viewModel.tool.collectAsStateWithLifecycle()
     val anchors by viewModel.anchors.collectAsStateWithLifecycle()
     val activeAnchor by viewModel.activeAnchor.collectAsStateWithLifecycle()
+    val canvasOffset by viewModel.canvasOffset.collectAsStateWithLifecycle()
+    val pdfSyncTarget by viewModel.pdfScrollTarget.collectAsStateWithLifecycle()
     val strokeList = remember(strokes) { strokes.map { it.stroke } }
     val pageAnchors = remember(anchors) {
         anchors.map { PageAnchor(it.id, it.pdfPage, it.pageXFraction, it.pageYFraction, it.label) }
@@ -122,8 +126,12 @@ fun NotebookScreen(viewModel: NotebookViewModel = hiltViewModel()) {
                     onAnchorTap = viewModel::flashAnchor,
                     onAnchorRemove = viewModel::removeAnchor,
                     onWebLink = { pendingWebLink = it },
-                    scrollToPage = outlineTarget,
-                    onScrollHandled = { outlineTarget = null },
+                    scrollToPage = outlineTarget ?: pdfSyncTarget,
+                    onScrollHandled = {
+                        outlineTarget = null
+                        viewModel.onPdfScrollHandled()
+                    },
+                    onFirstVisiblePage = viewModel::onPdfFirstVisiblePage,
                 )
             }
         }
@@ -183,22 +191,26 @@ fun NotebookScreen(viewModel: NotebookViewModel = hiltViewModel()) {
                 .weight(1f)
                 .fillMaxHeight()
                 .background(MaterialTheme.colorScheme.surface)
+                .onSizeChanged { viewModel.onInkPaneHeight(it.height.toFloat()) }
                 .drawWithCache {
-                    // Dot grid on the note sheet, 22dp pitch. Built once per size,
-                    // drawn as a single path so redraws stay cheap.
+                    // Dot grid on the note sheet, 22dp pitch. Built once per size
+                    // (one extra row so it can slide), drawn as a single path and
+                    // shifted with the canvas scroll so the paper moves with the ink.
                     val step = 22.dp.toPx()
                     val radius = 1.dp.toPx()
                     val grid = Path()
                     var x = step
                     while (x < size.width) {
-                        var y = step
-                        while (y < size.height) {
+                        var y = 0f
+                        while (y < size.height + step) {
                             grid.addOval(Rect(Offset(x, y), radius))
                             y += step
                         }
                         x += step
                     }
-                    onDrawBehind { drawPath(grid, dotColor) }
+                    onDrawBehind {
+                        translate(top = -(canvasOffset % step)) { drawPath(grid, dotColor) }
+                    }
                 },
         ) {
             InkCanvas(
@@ -206,9 +218,12 @@ fun NotebookScreen(viewModel: NotebookViewModel = hiltViewModel()) {
                 tool = tool,
                 penColor = LocalPenPalette.current.graphite.toArgb(),
                 penSizePx = Pens.DEFAULT_SIZE_PX,
+                canvasOffset = canvasOffset,
                 onStrokeFinished = viewModel::onStrokeFinished,
                 onErase = viewModel::eraseAt,
+                onScrollBy = viewModel::onCanvasScrolledBy,
                 modifier = Modifier.fillMaxSize(),
+                onPenActive = viewModel::setPenActive,
             )
 
             Row(
