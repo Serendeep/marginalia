@@ -5,6 +5,7 @@ import androidx.ink.strokes.StrokeInputBatch
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.serendeep.marginalia.data.AnchorEntity
+import com.serendeep.marginalia.data.DocumentEntity
 import com.serendeep.marginalia.data.InkStroke
 import com.serendeep.marginalia.data.MarginaliaRepository
 import com.serendeep.marginalia.ink.InkTool
@@ -19,8 +20,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import java.io.File
 import java.util.UUID
 import javax.inject.Inject
 import com.serendeep.marginalia.data.Box as AnchorBox
@@ -62,8 +63,13 @@ class NotebookViewModel @Inject constructor(
     private val _pdfScrollTarget = MutableStateFlow<Float?>(null)
     val pdfScrollTarget: StateFlow<Float?> = _pdfScrollTarget.asStateFlow()
 
+    /** Latest imported document with a file still on disk, or null if none. */
+    private val _document = MutableStateFlow<DocumentEntity?>(null)
+    val document: StateFlow<DocumentEntity?> = _document.asStateFlow()
+
     private val ops = ArrayDeque<EditOp>()
     private var lectureId: String? = null
+    private var lectureJob: Job? = null
     private var documentId: String = ""
     private var pdfPageCount = 0
     private var inkPaneHeightPx = 1600f
@@ -81,12 +87,46 @@ class NotebookViewModel @Inject constructor(
     private var expectedPdfPos: Float? = null
     private var syncCanvasAfterRequest = false
 
-    init {
-        viewModelScope.launch {
-            val id = ensureScratchLecture()
-            lectureId = id
+    /** Switches the notebook to a different lecture, resetting all per-lecture state. */
+    fun openLecture(id: String) {
+        if (lectureId == id) return
+        lectureJob?.cancel()
+        canvasAnim?.cancel()
+
+        lectureId = id
+        documentId = ""
+        pdfPageCount = 0
+        _tool.value = InkTool.PEN
+        firstVisiblePage = 0
+        pdfPos = 0f
+        ops.clear()
+        driver = Driver.NONE
+        drivenAt = 0L
+        penActive = false
+        pendingCanvasTarget = null
+        expectedPdfPos = null
+        syncCanvasAfterRequest = false
+
+        _strokes.value = emptyList()
+        _anchors.value = emptyList()
+        _activeAnchor.value = null
+        _canvasOffset.value = 0f
+        _pdfScrollTarget.value = null
+        _document.value = null
+
+        lectureJob = viewModelScope.launch {
             _strokes.value = repository.loadStrokes(id).map { RenderedStroke(it, it.toStroke()) }
-            repository.observeAnchors(id).collect { _anchors.value = it }
+            launch { repository.observeAnchors(id).collect { _anchors.value = it } }
+            launch {
+                repository.observeDocuments(id).collect { documents ->
+                    val latest = documents
+                        .filter { it.localPath.isNotEmpty() && File(it.localPath).exists() }
+                        .maxByOrNull { it.versionIndex }
+                    _document.value = latest
+                    documentId = latest?.id ?: ""
+                    pdfPageCount = latest?.pageCount ?: 0
+                }
+            }
         }
     }
 
@@ -96,17 +136,6 @@ class NotebookViewModel @Inject constructor(
 
     fun toggleTool() {
         _tool.value = if (_tool.value == InkTool.PEN) InkTool.ERASER else InkTool.PEN
-    }
-
-    /** Registers the currently opened PDF so anchors and strokes can reference it. */
-    fun onDocumentOpened(fileName: String, pageCount: Int) {
-        val id = lectureId ?: return
-        pdfPageCount = pageCount
-        viewModelScope.launch {
-            val existing = repository.observeDocuments(id).first()
-                .firstOrNull { it.fileName == fileName && it.pageCount == pageCount }
-            documentId = (existing ?: repository.importDocument(id, fileName, "", pageCount)).id
-        }
     }
 
     fun onStrokeFinished(stroke: Stroke) {
@@ -363,14 +392,6 @@ class NotebookViewModel @Inject constructor(
             if (p.y > maxY) maxY = p.y
         }
         return AnchorBox(minX, minY, maxX, maxY)
-    }
-
-    private suspend fun ensureScratchLecture(): String {
-        val course = repository.observeCourses().first().firstOrNull()
-            ?: repository.createCourse("My notes")
-        val lecture = repository.observeLectures(course.id).first().firstOrNull()
-            ?: repository.createLecture(course.id, "Scratch")
-        return lecture.id
     }
 
     private fun newId(): String = UUID.randomUUID().toString()
