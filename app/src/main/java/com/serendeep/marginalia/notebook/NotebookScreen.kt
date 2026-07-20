@@ -144,9 +144,9 @@ fun NotebookScreen(viewModel: NotebookViewModel = hiltViewModel()) {
                     onAnchorTap = viewModel::flashAnchor,
                     onAnchorRemove = viewModel::removeAnchor,
                     onWebLink = { pendingWebLink = it },
-                    scrollToPage = pdfSyncTarget,
+                    scrollToPos = pdfSyncTarget,
                     onScrollHandled = viewModel::onPdfScrollHandled,
-                    onFirstVisiblePage = viewModel::onPdfFirstVisiblePage,
+                    onScrollPos = viewModel::onPdfScrollPos,
                 )
             }
         }
