@@ -8,6 +8,7 @@ import com.serendeep.marginalia.data.AnchorEntity
 import com.serendeep.marginalia.data.InkStroke
 import com.serendeep.marginalia.data.MarginaliaRepository
 import com.serendeep.marginalia.ink.InkTool
+import com.serendeep.marginalia.ink.Pen
 import com.serendeep.marginalia.ink.Pens
 import com.serendeep.marginalia.ink.StrokeEraser
 import com.serendeep.marginalia.ink.toStroke
@@ -47,6 +48,12 @@ class NotebookViewModel @Inject constructor(
 
     private val _tool = MutableStateFlow(InkTool.PEN)
     val tool: StateFlow<InkTool> = _tool.asStateFlow()
+
+    private val _selectedPen = MutableStateFlow(Pen.GRAPHITE)
+    val selectedPen: StateFlow<Pen> = _selectedPen.asStateFlow()
+
+    private val _penDown = MutableStateFlow(false)
+    val penDown: StateFlow<Boolean> = _penDown.asStateFlow()
 
     private val _anchors = MutableStateFlow<List<AnchorEntity>>(emptyList())
     val anchors: StateFlow<List<AnchorEntity>> = _anchors.asStateFlow()
@@ -96,6 +103,11 @@ class NotebookViewModel @Inject constructor(
 
     fun toggleTool() {
         _tool.value = if (_tool.value == InkTool.PEN) InkTool.ERASER else InkTool.PEN
+    }
+
+    fun selectPen(pen: Pen) {
+        _selectedPen.value = pen
+        _tool.value = InkTool.PEN
     }
 
     /** Registers the currently opened PDF so anchors and strokes can reference it. */
@@ -274,6 +286,7 @@ class NotebookViewModel @Inject constructor(
     /** The stylus is touching the sheet; the canvas must not move under it. */
     fun setPenActive(active: Boolean) {
         penActive = active
+        _penDown.value = active
         if (active) {
             canvasAnim?.cancel()
         } else {
