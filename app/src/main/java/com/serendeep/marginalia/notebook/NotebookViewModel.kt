@@ -75,6 +75,8 @@ class NotebookViewModel @Inject constructor(
     private var driver = Driver.NONE
     private var drivenAt = 0L
     private var canvasAnim: Job? = null
+    private var penActive = false
+    private var pendingCanvasTarget: Float? = null
 
     init {
         viewModelScope.launch {
@@ -247,14 +249,30 @@ class NotebookViewModel @Inject constructor(
         if (page != firstVisiblePage) _pdfScrollTarget.value = page
     }
 
+    /** The stylus is touching the sheet; the canvas must not move under it. */
+    fun setPenActive(active: Boolean) {
+        penActive = active
+        if (active) {
+            canvasAnim?.cancel()
+        } else {
+            pendingCanvasTarget?.let {
+                pendingCanvasTarget = null
+                animateCanvasTo(it)
+            }
+        }
+    }
+
     /** PDF pane reports its top visible page, from user scrolls and our own requests alike. */
     fun onPdfFirstVisiblePage(page: Int) {
         firstVisiblePage = page
+        // While our own scroll request is in flight, every report is an echo.
+        if (_pdfScrollTarget.value != null) return
         // A page change right after a canvas drive is our own echo; don't scroll back.
         if (driver == Driver.CANVAS && now() - drivenAt < ECHO_WINDOW_MS) return
         driver = Driver.PDF
         drivenAt = now()
-        animateCanvasTo(sync().canvasOffsetForPage(page))
+        val target = sync().canvasOffsetForPage(page)
+        if (penActive) pendingCanvasTarget = target else animateCanvasTo(target)
     }
 
     fun onPdfScrollHandled() {

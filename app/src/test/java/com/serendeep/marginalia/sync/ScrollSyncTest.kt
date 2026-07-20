@@ -95,4 +95,16 @@ class ScrollSyncTest {
             assertEquals(page, sync.pageForCanvasOffset(sync.canvasOffsetForPage(page)))
         }
     }
+
+    @Test
+    fun offsetZeroAlwaysInvertsToFirstPage() {
+        val sync = ScrollSync(
+            listOf(SyncEntry(2, 500f, 700f)),
+            pageCount = 10,
+            pageHeightPx = pageHeight,
+        )
+        assertEquals(0f, sync.canvasOffsetForPage(0), 0.001f)
+        assertEquals(0, sync.pageForCanvasOffset(0f))
+        assertEquals(0, sync.pageForCanvasOffset(sync.canvasOffsetForPage(0)))
+    }
 }
