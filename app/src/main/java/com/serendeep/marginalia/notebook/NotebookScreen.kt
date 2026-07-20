@@ -4,6 +4,8 @@ import android.net.Uri
 import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -27,6 +29,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -37,6 +42,9 @@ import com.serendeep.marginalia.ink.Pens
 import com.serendeep.marginalia.pdf.PageAnchor
 import com.serendeep.marginalia.pdf.PdfDocumentSource
 import com.serendeep.marginalia.pdf.PdfPane
+import com.serendeep.marginalia.ui.theme.DotGridDark
+import com.serendeep.marginalia.ui.theme.DotGridLight
+import com.serendeep.marginalia.ui.theme.LocalPenPalette
 
 @Composable
 fun NotebookScreen(viewModel: NotebookViewModel = hiltViewModel()) {
@@ -68,7 +76,7 @@ fun NotebookScreen(viewModel: NotebookViewModel = hiltViewModel()) {
         anchors.map { PageAnchor(it.id, it.pdfPage, it.pageXFraction, it.pageYFraction, it.label) }
     }
 
-    Row(Modifier.fillMaxSize()) {
+    Row(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         Column(Modifier.weight(1f).fillMaxHeight().padding(top = 12.dp)) {
             Row(
                 Modifier.padding(horizontal = 16.dp),
@@ -102,11 +110,31 @@ fun NotebookScreen(viewModel: NotebookViewModel = hiltViewModel()) {
 
         VerticalDivider()
 
-        Box(Modifier.weight(1f).fillMaxHeight()) {
+        val dotColor = if (isSystemInDarkTheme()) DotGridDark else DotGridLight
+        Box(
+            Modifier
+                .weight(1f)
+                .fillMaxHeight()
+                .background(MaterialTheme.colorScheme.surface)
+                .drawBehind {
+                    // Dot grid on the note sheet, 22dp pitch.
+                    val step = 22.dp.toPx()
+                    val radius = 1.dp.toPx()
+                    var x = step
+                    while (x < size.width) {
+                        var y = step
+                        while (y < size.height) {
+                            drawCircle(dotColor, radius, Offset(x, y))
+                            y += step
+                        }
+                        x += step
+                    }
+                },
+        ) {
             InkCanvas(
                 strokes = strokeList,
                 tool = tool,
-                penColor = Pens.DEFAULT_COLOR,
+                penColor = LocalPenPalette.current.graphite.toArgb(),
                 penSizePx = Pens.DEFAULT_SIZE_PX,
                 onStrokeFinished = viewModel::onStrokeFinished,
                 onErase = viewModel::eraseAt,
