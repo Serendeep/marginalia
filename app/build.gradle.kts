@@ -43,6 +43,10 @@ android {
     }
 }
 
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
+}
+
 dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
@@ -55,6 +59,14 @@ dependencies {
 
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.pdfium)
+
+    implementation(libs.room.runtime)
+    implementation(libs.room.ktx)
+    ksp(libs.room.compiler)
+
+    implementation(libs.ink.strokes)
+    implementation(libs.ink.storage)
+    implementation(libs.ink.brush)
 
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
