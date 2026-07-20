@@ -52,6 +52,8 @@ fun InkCanvas(
     val onScroll by rememberUpdatedState(onScrollBy)
     val onPen by rememberUpdatedState(onPenActive)
     val currentTool by rememberUpdatedState(tool)
+    val currentPenColor by rememberUpdatedState(penColor)
+    val currentPenSize by rememberUpdatedState(penSizePx)
 
     AndroidView(
         modifier = modifier,
@@ -74,7 +76,7 @@ fun InkCanvas(
                 inkView.setOnTouchListener { _, event ->
                     touch.onTouch(
                         event = event,
-                        brush = Pens.pen(penColor, penSizePx),
+                        brush = Pens.pen(currentPenColor, currentPenSize),
                         erasing = currentTool == InkTool.ERASER,
                         // Erasing works on stored strokes, so hit-test in canvas space.
                         onErase = { x, y -> onEraseAt(x, y + container.canvasOffset) },
