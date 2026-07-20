@@ -15,6 +15,7 @@ data class InkStroke(
     val id: String,
     val lectureId: String,
     val documentId: String,
+    val anchorId: String? = null,
     val pdfPage: Int,
     val viewport: Box,
     val bounds: Box,

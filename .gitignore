@@ -12,3 +12,4 @@ build/
 *.ap_
 *.dex
 .kotlin/
+.gstack/

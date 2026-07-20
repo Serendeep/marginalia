@@ -11,6 +11,7 @@ class MarginaliaRepository @Inject constructor(
     private val lectureDao: LectureDao,
     private val documentDao: DocumentDao,
     private val strokeDao: StrokeDao,
+    private val anchorDao: AnchorDao,
 ) {
     fun observeCourses(): Flow<List<CourseEntity>> = courseDao.observeAll()
 
@@ -62,6 +63,50 @@ class MarginaliaRepository @Inject constructor(
     }
 
     suspend fun saveStroke(stroke: InkStroke) = strokeDao.insert(stroke.toEntity())
+
+    suspend fun saveStrokes(strokes: List<InkStroke>) = strokeDao.insertAll(strokes.map { it.toEntity() })
+
+    suspend fun deleteStroke(id: String) = strokeDao.deleteById(id)
+
+    fun observeAnchors(lectureId: String): Flow<List<AnchorEntity>> =
+        anchorDao.observeByLecture(lectureId)
+
+    suspend fun createAnchor(
+        lectureId: String,
+        documentId: String,
+        pdfPage: Int,
+        pageXFraction: Float,
+        pageYFraction: Float,
+    ): AnchorEntity {
+        val anchor = AnchorEntity(
+            id = newId(),
+            lectureId = lectureId,
+            documentId = documentId,
+            pdfPage = pdfPage,
+            pageXFraction = pageXFraction,
+            pageYFraction = pageYFraction,
+            label = anchorDao.countByLecture(lectureId) + 1,
+            createdAt = now(),
+        )
+        anchorDao.insert(anchor)
+        return anchor
+    }
+
+    suspend fun deleteAnchor(id: String) = anchorDao.deleteById(id)
+
+    /** Removes an anchor and unbinds its strokes; returns the ids that were bound. */
+    suspend fun removeAnchorAndUnbind(id: String): List<String> {
+        val bound = strokeDao.idsBoundTo(id)
+        strokeDao.unbindAnchor(id)
+        anchorDao.deleteById(id)
+        return bound
+    }
+
+    /** Restores a removed anchor and rebinds the strokes that pointed at it. */
+    suspend fun restoreAnchor(anchor: AnchorEntity, strokeIds: List<String>) {
+        anchorDao.insert(anchor)
+        if (strokeIds.isNotEmpty()) strokeDao.bindToAnchor(anchor.id, strokeIds)
+    }
 
     suspend fun loadStrokes(lectureId: String): List<InkStroke> =
         strokeDao.getByLecture(lectureId).map { it.toInkStroke() }
