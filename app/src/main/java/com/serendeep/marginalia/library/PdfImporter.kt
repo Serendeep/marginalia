@@ -60,7 +60,7 @@ class PdfImporter(
         Result.Success(document)
     }
 
-    private fun displayName(uri: Uri): String {
+    fun displayName(uri: Uri): String {
         context.contentResolver.query(uri, null, null, null, null)?.use { c ->
             val idx = c.getColumnIndex(OpenableColumns.DISPLAY_NAME)
             if (idx >= 0 && c.moveToFirst()) return c.getString(idx)

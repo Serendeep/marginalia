@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -56,7 +57,38 @@ class LibraryViewModel @Inject constructor(
         }
     }
 
+    /**
+     * One-tap import: each PDF becomes its own lecture titled after the file.
+     * With no [courseId] the lectures land in the shared unsorted course, which
+     * is created on first use. A failed PDF leaves no empty lecture behind.
+     */
+    fun quickImport(uris: List<Uri>, courseId: String? = null) {
+        if (uris.isEmpty()) return
+        viewModelScope.launch {
+            val target = courseId ?: unsortedCourse().id
+            for (uri in uris) {
+                val title = importer.displayName(uri).removeSuffix(".pdf").ifBlank { "Untitled" }
+                val lecture = repository.createLecture(target, title)
+                when (val result = importer.import(lecture.id, uri)) {
+                    is PdfImporter.Result.Success -> _error.value = null
+                    is PdfImporter.Result.Failure -> {
+                        repository.deleteLecture(lecture)
+                        _error.value = result.message
+                    }
+                }
+            }
+        }
+    }
+
+    private suspend fun unsortedCourse(): CourseEntity =
+        repository.observeCourses().first().firstOrNull { it.name == UNSORTED_NAME }
+            ?: repository.createCourse(UNSORTED_NAME)
+
     fun dismissError() {
         _error.value = null
+    }
+
+    companion object {
+        const val UNSORTED_NAME = "Unsorted"
     }
 }
