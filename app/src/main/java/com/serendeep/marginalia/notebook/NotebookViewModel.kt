@@ -1,6 +1,7 @@
 package com.serendeep.marginalia.notebook
 
 import androidx.ink.strokes.Stroke
+import androidx.ink.strokes.StrokeInputBatch
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.serendeep.marginalia.data.AnchorEntity
@@ -10,7 +11,10 @@ import com.serendeep.marginalia.ink.InkTool
 import com.serendeep.marginalia.ink.Pens
 import com.serendeep.marginalia.ink.StrokeEraser
 import com.serendeep.marginalia.ink.toStroke
+import com.serendeep.marginalia.sync.ScrollSync
+import com.serendeep.marginalia.sync.SyncEntry
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -50,9 +54,29 @@ class NotebookViewModel @Inject constructor(
     private val _activeAnchor = MutableStateFlow<AnchorEntity?>(null)
     val activeAnchor: StateFlow<AnchorEntity?> = _activeAnchor.asStateFlow()
 
+    /** Vertical scroll of the note sheet, in canvas px, 0 at the very top. */
+    private val _canvasOffset = MutableStateFlow(0f)
+    val canvasOffset: StateFlow<Float> = _canvasOffset.asStateFlow()
+
+    /** Page the PDF pane should scroll to; consumed via [onPdfScrollHandled]. */
+    private val _pdfScrollTarget = MutableStateFlow<Int?>(null)
+    val pdfScrollTarget: StateFlow<Int?> = _pdfScrollTarget.asStateFlow()
+
     private val ops = ArrayDeque<EditOp>()
     private var lectureId: String? = null
     private var documentId: String = ""
+    private var pdfPageCount = 0
+    private var inkPaneHeightPx = 1600f
+    private var firstVisiblePage = 0
+
+    // Feedback latch: the pane the user drove last owns the sync for a short
+    // window, so the programmatic echo from the other pane is ignored.
+    private enum class Driver { NONE, PDF, CANVAS }
+    private var driver = Driver.NONE
+    private var drivenAt = 0L
+    private var canvasAnim: Job? = null
+    private var penActive = false
+    private var pendingCanvasTarget: Float? = null
 
     init {
         viewModelScope.launch {
@@ -74,6 +98,7 @@ class NotebookViewModel @Inject constructor(
     /** Registers the currently opened PDF so anchors and strokes can reference it. */
     fun onDocumentOpened(fileName: String, pageCount: Int) {
         val id = lectureId ?: return
+        pdfPageCount = pageCount
         viewModelScope.launch {
             val existing = repository.observeDocuments(id).first()
                 .firstOrNull { it.fileName == fileName && it.pageCount == pageCount }
@@ -83,14 +108,15 @@ class NotebookViewModel @Inject constructor(
 
     fun onStrokeFinished(stroke: Stroke) {
         val id = lectureId ?: return
+        // The stroke arrives already in canvas space, so its bounds are too.
         val record = InkStroke(
             id = newId(),
             lectureId = id,
             documentId = documentId,
             anchorId = _activeAnchor.value?.id,
-            pdfPage = 0,
+            pdfPage = firstVisiblePage,
             viewport = AnchorBox(0f, 0f, 0f, 0f),
-            bounds = AnchorBox(0f, 0f, 0f, 0f),
+            bounds = strokeBounds(stroke.inputs),
             startedAt = now(),
             endedAt = now(),
             brushColor = stroke.brush.colorIntArgb.toLong() and 0xFFFFFFFFL,
@@ -208,6 +234,89 @@ class NotebookViewModel @Inject constructor(
         }
     }
 
+    fun onInkPaneHeight(px: Float) {
+        if (px > 0f) inkPaneHeightPx = px
+    }
+
+    /** Finger scroll on the note sheet. The canvas becomes the sync driver. */
+    fun onCanvasScrolledBy(delta: Float) {
+        canvasAnim?.cancel()
+        _canvasOffset.value = (_canvasOffset.value + delta).coerceAtLeast(0f)
+        driver = Driver.CANVAS
+        drivenAt = now()
+        if (pdfPageCount <= 0) return
+        val page = sync().pageForCanvasOffset(_canvasOffset.value)
+        if (page != firstVisiblePage) _pdfScrollTarget.value = page
+    }
+
+    /** The stylus is touching the sheet; the canvas must not move under it. */
+    fun setPenActive(active: Boolean) {
+        penActive = active
+        if (active) {
+            canvasAnim?.cancel()
+        } else {
+            pendingCanvasTarget?.let {
+                pendingCanvasTarget = null
+                animateCanvasTo(it)
+            }
+        }
+    }
+
+    /** PDF pane reports its top visible page, from user scrolls and our own requests alike. */
+    fun onPdfFirstVisiblePage(page: Int) {
+        firstVisiblePage = page
+        // While our own scroll request is in flight, every report is an echo.
+        if (_pdfScrollTarget.value != null) return
+        // A page change right after a canvas drive is our own echo; don't scroll back.
+        if (driver == Driver.CANVAS && now() - drivenAt < ECHO_WINDOW_MS) return
+        driver = Driver.PDF
+        drivenAt = now()
+        val target = sync().canvasOffsetForPage(page)
+        if (penActive) pendingCanvasTarget = target else animateCanvasTo(target)
+    }
+
+    fun onPdfScrollHandled() {
+        _pdfScrollTarget.value = null
+    }
+
+    private fun sync(): ScrollSync = ScrollSync(
+        entries = _strokes.value.map { SyncEntry(it.record.pdfPage, it.record.bounds.top, it.record.bounds.bottom) },
+        pageCount = pdfPageCount,
+        pageHeightPx = inkPaneHeightPx,
+    )
+
+    private fun animateCanvasTo(target: Float) {
+        canvasAnim?.cancel()
+        if (target == _canvasOffset.value) return
+        canvasAnim = viewModelScope.launch {
+            val start = _canvasOffset.value
+            val startedAt = now()
+            while (true) {
+                val t = ((now() - startedAt).toFloat() / CANVAS_ANIM_MS).coerceAtMost(1f)
+                val eased = 1f - (1f - t) * (1f - t)
+                _canvasOffset.value = (start + (target - start) * eased).coerceAtLeast(0f)
+                if (t >= 1f) break
+                delay(16)
+            }
+        }
+    }
+
+    private fun strokeBounds(batch: StrokeInputBatch): AnchorBox {
+        if (batch.size == 0) return AnchorBox(0f, 0f, 0f, 0f)
+        var minX = Float.MAX_VALUE
+        var minY = Float.MAX_VALUE
+        var maxX = -Float.MAX_VALUE
+        var maxY = -Float.MAX_VALUE
+        for (i in 0 until batch.size) {
+            val p = batch.get(i)
+            if (p.x < minX) minX = p.x
+            if (p.y < minY) minY = p.y
+            if (p.x > maxX) maxX = p.x
+            if (p.y > maxY) maxY = p.y
+        }
+        return AnchorBox(minX, minY, maxX, maxY)
+    }
+
     private suspend fun ensureScratchLecture(): String {
         val course = repository.observeCourses().first().firstOrNull()
             ?: repository.createCourse("My notes")
@@ -222,5 +331,7 @@ class NotebookViewModel @Inject constructor(
 
     private companion object {
         const val HIGHLIGHT_COLOR: Int = 0xFF3557A6.toInt()
+        const val ECHO_WINDOW_MS = 800L
+        const val CANVAS_ANIM_MS = 250f
     }
 }

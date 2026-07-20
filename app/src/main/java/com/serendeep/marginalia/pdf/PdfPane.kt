@@ -84,6 +84,13 @@ fun PdfPane(
                 }
             }
 
+            // Tell interested callers which page currently tops the pane.
+            LaunchedEffect(listState, onFirstVisiblePage) {
+                if (onFirstVisiblePage != null) {
+                    snapshotFlow { listState.firstVisibleItemIndex }.collect(onFirstVisiblePage)
+                }
+            }
+
             LazyColumn(Modifier.fillMaxSize(), state = listState) {
                 items(source.pageCount) { index ->
                     PdfPageItem(

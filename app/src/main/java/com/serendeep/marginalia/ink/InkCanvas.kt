@@ -16,14 +16,21 @@ import androidx.ink.authoring.InProgressStrokesFinishedListener
 import androidx.ink.authoring.InProgressStrokesView
 import androidx.ink.brush.Brush
 import androidx.ink.rendering.android.canvas.CanvasStrokeRenderer
+import androidx.ink.strokes.MutableStrokeInputBatch
 import androidx.ink.strokes.Stroke
+import androidx.ink.strokes.StrokeInput
 import androidx.input.motionprediction.MotionEventPredictor
 
 enum class InkTool { PEN, ERASER }
 
 /**
- * A note surface. The stylus draws or erases; fingers are ignored so they stay
- * free to scroll. Holding the stylus barrel button erases regardless of [tool].
+ * A note surface. The stylus draws or erases; a single-finger drag scrolls the
+ * sheet vertically. Holding the stylus barrel button erases regardless of [tool].
+ *
+ * Strokes are stored in canvas space: wet ink happens in screen coordinates, and
+ * a finished stroke is shifted down by [canvasOffset] before it is handed out, so
+ * persisted geometry is independent of where the sheet was scrolled at the time.
+ * Dry rendering shifts everything back up by the current offset.
  */
 @Composable
 fun InkCanvas(
@@ -31,12 +38,17 @@ fun InkCanvas(
     tool: InkTool,
     penColor: Int,
     penSizePx: Float,
+    canvasOffset: Float,
     onStrokeFinished: (Stroke) -> Unit,
     onErase: (x: Float, y: Float) -> Unit,
+    onScrollBy: (deltaPx: Float) -> Unit,
     modifier: Modifier = Modifier,
+    onPenActive: (Boolean) -> Unit = {},
 ) {
     val onFinished by rememberUpdatedState(onStrokeFinished)
     val onEraseAt by rememberUpdatedState(onErase)
+    val onScroll by rememberUpdatedState(onScrollBy)
+    val onPen by rememberUpdatedState(onPenActive)
     val currentTool by rememberUpdatedState(tool)
 
     AndroidView(
@@ -49,10 +61,11 @@ fun InkCanvas(
                     override fun onStrokesFinished(
                         finished: Map<InProgressStrokeId, Stroke>,
                     ) {
-                        container.dryView.addHandoffStrokes(finished.values)
+                        val dropped = finished.values.map { it.shiftedY(container.canvasOffset) }
+                        container.dryView.addHandoffStrokes(dropped)
                         container.dryView.invalidate()
                         inkView.removeFinishedStrokes(finished.keys)
-                        finished.values.forEach(onFinished)
+                        dropped.forEach(onFinished)
                     }
                 })
                 val touch = InkTouchHandler(inkView, MotionEventPredictor.newInstance(inkView))
@@ -61,20 +74,42 @@ fun InkCanvas(
                         event = event,
                         brush = Pens.pen(penColor, penSizePx),
                         erasing = currentTool == InkTool.ERASER,
-                        onErase = onEraseAt,
+                        // Erasing works on stored strokes, so hit-test in canvas space.
+                        onErase = { x, y -> onEraseAt(x, y + container.canvasOffset) },
+                        onScrollBy = onScroll,
+                        onPenActive = { onPen(it) },
                     )
                 }
             }
         },
         update = { container ->
+            container.canvasOffset = canvasOffset
+            container.dryView.setCanvasOffset(canvasOffset)
             container.dryView.setStrokes(strokes)
         },
     )
 }
 
+/** Same stroke with its recorded points moved down by [dy]. */
+private fun Stroke.shiftedY(dy: Float): Stroke {
+    if (dy == 0f) return this
+    val moved = MutableStrokeInputBatch()
+    for (i in 0 until inputs.size) {
+        val p = inputs.get(i)
+        moved.add(
+            StrokeInput.create(
+                p.x, p.y + dy, p.elapsedTimeMillis, p.toolType,
+                p.strokeUnitLengthCm, p.pressure, p.tiltRadians, p.orientationRadians,
+            ),
+        )
+    }
+    return Stroke(brush, moved.toImmutable())
+}
+
 private class InkViewContainer(context: Context) : ViewGroup(context) {
     val dryView = DryInkView(context)
     val inkView = InProgressStrokesView(context)
+    var canvasOffset = 0f
 
     init {
         addView(dryView)
@@ -97,13 +132,18 @@ private class InkViewContainer(context: Context) : ViewGroup(context) {
 
 private class DryInkView(context: Context) : View(context) {
     private val renderer = CanvasStrokeRenderer.create(false)
-    private val identity = Matrix()
+    private val strokeToScreen = Matrix()
+    private var canvasOffset = 0f
     private var strokes: List<Stroke> = emptyList()
     private var handoffStrokes: List<Stroke> = emptyList()
+    private var handoffSeen: Set<Stroke> = emptySet()
 
     fun setStrokes(value: List<Stroke>) {
         strokes = value
-        handoffStrokes = handoffStrokes.filter { it !in value }
+        // A handoff only bridges until the state list catches up. One that is
+        // still absent after a second update was deliberately removed (undo).
+        handoffStrokes = handoffStrokes.filter { it !in value && it !in handoffSeen }
+        handoffSeen = handoffStrokes.toSet()
         invalidate()
     }
 
@@ -111,10 +151,22 @@ private class DryInkView(context: Context) : View(context) {
         handoffStrokes = handoffStrokes + value
     }
 
+    fun setCanvasOffset(value: Float) {
+        if (canvasOffset != value) {
+            canvasOffset = value
+            invalidate()
+        }
+    }
+
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
-        strokes.forEach { renderer.draw(canvas, it, identity) }
-        handoffStrokes.filter { it !in strokes }.forEach { renderer.draw(canvas, it, identity) }
+        // Strokes live in canvas space; slide them up by the scroll offset.
+        strokeToScreen.setTranslate(0f, -canvasOffset)
+        val save = canvas.save()
+        canvas.translate(0f, -canvasOffset)
+        strokes.forEach { renderer.draw(canvas, it, strokeToScreen) }
+        handoffStrokes.filter { it !in strokes }.forEach { renderer.draw(canvas, it, strokeToScreen) }
+        canvas.restoreToCount(save)
     }
 }
 
@@ -124,14 +176,33 @@ private class InkTouchHandler(
 ) {
     private var strokeId: InProgressStrokeId? = null
     private var pointerId = MotionEvent.INVALID_POINTER_ID
+    private var fingerY = 0f
 
     fun onTouch(
         event: MotionEvent,
         brush: Brush,
         erasing: Boolean,
         onErase: (Float, Float) -> Unit,
+        onScrollBy: (Float) -> Unit,
+        onPenActive: (Boolean) -> Unit,
     ): Boolean {
-        if (event.getToolType(0) != MotionEvent.TOOL_TYPE_STYLUS) return false
+        if (event.getToolType(0) == MotionEvent.TOOL_TYPE_STYLUS) {
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> onPenActive(true)
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> onPenActive(false)
+            }
+        }
+        if (event.getToolType(0) != MotionEvent.TOOL_TYPE_STYLUS) {
+            // Fingers never ink; a single-finger drag scrolls the sheet.
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> fingerY = event.y
+                MotionEvent.ACTION_MOVE -> {
+                    onScrollBy(fingerY - event.y)
+                    fingerY = event.y
+                }
+            }
+            return true
+        }
 
         val buttonHeld = event.buttonState and MotionEvent.BUTTON_STYLUS_PRIMARY != 0
         if (erasing || buttonHeld) {
