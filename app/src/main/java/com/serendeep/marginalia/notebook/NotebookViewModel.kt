@@ -77,6 +77,8 @@ class NotebookViewModel @Inject constructor(
     private var canvasAnim: Job? = null
     private var penActive = false
     private var pendingCanvasTarget: Float? = null
+    private var expectedPdfPage: Int? = null
+    private var syncCanvasAfterRequest = false
 
     init {
         viewModelScope.launch {
@@ -246,7 +248,24 @@ class NotebookViewModel @Inject constructor(
         drivenAt = now()
         if (pdfPageCount <= 0) return
         val page = sync().pageForCanvasOffset(_canvasOffset.value)
-        if (page != firstVisiblePage) _pdfScrollTarget.value = page
+        if (page != firstVisiblePage) {
+            expectedPdfPage = page
+            syncCanvasAfterRequest = false
+            _pdfScrollTarget.value = page
+        }
+    }
+
+    /** A real touch landed on the PDF pane; only that makes the PDF the driver. */
+    fun onPdfTouched() {
+        driver = Driver.PDF
+        drivenAt = now()
+    }
+
+    /** Deliberate navigation (outline, anchor jumps): scroll the PDF, then bring the notes along. */
+    fun requestPdfPage(page: Int) {
+        expectedPdfPage = page
+        syncCanvasAfterRequest = true
+        _pdfScrollTarget.value = page
     }
 
     /** The stylus is touching the sheet; the canvas must not move under it. */
@@ -262,15 +281,30 @@ class NotebookViewModel @Inject constructor(
         }
     }
 
-    /** PDF pane reports its top visible page, from user scrolls and our own requests alike. */
+    /**
+     * PDF pane reports its top visible page. Reports alone never claim driverhood:
+     * they move the canvas only after a real touch on the PDF pane ([onPdfTouched])
+     * or as the tail of a deliberate navigation ([requestPdfPage]).
+     */
     fun onPdfFirstVisiblePage(page: Int) {
         firstVisiblePage = page
         // While our own scroll request is in flight, every report is an echo.
         if (_pdfScrollTarget.value != null) return
-        // A page change right after a canvas drive is our own echo; don't scroll back.
-        if (driver == Driver.CANVAS && now() - drivenAt < ECHO_WINDOW_MS) return
-        driver = Driver.PDF
-        drivenAt = now()
+        if (page == expectedPdfPage) {
+            expectedPdfPage = null
+            if (syncCanvasAfterRequest) {
+                syncCanvasAfterRequest = false
+                syncCanvasToPage(page)
+            }
+            return
+        }
+        if (driver == Driver.PDF && now() - drivenAt < PDF_DRIVE_WINDOW_MS) {
+            drivenAt = now()
+            syncCanvasToPage(page)
+        }
+    }
+
+    private fun syncCanvasToPage(page: Int) {
         val target = sync().canvasOffsetForPage(page)
         if (penActive) pendingCanvasTarget = target else animateCanvasTo(target)
     }
@@ -331,7 +365,7 @@ class NotebookViewModel @Inject constructor(
 
     private companion object {
         const val HIGHLIGHT_COLOR: Int = 0xFF3557A6.toInt()
-        const val ECHO_WINDOW_MS = 800L
+        const val PDF_DRIVE_WINDOW_MS = 2000L
         const val CANVAS_ANIM_MS = 250f
     }
 }
