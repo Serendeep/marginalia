@@ -1,30 +1,46 @@
 package com.serendeep.marginalia.library
 
 import android.net.Uri
+import android.text.format.DateUtils
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -38,11 +54,30 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.asComposePath
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.graphics.shapes.CornerRounding
+import androidx.graphics.shapes.RoundedPolygon
+import androidx.graphics.shapes.star
+import androidx.graphics.shapes.toPath
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.serendeep.marginalia.data.CourseEntity
-import com.serendeep.marginalia.data.LectureEntity
+import coil3.compose.AsyncImage
+import com.serendeep.marginalia.ui.theme.DisplayFamily
+import com.serendeep.marginalia.ui.theme.GlassTintDark
+import com.serendeep.marginalia.ui.theme.GlassTintLight
+import com.serendeep.marginalia.ui.theme.LocalDarkTheme
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.HazeStyle
+import dev.chrisbanes.haze.HazeTint
+import dev.chrisbanes.haze.hazeEffect
+import dev.chrisbanes.haze.hazeSource
 import kotlinx.coroutines.delay
 
 @Composable
@@ -50,12 +85,12 @@ fun LibraryScreen(
     viewModel: LibraryViewModel = hiltViewModel(),
     onOpenLecture: (String) -> Unit,
 ) {
-    val courses by viewModel.courses.collectAsStateWithLifecycle()
+    val shelf by viewModel.shelf.collectAsStateWithLifecycle()
     val error by viewModel.error.collectAsStateWithLifecycle()
     var showNewCourse by remember { mutableStateOf(false) }
 
-    // One screen-level launcher for every import flow; a per-row launcher inside
-    // the lazy list would unregister when its row is recycled while the system
+    // One screen-level launcher for every import flow; a per-card launcher in a
+    // lazy grid would unregister when its card is recycled while the system
     // picker is open. The target string encodes where the picked PDFs go:
     // "quick" or "quick:<courseId>" spawn filename-titled lectures, and
     // "replace:<lectureId>" adds a new version to an existing lecture.
@@ -75,17 +110,94 @@ fun LibraryScreen(
         picker.launch(arrayOf("application/pdf"))
     }
 
-    Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
+    val hazeState = remember { HazeState() }
+    val dark = LocalDarkTheme.current
+
+    Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+        if (shelf.isEmpty) {
+            EmptyShelf(onImport = { launchImport("quick") })
+        } else {
+            LazyVerticalGrid(
+                columns = GridCells.Adaptive(minSize = 188.dp),
+                modifier = Modifier.fillMaxSize().hazeSource(hazeState),
+                contentPadding = PaddingValues(
+                    start = 24.dp,
+                    end = 24.dp,
+                    top = 100.dp + WindowInsets.statusBars.asPaddingValues().calculateTopPadding(),
+                    bottom = 32.dp,
+                ),
+                horizontalArrangement = Arrangement.spacedBy(18.dp),
+                verticalArrangement = Arrangement.spacedBy(18.dp),
+            ) {
+                shelf.hero?.let { hero ->
+                    item(key = "hero", span = { GridItemSpan(minOf(2, maxLineSpan)) }) {
+                        ContinueCard(
+                            item = hero,
+                            viewModel = viewModel,
+                            onOpen = { onOpenLecture(hero.lecture.id) },
+                            modifier = Modifier.animateItem(),
+                        )
+                    }
+                }
+                shelf.sections.forEach { section ->
+                    item(key = "hdr:${section.course?.id ?: "unsorted"}", span = { GridItemSpan(maxLineSpan) }) {
+                        SectionLabel(
+                            title = section.course?.name ?: "Notebooks",
+                            onAddPdf = {
+                                launchImport(section.course?.let { "quick:${it.id}" } ?: "quick")
+                            },
+                            modifier = Modifier.animateItem(),
+                        )
+                    }
+                    items(section.items, key = { it.lecture.id }) { item ->
+                        CoverCard(
+                            item = item,
+                            viewModel = viewModel,
+                            onOpen = { onOpenLecture(item.lecture.id) },
+                            onReplace = { launchImport("replace:${item.lecture.id}") },
+                            modifier = Modifier.animateItem(),
+                        )
+                    }
+                }
+            }
+        }
+
+        // Frosted header; the shelf scrolls beneath it.
         Row(
-            Modifier.fillMaxWidth(),
+            Modifier
+                .fillMaxWidth()
+                .hazeEffect(
+                    state = hazeState,
+                    style = HazeStyle(
+                        backgroundColor = MaterialTheme.colorScheme.background,
+                        tint = HazeTint(if (dark) GlassTintDark else GlassTintLight),
+                        blurRadius = 24.dp,
+                        noiseFactor = 0.02f,
+                    ),
+                )
+                .statusBarsPadding()
+                .padding(horizontal = 24.dp, vertical = 14.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text("Library", style = MaterialTheme.typography.headlineMedium)
+            Text(
+                "Library",
+                fontFamily = DisplayFamily,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 28.sp,
+                letterSpacing = (-0.5).sp,
+                color = MaterialTheme.colorScheme.onBackground,
+            )
             Row(verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClick = { showNewCourse = true }) { Text("New course") }
-                Spacer(Modifier.width(8.dp))
-                Button(onClick = { launchImport("quick") }) { Text("Import PDFs") }
+                TextButton(onClick = { showNewCourse = true }) {
+                    Text("New course", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Spacer(Modifier.width(12.dp))
+                Button(
+                    onClick = { launchImport("quick") },
+                    shape = RoundedCornerShape(22.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                ) { Text("Import PDFs", fontWeight = FontWeight.Medium) }
             }
         }
 
@@ -96,41 +208,14 @@ fun LibraryScreen(
             }
             Text(
                 message,
-                color = MaterialTheme.colorScheme.error,
+                color = MaterialTheme.colorScheme.onError,
                 style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.padding(top = 8.dp),
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(24.dp)
+                    .background(MaterialTheme.colorScheme.error, RoundedCornerShape(12.dp))
+                    .padding(horizontal = 16.dp, vertical = 10.dp),
             )
-        }
-
-        Spacer(Modifier.height(12.dp))
-
-        val unsorted = courses.firstOrNull { it.name == LibraryViewModel.UNSORTED_NAME }
-        val grouped = courses.filterNot { it.id == unsorted?.id }
-
-        if (courses.isEmpty()) {
-            Column(
-                Modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.Center,
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Text("Import a PDF to get started", style = MaterialTheme.typography.bodyLarge)
-                Text(
-                    "Each PDF becomes a notebook, named after the file",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        } else {
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                if (unsorted != null) {
-                    item(key = unsorted.id) {
-                        UnsortedSection(unsorted, viewModel, onOpenLecture, launchImport)
-                    }
-                }
-                items(grouped, key = { it.id }) { course ->
-                    CourseCard(course, viewModel, onOpenLecture, launchImport)
-                }
-            }
         }
     }
 
@@ -146,91 +231,275 @@ fun LibraryScreen(
     }
 }
 
-/** Quick-imported notebooks, listed flat above the course groups. */
+/** The margin rule: Marginalia's namesake accent, marking every label. */
 @Composable
-private fun UnsortedSection(
-    course: CourseEntity,
-    viewModel: LibraryViewModel,
-    onOpenLecture: (String) -> Unit,
-    onImport: (String) -> Unit,
-) {
-    val lectures by viewModel.lecturesOf(course.id).collectAsStateWithLifecycle(initialValue = emptyList())
-    if (lectures.isEmpty()) return
-    Column {
-        lectures.forEach { lecture ->
-            LectureRow(lecture, viewModel, onOpenLecture, onImport)
-        }
-    }
+private fun MarginTick(height: androidx.compose.ui.unit.Dp = 12.dp) {
+    Box(
+        Modifier
+            .width(3.dp)
+            .height(height)
+            .clip(RoundedCornerShape(2.dp))
+            .background(MaterialTheme.colorScheme.primary),
+    )
 }
 
 @Composable
-private fun CourseCard(
-    course: CourseEntity,
-    viewModel: LibraryViewModel,
-    onOpenLecture: (String) -> Unit,
-    onImport: (String) -> Unit,
-) {
-    var expanded by remember { mutableStateOf(true) }
-    val lectures by viewModel.lecturesOf(course.id).collectAsStateWithLifecycle(initialValue = emptyList())
-
-    val shape = RoundedCornerShape(24.dp)
-    Card(
-        Modifier.fillMaxWidth().border(1.dp, MaterialTheme.colorScheme.outlineVariant, shape),
-        shape = shape,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+private fun SectionLabel(title: String, onAddPdf: () -> Unit, modifier: Modifier = Modifier) {
+    Row(
+        modifier.fillMaxWidth().padding(top = 10.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Column(
-            Modifier
-                .padding(16.dp)
-                .animateContentSize(spring(stiffness = Spring.StiffnessMediumLow)),
-        ) {
-            Row(
-                Modifier.fillMaxWidth().clickable { expanded = !expanded },
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                Text(course.name, style = MaterialTheme.typography.titleMedium)
-                Text(if (expanded) "−" else "+", style = MaterialTheme.typography.titleMedium)
-            }
-
-            if (expanded) {
-                Spacer(Modifier.height(8.dp))
-                lectures.forEach { lecture ->
-                    LectureRow(lecture, viewModel, onOpenLecture, onImport)
-                }
-                TextButton(onClick = { onImport("quick:${course.id}") }) { Text("Add PDF") }
-            }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            MarginTick()
+            Spacer(Modifier.width(8.dp))
+            Text(
+                title.uppercase(),
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold,
+                letterSpacing = 1.2.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        TextButton(onClick = onAddPdf) {
+            Text("Add PDF", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
 
+/** Wide resume card: the one thing the screen is for. */
 @Composable
-private fun LectureRow(
-    lecture: LectureEntity,
+private fun ContinueCard(
+    item: ShelfItem,
     viewModel: LibraryViewModel,
-    onOpenLecture: (String) -> Unit,
-    onImport: (String) -> Unit,
+    onOpen: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
-    val documents by viewModel.documentsOf(lecture.id).collectAsStateWithLifecycle(initialValue = emptyList())
-    val latest = documents.filter { it.localPath.isNotEmpty() }.maxByOrNull { it.versionIndex }
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        if (pressed) 0.97f else 1f,
+        spring(stiffness = Spring.StiffnessMediumLow),
+        label = "heroPress",
+    )
+    val shape = RoundedCornerShape(24.dp)
 
     Row(
-        Modifier
-            .fillMaxWidth()
-            .clickable { onOpenLecture(lecture.id) }
-            .padding(vertical = 8.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
+        modifier
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }
+            .clip(shape)
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, shape)
+            .clickable(interactionSource = interaction, indication = null, onClick = onOpen)
+            .padding(14.dp),
     ) {
-        Column {
-            Text(lecture.title, style = MaterialTheme.typography.bodyLarge)
+        Box(
+            Modifier
+                .width(132.dp)
+                .aspectRatio(0.72f)
+                .clip(RoundedCornerShape(14.dp))
+                .background(MaterialTheme.colorScheme.surface),
+        ) {
+            item.document?.let { doc ->
+                AsyncImage(
+                    model = PdfCover(doc.localPath),
+                    imageLoader = viewModel.imageLoader,
+                    contentDescription = null,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+        }
+        Spacer(Modifier.width(18.dp))
+        Column(Modifier.align(Alignment.CenterVertically)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                MarginTick(height = 11.dp)
+                Spacer(Modifier.width(7.dp))
+                Text(
+                    "CONTINUE",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    letterSpacing = 1.4.sp,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
+            Spacer(Modifier.height(8.dp))
             Text(
-                latest?.let { "${it.pageCount} pages · ${it.fileName}" } ?: "No PDF yet",
+                item.lecture.title,
+                fontFamily = DisplayFamily,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 20.sp,
+                lineHeight = 26.sp,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Spacer(Modifier.height(6.dp))
+            Text(
+                listOfNotNull(
+                    item.document?.let { "${it.pageCount} pages" },
+                    item.lastWrittenAt?.let { "written ${relative(it)}" },
+                ).joinToString(" · "),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        TextButton(onClick = { onImport("replace:${lecture.id}") }) {
-            Text(if (latest == null) "Import PDF" else "Replace")
+    }
+}
+
+@Composable
+private fun CoverCard(
+    item: ShelfItem,
+    viewModel: LibraryViewModel,
+    onOpen: () -> Unit,
+    onReplace: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        if (pressed) 0.96f else 1f,
+        spring(stiffness = Spring.StiffnessMediumLow),
+        label = "coverPress",
+    )
+    var showMenu by remember { mutableStateOf(false) }
+    val coverShape = RoundedCornerShape(18.dp)
+
+    Column(
+        modifier
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }
+            .clickable(interactionSource = interaction, indication = null, onClick = onOpen),
+    ) {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .aspectRatio(0.72f)
+                .clip(coverShape)
+                .background(MaterialTheme.colorScheme.surfaceVariant)
+                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, coverShape),
+        ) {
+            val document = item.document
+            if (document != null) {
+                AsyncImage(
+                    model = PdfCover(document.localPath),
+                    imageLoader = viewModel.imageLoader,
+                    contentDescription = item.lecture.title,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            } else {
+                Column(
+                    Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    ScallopedGlyph(size = 52.dp, alpha = 0.3f)
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "No PDF yet",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+
+            Box(
+                Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(8.dp)
+                    .size(26.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.background.copy(alpha = 0.3f))
+                    .clickable { showMenu = true },
+                contentAlignment = Alignment.Center,
+            ) {
+                Text("⋯", fontSize = 14.sp, color = MaterialTheme.colorScheme.onBackground)
+                DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+                    DropdownMenuItem(
+                        text = { Text(if (item.document == null) "Import PDF" else "Replace PDF") },
+                        onClick = {
+                            showMenu = false
+                            onReplace()
+                        },
+                    )
+                }
+            }
         }
+
+        Spacer(Modifier.height(10.dp))
+        Text(
+            item.lecture.title,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.SemiBold,
+            lineHeight = 20.sp,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            color = MaterialTheme.colorScheme.onBackground,
+        )
+        Spacer(Modifier.height(2.dp))
+        Text(
+            listOfNotNull(
+                item.document?.let { "${it.pageCount} pages" },
+                item.lastWrittenAt?.let { relative(it) },
+            ).joinToString(" · ").ifEmpty { "Empty notebook" },
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+private fun relative(at: Long): String =
+    DateUtils.getRelativeTimeSpanString(
+        at,
+        System.currentTimeMillis(),
+        DateUtils.MINUTE_IN_MILLIS,
+        DateUtils.FORMAT_ABBREV_RELATIVE,
+    ).toString()
+
+@Composable
+private fun EmptyShelf(onImport: () -> Unit) {
+    Column(
+        Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            ScallopedGlyph(size = 148.dp, alpha = 0.16f)
+            Text("+", style = MaterialTheme.typography.headlineLarge, color = MaterialTheme.colorScheme.primary)
+        }
+        Spacer(Modifier.height(20.dp))
+        Text("Import a PDF to get started", style = MaterialTheme.typography.titleMedium)
+        Text(
+            "Each PDF becomes a notebook, named after the file",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(20.dp))
+        Button(onClick = onImport, shape = RoundedCornerShape(22.dp)) { Text("Import PDFs") }
+    }
+}
+
+/** Soft scalloped badge from graphics-shapes; the shelf's one playful accent. */
+@Composable
+private fun ScallopedGlyph(size: androidx.compose.ui.unit.Dp, alpha: Float) {
+    val color = MaterialTheme.colorScheme.primary.copy(alpha = alpha)
+    Canvas(Modifier.size(size)) {
+        val r = this.size.minDimension / 2f
+        val polygon = RoundedPolygon.star(
+            numVerticesPerRadius = 9,
+            radius = r,
+            innerRadius = r * 0.86f,
+            rounding = CornerRounding(r * 0.18f),
+            centerX = r,
+            centerY = r,
+        )
+        drawPath(polygon.toPath().asComposePath(), color)
     }
 }
 

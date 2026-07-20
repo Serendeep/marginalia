@@ -2,9 +2,11 @@ package com.serendeep.marginalia.notebook
 
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -17,10 +19,15 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
@@ -41,8 +48,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -57,9 +71,17 @@ import com.serendeep.marginalia.pdf.PdfDocumentSource
 import com.serendeep.marginalia.pdf.PdfPane
 import com.serendeep.marginalia.ui.theme.DotGridDark
 import com.serendeep.marginalia.ui.theme.DotGridLight
+import com.serendeep.marginalia.ui.theme.GlassBorderDark
+import com.serendeep.marginalia.ui.theme.GlassBorderLight
+import com.serendeep.marginalia.ui.theme.GlassTintDark
+import com.serendeep.marginalia.ui.theme.GlassTintLight
+import com.serendeep.marginalia.ui.theme.InkLight
 import com.serendeep.marginalia.ui.theme.LocalDarkTheme
 import com.serendeep.marginalia.ui.theme.LocalPenPalette
 import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.HazeStyle
+import dev.chrisbanes.haze.HazeTint
+import dev.chrisbanes.haze.hazeEffect
 import dev.chrisbanes.haze.hazeSource
 import java.io.File
 
@@ -102,12 +124,12 @@ fun NotebookScreen(
         anchors.map { PageAnchor(it.id, it.pdfPage, it.pageXFraction, it.pageYFraction, it.label) }
     }
 
-    Row(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        Column(
+    Row(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).statusBarsPadding()) {
+        val pdfHaze = remember { HazeState() }
+        Box(
             Modifier
                 .weight(1f)
                 .fillMaxHeight()
-                .padding(top = 12.dp)
                 // A real touch on this pane is what makes the PDF the sync driver;
                 // observe only, never consume.
                 .pointerInput(Unit) {
@@ -120,48 +142,33 @@ fun NotebookScreen(
                     }
                 },
         ) {
-            Row(
-                Modifier
-                    .padding(horizontal = 16.dp)
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(MaterialTheme.colorScheme.surface)
-                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(14.dp))
-                    .padding(horizontal = 12.dp, vertical = 2.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                TextButton(onClick = onBack) {
-                    Text("Library")
-                }
-                val outline = source?.outline().orEmpty()
-                if (outline.isNotEmpty()) {
-                    TextButton(onClick = { showOutline = true }) { Text("Outline") }
-                }
-                if (source != null) {
-                    Text(
-                        "Hold a spot on the page to link it to your notes",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+            val current = source
+            Box(Modifier.matchParentSize().hazeSource(pdfHaze)) {
+                if (current == null) {
+                    CenteredHint("Import a PDF from the library")
+                } else {
+                    PdfPane(
+                        source = current,
+                        modifier = Modifier.fillMaxSize(),
+                        anchors = pageAnchors,
+                        onPageLongPress = viewModel::placeAnchor,
+                        onAnchorTap = viewModel::flashAnchor,
+                        onAnchorRemove = viewModel::removeAnchor,
+                        onWebLink = { pendingWebLink = it },
+                        scrollToPos = pdfSyncTarget,
+                        onScrollHandled = viewModel::onPdfScrollHandled,
+                        onScrollPos = viewModel::onPdfScrollPos,
                     )
                 }
             }
-            val current = source
-            if (current == null) {
-                CenteredHint("Import a PDF from the library")
-            } else {
-                PdfPane(
-                    source = current,
-                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                    anchors = pageAnchors,
-                    onPageLongPress = viewModel::placeAnchor,
-                    onAnchorTap = viewModel::flashAnchor,
-                    onAnchorRemove = viewModel::removeAnchor,
-                    onWebLink = { pendingWebLink = it },
-                    scrollToPos = pdfSyncTarget,
-                    onScrollHandled = viewModel::onPdfScrollHandled,
-                    onScrollPos = viewModel::onPdfScrollPos,
-                )
-            }
+            DocumentBar(
+                title = document?.fileName?.removeSuffix(".pdf") ?: "Notebook",
+                hasOutline = current?.outline().orEmpty().isNotEmpty(),
+                onBack = onBack,
+                onOutline = { showOutline = true },
+                hazeState = pdfHaze,
+                modifier = Modifier.align(Alignment.TopStart).padding(12.dp),
+            )
         }
 
         pendingWebLink?.let { url ->
@@ -288,6 +295,80 @@ fun NotebookScreen(
                     modifier = Modifier.align(Alignment.BottomCenter).padding(12.dp),
                 )
             }
+        }
+    }
+}
+
+/** Floating glass strip over the PDF: back, document title, outline. */
+@Composable
+private fun DocumentBar(
+    title: String,
+    hasOutline: Boolean,
+    onBack: () -> Unit,
+    onOutline: () -> Unit,
+    hazeState: HazeState,
+    modifier: Modifier = Modifier,
+) {
+    val dark = LocalDarkTheme.current
+    val iconColor = if (dark) Color(0xFFE8EAEE) else InkLight
+    val shape = RoundedCornerShape(22.dp)
+    Row(
+        modifier
+            .clip(shape)
+            .hazeEffect(
+                state = hazeState,
+                style = HazeStyle(
+                    backgroundColor = MaterialTheme.colorScheme.surface,
+                    tint = HazeTint(if (dark) GlassTintDark else GlassTintLight),
+                    blurRadius = 24.dp,
+                    noiseFactor = 0.02f,
+                ),
+            )
+            .border(1.dp, if (dark) GlassBorderDark else GlassBorderLight, shape)
+            .padding(horizontal = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            Modifier.size(44.dp).clip(CircleShape).clickable(onClick = onBack),
+            contentAlignment = Alignment.Center,
+        ) {
+            Canvas(Modifier.size(18.dp)) {
+                drawPath(
+                    Path().apply {
+                        moveTo(size.width * 0.62f, size.height * 0.16f)
+                        lineTo(size.width * 0.30f, size.height * 0.50f)
+                        lineTo(size.width * 0.62f, size.height * 0.84f)
+                    },
+                    color = iconColor,
+                    style = Stroke(2.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round),
+                )
+            }
+        }
+        Text(
+            title,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = iconColor,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.widthIn(max = 300.dp).padding(horizontal = 4.dp),
+        )
+        if (hasOutline) {
+            Box(
+                Modifier.size(44.dp).clip(CircleShape).clickable(onClick = onOutline),
+                contentAlignment = Alignment.Center,
+            ) {
+                Canvas(Modifier.size(18.dp)) {
+                    val sw = 2.dp.toPx()
+                    for (i in 0..2) {
+                        val y = size.height * (0.2f + 0.3f * i)
+                        val startX = if (i == 1) size.width * 0.25f else 0f
+                        drawLine(iconColor, Offset(startX, y), Offset(size.width, y), sw, cap = StrokeCap.Round)
+                    }
+                }
+            }
+        } else {
+            Spacer(Modifier.width(8.dp))
         }
     }
 }

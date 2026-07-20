@@ -18,6 +18,12 @@ class MarginaliaRepository @Inject constructor(
     fun observeLectures(courseId: String): Flow<List<LectureEntity>> =
         lectureDao.observeByCourse(courseId)
 
+    fun observeAllLectures(): Flow<List<LectureEntity>> = lectureDao.observeAll()
+
+    fun observeAllDocuments(): Flow<List<DocumentEntity>> = documentDao.observeAll()
+
+    fun observeLastWritten(): Flow<List<LectureTouch>> = strokeDao.observeLastWritten()
+
     fun observeDocuments(lectureId: String): Flow<List<DocumentEntity>> =
         documentDao.observeByLecture(lectureId)
 

@@ -65,6 +65,8 @@ dependencies {
 
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.haze)
+    implementation(libs.coil.compose)
+    implementation(libs.graphics.shapes)
     implementation(libs.pdfium)
 
     implementation(libs.room.runtime)
