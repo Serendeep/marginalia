@@ -4,12 +4,23 @@ import android.os.Bundle
 import android.os.SystemClock
 import android.view.KeyEvent
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import com.serendeep.marginalia.library.LibraryScreen
 import com.serendeep.marginalia.notebook.NotebookScreen
 import com.serendeep.marginalia.notebook.NotebookViewModel
 import com.serendeep.marginalia.ui.theme.MarginaliaTheme
 import dagger.hilt.android.AndroidEntryPoint
+
+private sealed class Screen {
+    data object Library : Screen()
+    data class Notebook(val lectureId: String) : Screen()
+}
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -21,7 +32,21 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             MarginaliaTheme {
-                NotebookScreen(notebookViewModel)
+                var screen by remember { mutableStateOf<Screen>(Screen.Library) }
+                when (val current = screen) {
+                    is Screen.Library -> LibraryScreen(
+                        onOpenLecture = { screen = Screen.Notebook(it) },
+                    )
+
+                    is Screen.Notebook -> {
+                        BackHandler { screen = Screen.Library }
+                        NotebookScreen(
+                            viewModel = notebookViewModel,
+                            lectureId = current.lectureId,
+                            onBack = { screen = Screen.Library },
+                        )
+                    }
+                }
             }
         }
     }
