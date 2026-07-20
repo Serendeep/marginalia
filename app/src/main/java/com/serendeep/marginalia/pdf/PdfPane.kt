@@ -21,6 +21,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -57,6 +58,7 @@ fun PdfPane(
     onWebLink: ((String) -> Unit)? = null,
     scrollToPage: Int? = null,
     onScrollHandled: (() -> Unit)? = null,
+    onFirstVisiblePage: ((Int) -> Unit)? = null,
 ) {
     BoxWithConstraints(modifier) {
         val widthPx = with(LocalDensity.current) { maxWidth.roundToPx() }
@@ -65,6 +67,13 @@ fun PdfPane(
         key(source) {
             val listState = rememberLazyListState()
             val scope = rememberCoroutineScope()
+
+            LaunchedEffect(listState, onFirstVisiblePage) {
+                if (onFirstVisiblePage != null) {
+                    snapshotFlow { listState.firstVisibleItemIndex }
+                        .collect { onFirstVisiblePage(it) }
+                }
+            }
 
             // Outside callers (the outline drawer) request a page here; consume
             // the request once done so the same page can be asked for again.
