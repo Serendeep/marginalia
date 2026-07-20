@@ -25,7 +25,7 @@ class MarginaliaRepositoryTest {
     fun setup() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         db = Room.inMemoryDatabaseBuilder(context, MarginaliaDatabase::class.java).build()
-        repo = MarginaliaRepository(db.courseDao(), db.lectureDao(), db.documentDao(), db.strokeDao())
+        repo = MarginaliaRepository(db.courseDao(), db.lectureDao(), db.documentDao(), db.strokeDao(), db.anchorDao())
     }
 
     @After
@@ -90,6 +90,39 @@ class MarginaliaRepositoryTest {
 
         assertTrue("strokes gone with the course", repo.loadStrokes(lecture.id).isEmpty())
         assertTrue("lectures gone with the course", repo.observeLectures(course.id).first().isEmpty())
+    }
+
+    @Test
+    fun removeAnchorUnbindsStrokes_andRestoreRebinds() = runBlocking {
+        val course = repo.createCourse("Systems")
+        val lecture = repo.createLecture(course.id, "Week 4")
+        val doc = repo.importDocument(lecture.id, "s.pdf", "/data/s.pdf", pageCount = 5)
+        val anchor = repo.createAnchor(lecture.id, doc.id, pdfPage = 2, pageXFraction = 0.4f, pageYFraction = 0.6f)
+        repo.saveStroke(
+            InkStroke(
+                id = "bound-1",
+                lectureId = lecture.id,
+                documentId = doc.id,
+                anchorId = anchor.id,
+                pdfPage = 2,
+                viewport = Box(0f, 0f, 595f, 842f),
+                bounds = Box(0f, 0f, 5f, 5f),
+                startedAt = 0,
+                endedAt = 5,
+                brushColor = 0xFF000000,
+                brushSizeDp = 2f,
+                batch = strokeOf(listOf(0f to 0f, 5f to 5f)),
+            ),
+        )
+
+        val bound = repo.removeAnchorAndUnbind(anchor.id)
+        assertEquals(listOf("bound-1"), bound)
+        assertEquals(null, repo.loadStrokes(lecture.id).single().anchorId)
+        assertTrue(repo.observeAnchors(lecture.id).first().isEmpty())
+
+        repo.restoreAnchor(anchor, bound)
+        assertEquals(anchor.id, repo.loadStrokes(lecture.id).single().anchorId)
+        assertEquals(1, repo.observeAnchors(lecture.id).first().size)
     }
 
     @Test

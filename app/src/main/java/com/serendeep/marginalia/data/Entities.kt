@@ -56,6 +56,31 @@ data class DocumentEntity(
     val versionIndex: Int,
 )
 
+// A link between a spot on a PDF page and the notes written about it.
+// Page position is stored as fractions of page size so it survives any zoom.
+@Entity(
+    tableName = "anchors",
+    foreignKeys = [
+        ForeignKey(
+            entity = LectureEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["lectureId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
+    indices = [Index("lectureId"), Index("documentId")],
+)
+data class AnchorEntity(
+    @PrimaryKey val id: String,
+    val lectureId: String,
+    val documentId: String,
+    val pdfPage: Int,
+    val pageXFraction: Float,
+    val pageYFraction: Float,
+    val label: Int,
+    val createdAt: Long,
+)
+
 // A single handwritten stroke. Ink geometry is a serialized blob; everything else
 // anchors the stroke to a spot in a document and a spot on the lecture canvas.
 @Entity(
@@ -68,12 +93,13 @@ data class DocumentEntity(
             onDelete = ForeignKey.CASCADE,
         ),
     ],
-    indices = [Index("lectureId"), Index("documentId")],
+    indices = [Index("lectureId"), Index("documentId"), Index("anchorId")],
 )
 data class StrokeEntity(
     @PrimaryKey val id: String,
     val lectureId: String,
     val documentId: String,
+    val anchorId: String? = null,
     val pdfPage: Int,
     // Page rect visible when the stroke was started, in PDF points.
     val viewportLeft: Float,

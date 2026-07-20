@@ -47,6 +47,21 @@ interface DocumentDao {
 }
 
 @Dao
+interface AnchorDao {
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insert(anchor: AnchorEntity)
+
+    @Query("SELECT * FROM anchors WHERE lectureId = :lectureId ORDER BY label")
+    fun observeByLecture(lectureId: String): Flow<List<AnchorEntity>>
+
+    @Query("SELECT COUNT(*) FROM anchors WHERE lectureId = :lectureId")
+    suspend fun countByLecture(lectureId: String): Int
+
+    @Query("DELETE FROM anchors WHERE id = :id")
+    suspend fun deleteById(id: String)
+}
+
+@Dao
 interface StrokeDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(stroke: StrokeEntity)
@@ -62,4 +77,13 @@ interface StrokeDao {
 
     @Query("DELETE FROM strokes WHERE id = :id")
     suspend fun deleteById(id: String)
+
+    @Query("SELECT id FROM strokes WHERE anchorId = :anchorId")
+    suspend fun idsBoundTo(anchorId: String): List<String>
+
+    @Query("UPDATE strokes SET anchorId = NULL WHERE anchorId = :anchorId")
+    suspend fun unbindAnchor(anchorId: String)
+
+    @Query("UPDATE strokes SET anchorId = :anchorId WHERE id IN (:strokeIds)")
+    suspend fun bindToAnchor(anchorId: String, strokeIds: List<String>)
 }

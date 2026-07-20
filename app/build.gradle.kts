@@ -47,9 +47,14 @@ ksp {
     arg("room.schemaLocation", "$projectDir/schemas")
 }
 
+android.sourceSets.getByName("androidTest") {
+    assets.srcDir("$projectDir/schemas")
+}
+
 dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.activity.compose)
 
     implementation(platform(libs.androidx.compose.bom))
@@ -67,11 +72,17 @@ dependencies {
     implementation(libs.ink.strokes)
     implementation(libs.ink.storage)
     implementation(libs.ink.brush)
+    implementation(libs.ink.authoring)
+    implementation(libs.ink.rendering)
+    implementation(libs.ink.geometry)
+    implementation(libs.input.motionprediction)
 
     implementation(libs.hilt.android)
+    implementation(libs.hilt.navigation.compose)
     ksp(libs.hilt.compiler)
 
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
+    androidTestImplementation(libs.room.testing)
     androidTestImplementation(platform(libs.androidx.compose.bom))
 }

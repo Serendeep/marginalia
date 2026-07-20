@@ -2,6 +2,7 @@ package com.serendeep.marginalia.di
 
 import android.content.Context
 import androidx.room.Room
+import com.serendeep.marginalia.data.AnchorDao
 import com.serendeep.marginalia.data.CourseDao
 import com.serendeep.marginalia.data.DocumentDao
 import com.serendeep.marginalia.data.LectureDao
@@ -21,7 +22,9 @@ object DatabaseModule {
     @Provides
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): MarginaliaDatabase =
-        Room.databaseBuilder(context, MarginaliaDatabase::class.java, "marginalia.db").build()
+        Room.databaseBuilder(context, MarginaliaDatabase::class.java, "marginalia.db")
+            .addMigrations(MarginaliaDatabase.MIGRATION_1_2)
+            .build()
 
     @Provides
     fun provideCourseDao(db: MarginaliaDatabase): CourseDao = db.courseDao()
@@ -34,4 +37,7 @@ object DatabaseModule {
 
     @Provides
     fun provideStrokeDao(db: MarginaliaDatabase): StrokeDao = db.strokeDao()
+
+    @Provides
+    fun provideAnchorDao(db: MarginaliaDatabase): AnchorDao = db.anchorDao()
 }
