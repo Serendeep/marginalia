@@ -123,13 +123,15 @@ fun PdfPane(
                 }
                     .debounce(150)
                     .collect { (settledZoom, _, _) ->
-                        sharp = if (settledZoom.zoomed) {
+                        val slice = if (settledZoom.zoomed) {
                             renderSharpSlice(
                                 source, listState, settledZoom, widthPx, viewportHeightPx, pagePadPx,
                             )
                         } else {
                             null
                         }
+                        // The render takes real time; only install it if nothing moved.
+                        if (zoom == settledZoom) sharp = slice
                     }
             }
 
@@ -157,6 +159,9 @@ fun PdfPane(
                                 // The stylus is ink-only, and a single finger at 1x
                                 // belongs to the list's own scrolling.
                                 if (pressed.any { it.type == PointerType.Stylus }) continue
+                                // Movement someone else consumed (the list mid-drag)
+                                // must not be applied to the zoom a second time.
+                                if (event.changes.any { it.isConsumed }) continue
                                 val multiTouch = pressed.size >= 2
                                 if (!multiTouch && !zoom.zoomed) continue
 
@@ -167,6 +172,9 @@ fun PdfPane(
 
                                 sharp = null
                                 val before = zoom
+                                // The layer transforms the viewport-sized box; content
+                                // taller than the viewport stays the list's business,
+                                // so the clamp is viewport-against-viewport on purpose.
                                 zoom = zoom
                                     .applyGesture(centroid.x, centroid.y, pan.x, pan.y, zoomChange)
                                     .clampToContent(
