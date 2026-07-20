@@ -6,9 +6,16 @@ import android.graphics.RectF
 import android.os.ParcelFileDescriptor
 import io.legere.pdfiumandroid.PdfDocument
 import io.legere.pdfiumandroid.PdfiumCore
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.io.File
+
+// Closing must wait for any in-flight render holding the document lock, but
+// callers close from non-suspend contexts; releases run here instead.
+private val closeScope = CoroutineScope(Dispatchers.IO)
 
 /**
  * A tappable region on a page. [bounds] is in fractions of page width/height
@@ -36,6 +43,7 @@ class PdfDocumentSource private constructor(
     private val document: PdfDocument,
 ) {
     private val lock = Mutex()
+    private var closed = false
     private val aspectRatios = HashMap<Int, Float>()
     private val pageLinks = HashMap<Int, List<PageLink>>()
 
@@ -65,6 +73,7 @@ class PdfDocumentSource private constructor(
 
     /** Link annotations on a page, with bounds as top-left-origin fractions. */
     suspend fun pageLinks(index: Int): List<PageLink> = lock.withLock {
+        if (closed) return@withLock emptyList()
         pageLinks.getOrPut(index) {
             runCatching {
                 document.openPage(index).use { page ->
@@ -95,6 +104,7 @@ class PdfDocumentSource private constructor(
 
     /** Page width divided by height, in PDF points. */
     suspend fun pageAspectRatio(index: Int): Float = lock.withLock {
+        if (closed) return@withLock 1f
         aspectRatios.getOrPut(index) {
             document.openPage(index).use { page ->
                 val w = page.getPageWidthPoint().coerceAtLeast(1)
@@ -106,6 +116,7 @@ class PdfDocumentSource private constructor(
 
     /** Render a whole page at [widthPx] wide, height following the page aspect. */
     suspend fun renderFullPage(index: Int, widthPx: Int): Bitmap = lock.withLock {
+        if (closed) return@withLock blank()
         document.openPage(index).use { page ->
             val w = page.getPageWidthPoint().coerceAtLeast(1)
             val h = page.getPageHeightPoint().coerceAtLeast(1)
@@ -131,6 +142,7 @@ class PdfDocumentSource private constructor(
         outWidthPx: Int,
         outHeightPx: Int,
     ): Bitmap = lock.withLock {
+        if (closed) return@withLock blank()
         document.openPage(index).use { page ->
             val bitmap = Bitmap.createBitmap(
                 outWidthPx.coerceAtLeast(1),
@@ -143,9 +155,17 @@ class PdfDocumentSource private constructor(
     }
 
     fun close() {
-        runCatching { document.close() }
-        runCatching { pfd.close() }
+        closeScope.launch {
+            lock.withLock {
+                if (closed) return@withLock
+                closed = true
+                runCatching { document.close() }
+                runCatching { pfd.close() }
+            }
+        }
     }
+
+    private fun blank(): Bitmap = Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
 
     companion object {
         fun open(context: Context, file: File): PdfDocumentSource =
@@ -153,7 +173,13 @@ class PdfDocumentSource private constructor(
 
         fun open(context: Context, pfd: ParcelFileDescriptor): PdfDocumentSource {
             val core = PdfiumCore(context)
-            return PdfDocumentSource(pfd, core.newDocument(pfd))
+            val document = try {
+                core.newDocument(pfd)
+            } catch (t: Throwable) {
+                runCatching { pfd.close() }
+                throw t
+            }
+            return PdfDocumentSource(pfd, document)
         }
     }
 }
