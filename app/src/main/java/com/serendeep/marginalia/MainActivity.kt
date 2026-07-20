@@ -6,11 +6,22 @@ import android.view.KeyEvent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import com.serendeep.marginalia.library.LibraryScreen
 import com.serendeep.marginalia.notebook.NotebookScreen
 import com.serendeep.marginalia.notebook.NotebookViewModel
@@ -30,21 +41,38 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
         setContent {
             MarginaliaTheme {
                 var screen by remember { mutableStateOf<Screen>(Screen.Library) }
-                when (val current = screen) {
-                    is Screen.Library -> LibraryScreen(
-                        onOpenLecture = { screen = Screen.Notebook(it) },
-                    )
-
-                    is Screen.Notebook -> {
-                        BackHandler { screen = Screen.Library }
-                        NotebookScreen(
-                            viewModel = notebookViewModel,
-                            lectureId = current.lectureId,
-                            onBack = { screen = Screen.Library },
+                AnimatedContent(
+                    targetState = screen,
+                    modifier = Modifier.fillMaxSize().statusBarsPadding(),
+                    transitionSpec = {
+                        // Opening a notebook slides content in from the right;
+                        // returning to the library slides back the other way.
+                        val forward = targetState is Screen.Notebook
+                        val dir = if (forward) 1 else -1
+                        (slideInHorizontally(tween(260)) { dir * it / 10 } + fadeIn(tween(260)))
+                            .togetherWith(
+                                slideOutHorizontally(tween(260)) { -dir * it / 10 } + fadeOut(tween(200)),
+                            )
+                    },
+                    label = "screen",
+                ) { current ->
+                    when (current) {
+                        is Screen.Library -> LibraryScreen(
+                            onOpenLecture = { screen = Screen.Notebook(it) },
                         )
+
+                        is Screen.Notebook -> {
+                            BackHandler { screen = Screen.Library }
+                            NotebookScreen(
+                                viewModel = notebookViewModel,
+                                lectureId = current.lectureId,
+                                onBack = { screen = Screen.Library },
+                            )
+                        }
                     }
                 }
             }
