@@ -13,10 +13,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
@@ -30,6 +32,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -47,15 +50,23 @@ fun LibraryScreen(
     val error by viewModel.error.collectAsStateWithLifecycle()
     var showNewCourse by remember { mutableStateOf(false) }
 
-    // One screen-level launcher: a per-row launcher inside the lazy list would
-    // unregister when its row is recycled while the system picker is open.
+    // One screen-level launcher for every import flow; a per-row launcher inside
+    // the lazy list would unregister when its row is recycled while the system
+    // picker is open. The target string encodes where the picked PDFs go:
+    // "quick" or "quick:<courseId>" spawn filename-titled lectures, and
+    // "replace:<lectureId>" adds a new version to an existing lecture.
     var importTarget by rememberSaveable { mutableStateOf<String?>(null) }
-    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris: List<Uri> ->
         val target = importTarget
         importTarget = null
-        if (uri != null && target != null) viewModel.importPdf(target, uri)
+        when {
+            uris.isEmpty() || target == null -> Unit
+            target == "quick" -> viewModel.quickImport(uris)
+            target.startsWith("quick:") -> viewModel.quickImport(uris, target.removePrefix("quick:"))
+            target.startsWith("replace:") -> viewModel.importPdf(target.removePrefix("replace:"), uris.first())
+        }
     }
-    val onImport: (String) -> Unit = {
+    val launchImport: (String) -> Unit = {
         importTarget = it
         picker.launch(arrayOf("application/pdf"))
     }
@@ -64,9 +75,14 @@ fun LibraryScreen(
         Row(
             Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             Text("Library", style = MaterialTheme.typography.headlineMedium)
-            TextButton(onClick = { showNewCourse = true }) { Text("New course") }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                TextButton(onClick = { showNewCourse = true }) { Text("New course") }
+                Spacer(Modifier.width(8.dp))
+                Button(onClick = { launchImport("quick") }) { Text("Import PDFs") }
+            }
         }
 
         error?.let { message ->
@@ -84,9 +100,32 @@ fun LibraryScreen(
 
         Spacer(Modifier.height(12.dp))
 
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            items(courses, key = { it.id }) { course ->
-                CourseCard(course, viewModel, onOpenLecture, onImport)
+        val unsorted = courses.firstOrNull { it.name == LibraryViewModel.UNSORTED_NAME }
+        val grouped = courses.filterNot { it.id == unsorted?.id }
+
+        if (courses.isEmpty()) {
+            Column(
+                Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.Center,
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text("Import a PDF to get started", style = MaterialTheme.typography.bodyLarge)
+                Text(
+                    "Each PDF becomes a notebook, named after the file",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        } else {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                if (unsorted != null) {
+                    item(key = unsorted.id) {
+                        UnsortedSection(unsorted, viewModel, onOpenLecture, launchImport)
+                    }
+                }
+                items(grouped, key = { it.id }) { course ->
+                    CourseCard(course, viewModel, onOpenLecture, launchImport)
+                }
             }
         }
     }
@@ -103,6 +142,23 @@ fun LibraryScreen(
     }
 }
 
+/** Quick-imported notebooks, listed flat above the course groups. */
+@Composable
+private fun UnsortedSection(
+    course: CourseEntity,
+    viewModel: LibraryViewModel,
+    onOpenLecture: (String) -> Unit,
+    onImport: (String) -> Unit,
+) {
+    val lectures by viewModel.lecturesOf(course.id).collectAsStateWithLifecycle(initialValue = emptyList())
+    if (lectures.isEmpty()) return
+    Column {
+        lectures.forEach { lecture ->
+            LectureRow(lecture, viewModel, onOpenLecture, onImport)
+        }
+    }
+}
+
 @Composable
 private fun CourseCard(
     course: CourseEntity,
@@ -111,7 +167,6 @@ private fun CourseCard(
     onImport: (String) -> Unit,
 ) {
     var expanded by remember { mutableStateOf(true) }
-    var showNewLecture by remember { mutableStateOf(false) }
     val lectures by viewModel.lecturesOf(course.id).collectAsStateWithLifecycle(initialValue = emptyList())
 
     Card(
@@ -133,20 +188,9 @@ private fun CourseCard(
                 lectures.forEach { lecture ->
                     LectureRow(lecture, viewModel, onOpenLecture, onImport)
                 }
-                TextButton(onClick = { showNewLecture = true }) { Text("New lecture") }
+                TextButton(onClick = { onImport("quick:${course.id}") }) { Text("Add PDF") }
             }
         }
-    }
-
-    if (showNewLecture) {
-        NamePromptDialog(
-            title = "New lecture",
-            onDismiss = { showNewLecture = false },
-            onConfirm = {
-                viewModel.createLecture(course.id, it)
-                showNewLecture = false
-            },
-        )
     }
 }
 
@@ -175,7 +219,7 @@ private fun LectureRow(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        TextButton(onClick = { onImport(lecture.id) }) {
+        TextButton(onClick = { onImport("replace:${lecture.id}") }) {
             Text(if (latest == null) "Import PDF" else "Replace")
         }
     }

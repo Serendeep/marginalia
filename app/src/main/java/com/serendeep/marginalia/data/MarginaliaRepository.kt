@@ -62,6 +62,8 @@ class MarginaliaRepository @Inject constructor(
         return document
     }
 
+    suspend fun deleteLecture(lecture: LectureEntity) = lectureDao.delete(lecture)
+
     suspend fun saveStroke(stroke: InkStroke) = strokeDao.insert(stroke.toEntity())
 
     suspend fun saveStrokes(strokes: List<InkStroke>) = strokeDao.insertAll(strokes.map { it.toEntity() })
