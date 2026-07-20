@@ -34,6 +34,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
@@ -151,6 +152,8 @@ fun PdfPane(
             Box(
                 Modifier
                     .fillMaxSize()
+                    // Scaled content must never paint outside the pane.
+                    .clipToBounds()
                     .pointerInput(source) {
                         detectTapGestures(onDoubleTap = { tap ->
                             sharp = null
