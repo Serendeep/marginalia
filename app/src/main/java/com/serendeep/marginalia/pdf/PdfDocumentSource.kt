@@ -48,7 +48,11 @@ class PdfDocumentSource private constructor(
         fun walk(nodes: List<PdfDocument.Bookmark>, depth: Int) {
             if (depth >= 3) return
             for (node in nodes) {
-                flat += OutlineNode(node.title.orEmpty(), node.pageIdx.toInt(), depth)
+                // Skip bookmarks whose destination never resolved.
+                val page = node.pageIdx.toInt()
+                if (page in 0 until pageCount) {
+                    flat += OutlineNode(node.title.orEmpty(), page, depth)
+                }
                 walk(node.children, depth + 1)
             }
         }
