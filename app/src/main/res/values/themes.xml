@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Compose supplies the real theming (M2 design system); this XML theme just
+         gives the Activity a no-action-bar shell with no extra dependency. -->
+    <style name="Theme.Marginalia" parent="android:Theme.Material.Light.NoActionBar" />
+</resources>
