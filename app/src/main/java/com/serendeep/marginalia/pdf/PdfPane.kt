@@ -3,47 +3,93 @@ package com.serendeep.marginalia.pdf
 import android.graphics.Bitmap
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import androidx.compose.runtime.LaunchedEffect
 
+/** A dot pinned to a spot on a page, holding the link to related notes. */
+data class PageAnchor(
+    val id: String,
+    val page: Int,
+    val xFraction: Float,
+    val yFraction: Float,
+    val label: Int,
+)
+
 /** Vertical scroll of a PDF's pages, each rendered to fit the pane width. */
 @Composable
-fun PdfPane(source: PdfDocumentSource, modifier: Modifier = Modifier) {
+fun PdfPane(
+    source: PdfDocumentSource,
+    modifier: Modifier = Modifier,
+    anchors: List<PageAnchor> = emptyList(),
+    onPageLongPress: ((page: Int, xFraction: Float, yFraction: Float) -> Unit)? = null,
+    onAnchorTap: ((id: String) -> Unit)? = null,
+    onAnchorRemove: ((id: String) -> Unit)? = null,
+) {
     BoxWithConstraints(modifier) {
         val widthPx = with(LocalDensity.current) { maxWidth.roundToPx() }
-        LazyColumn(Modifier.fillMaxSize()) {
-            items((0 until source.pageCount).toList()) { index ->
-                PdfPageItem(source, index, widthPx)
+        // Rebuild the list from scratch when the document changes so a new PDF
+        // doesn't reuse the previous one's cached pages or scroll position.
+        key(source) {
+            LazyColumn(Modifier.fillMaxSize()) {
+                items(source.pageCount) { index ->
+                    PdfPageItem(
+                        source = source,
+                        index = index,
+                        widthPx = widthPx,
+                        anchors = anchors.filter { it.page == index },
+                        onLongPress = onPageLongPress?.let { cb ->
+                            { fx, fy -> cb(index, fx, fy) }
+                        },
+                        onAnchorTap = onAnchorTap,
+                        onAnchorRemove = onAnchorRemove,
+                    )
+                }
             }
         }
     }
 }
 
 @Composable
-private fun PdfPageItem(source: PdfDocumentSource, index: Int, widthPx: Int) {
-    var bitmap by remember(index, widthPx) { mutableStateOf<Bitmap?>(null) }
-    var aspect by remember(index) { mutableStateOf(0.7f) }
+private fun PdfPageItem(
+    source: PdfDocumentSource,
+    index: Int,
+    widthPx: Int,
+    anchors: List<PageAnchor> = emptyList(),
+    onLongPress: ((xFraction: Float, yFraction: Float) -> Unit)? = null,
+    onAnchorTap: ((id: String) -> Unit)? = null,
+    onAnchorRemove: ((id: String) -> Unit)? = null,
+) {
+    var bitmap by remember(source, index, widthPx) { mutableStateOf<Bitmap?>(null) }
+    var aspect by remember(source, index) { mutableStateOf(0.7f) }
 
-    LaunchedEffect(index, widthPx) {
+    LaunchedEffect(source, index, widthPx) {
         if (widthPx <= 0) return@LaunchedEffect
         aspect = source.pageAspectRatio(index)
         bitmap = withContext(Dispatchers.Default) { source.renderFullPage(index, widthPx) }
@@ -57,7 +103,16 @@ private fun PdfPageItem(source: PdfDocumentSource, index: Int, widthPx: Int) {
             .fillMaxWidth()
             .height(heightDp)
             .padding(vertical = 4.dp)
-            .background(if (current == null) Color(0xFFEAEAEA) else Color.White),
+            .background(if (current == null) Color(0xFFEAEAEA) else Color.White)
+            .pointerInput(index, onLongPress) {
+                detectTapGestures(
+                    onLongPress = { offset ->
+                        if (size.width > 0 && size.height > 0) {
+                            onLongPress?.invoke(offset.x / size.width, offset.y / size.height)
+                        }
+                    },
+                )
+            },
     ) {
         if (current != null) {
             Image(
@@ -67,7 +122,48 @@ private fun PdfPageItem(source: PdfDocumentSource, index: Int, widthPx: Int) {
                 contentScale = ContentScale.FillWidth,
             )
         }
+        val widthDp = with(LocalDensity.current) { widthPx.toDp() }
+        anchors.forEach { anchor ->
+            AnchorMarker(
+                anchor = anchor,
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .offset(
+                        x = widthDp * anchor.xFraction - 11.dp,
+                        y = heightDp * anchor.yFraction - 11.dp,
+                    ),
+                onTap = { onAnchorTap?.invoke(anchor.id) },
+                onRemove = { onAnchorRemove?.invoke(anchor.id) },
+            )
+        }
     }
     // ponytail: bitmaps for scrolled-away pages are dropped by LazyColumn and left to GC.
     // Add an LRU bitmap cache with safe recycling if very large PDFs cause memory pressure.
+}
+
+@Composable
+private fun AnchorMarker(
+    anchor: PageAnchor,
+    modifier: Modifier,
+    onTap: () -> Unit,
+    onRemove: () -> Unit,
+) {
+    androidx.compose.foundation.layout.Box(
+        modifier
+            .size(22.dp)
+            .background(Color(0xFF3557A6), CircleShape)
+            .pointerInput(anchor.id) {
+                detectTapGestures(
+                    onTap = { onTap() },
+                    onLongPress = { onRemove() },
+                )
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = anchor.label.toString(),
+            color = Color.White,
+            fontSize = 11.sp,
+        )
+    }
 }
