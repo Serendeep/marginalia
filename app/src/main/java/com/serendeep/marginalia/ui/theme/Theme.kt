@@ -2,6 +2,7 @@ package com.serendeep.marginalia.ui.theme
 
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
@@ -83,7 +84,14 @@ fun MarginaliaTheme(
             colorScheme = if (darkTheme) DarkColors else LightColors,
             typography = MarginaliaTypography,
             shapes = MarginaliaShapes,
-            content = content,
-        )
+        ) {
+            // Without a root Surface, LocalContentColor stays at its default
+            // (black) and every text outside a Card/Button ignores the theme.
+            Surface(
+                color = MaterialTheme.colorScheme.background,
+                contentColor = MaterialTheme.colorScheme.onBackground,
+                content = content,
+            )
+        }
     }
 }
