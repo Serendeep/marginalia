@@ -126,7 +126,11 @@ fun NotebookScreen(viewModel: NotebookViewModel = hiltViewModel()) {
                 confirmButton = {
                     TextButton(onClick = {
                         pendingWebLink = null
-                        runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
+                        val parsed = Uri.parse(url)
+                        // Only ever hand http(s) to the system; PDFs can carry hostile schemes.
+                        if (parsed.scheme == "http" || parsed.scheme == "https") {
+                            runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, parsed)) }
+                        }
                     }) { Text("Open") }
                 },
                 dismissButton = {
