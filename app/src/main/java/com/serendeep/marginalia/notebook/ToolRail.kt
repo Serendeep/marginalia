@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -22,10 +23,13 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.addPathNodes
 import androidx.compose.ui.unit.dp
 import com.serendeep.marginalia.ink.InkTool
 import com.serendeep.marginalia.ink.Pen
@@ -81,8 +85,8 @@ fun ToolRail(
             color = Color.White.copy(alpha = 0.14f),
         )
         EraserButton(selected = tool == InkTool.ERASER, onClick = onEraser)
-        HistoryButton(enabled = canUndo, mirrored = false, onClick = onUndo)
-        HistoryButton(enabled = canRedo, mirrored = true, onClick = onRedo)
+        HistoryButton(enabled = canUndo, glyph = UndoGlyph, onClick = onUndo)
+        HistoryButton(enabled = canRedo, glyph = RedoGlyph, onClick = onRedo)
     }
 }
 
@@ -138,41 +142,40 @@ private fun EraserButton(selected: Boolean, onClick: () -> Unit) {
     }
 }
 
-/**
- * Undo ([mirrored] = false) or redo ([mirrored] = true): a flat-topped arc
- * curving down-left with an arrowhead at its start, the standard glyph pair.
- */
+// Standard Material undo/redo outlines, embedded as path data so no icon
+// library is needed.
+private val UndoGlyph = historyGlyph(
+    "undo",
+    "M12.5,8c-2.65,0 -5.05,0.99 -6.9,2.6L2,7v9h9l-3.62,-3.62c1.39,-1.16 3.16,-1.88 5.12,-1.88 3.54,0 6.55,2.31 7.6,5.5l2.37,-0.78C21.08,11.03 17.15,8 12.5,8z",
+)
+private val RedoGlyph = historyGlyph(
+    "redo",
+    "M18.4,10.6C16.55,8.99 14.15,8 11.5,8c-4.65,0 -8.58,3.03 -9.96,7.22L3.9,16c1.05,-3.19 4.05,-5.5 7.6,-5.5 1.95,0 3.73,0.72 5.12,1.88L13,16h9V7l-3.6,3.6z",
+)
+
+private fun historyGlyph(name: String, pathData: String): ImageVector =
+    ImageVector.Builder(
+        name = name,
+        defaultWidth = 22.dp,
+        defaultHeight = 22.dp,
+        viewportWidth = 24f,
+        viewportHeight = 24f,
+    ).addPath(
+        pathData = addPathNodes(pathData),
+        fill = SolidColor(IconColor),
+    ).build()
+
 @Composable
-private fun HistoryButton(enabled: Boolean, mirrored: Boolean, onClick: () -> Unit) {
+private fun HistoryButton(enabled: Boolean, glyph: ImageVector, onClick: () -> Unit) {
     Box(
         Modifier.size(TOUCH_TARGET_DP.dp).clickable(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Canvas(
-            Modifier
-                .size(22.dp)
-                .graphicsLayer {
-                    scaleX = if (mirrored) -1f else 1f
-                    this.alpha = if (enabled) 1f else 0.35f
-                },
-        ) {
-            val strokeWidth = 2.dp.toPx()
-            val w = size.width
-            val h = size.height
-            // Arrow tip at the arc's left end pointing down; the arc climbs
-            // from it over the top and hooks down the right side.
-            val tip = Offset(w * 0.2f, h * 0.5f)
-            drawArc(
-                color = IconColor,
-                startAngle = 180f,
-                sweepAngle = 225f,
-                useCenter = false,
-                topLeft = Offset(w * 0.2f, h * 0.2f),
-                size = Size(w * 0.6f, h * 0.6f),
-                style = Stroke(strokeWidth, cap = StrokeCap.Round),
-            )
-            drawLine(IconColor, tip, Offset(tip.x + 5.5.dp.toPx(), tip.y), strokeWidth, cap = StrokeCap.Round)
-            drawLine(IconColor, tip, Offset(tip.x + 1.5.dp.toPx(), tip.y - 5.5.dp.toPx()), strokeWidth, cap = StrokeCap.Round)
-        }
+        Icon(
+            glyph,
+            contentDescription = glyph.name,
+            tint = Color.Unspecified,
+            modifier = Modifier.graphicsLayer { this.alpha = if (enabled) 1f else 0.35f },
+        )
     }
 }
