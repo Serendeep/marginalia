@@ -7,7 +7,10 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Path
 import androidx.compose.foundation.layout.Arrangement
@@ -64,7 +67,6 @@ fun NotebookScreen(viewModel: NotebookViewModel = hiltViewModel()) {
     var source by remember { mutableStateOf<PdfDocumentSource?>(null) }
     var pendingWebLink by remember { mutableStateOf<String?>(null) }
     var showOutline by remember { mutableStateOf(false) }
-    var outlineTarget by remember { mutableStateOf<Int?>(null) }
 
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
         if (uri == null) return@rememberLauncherForActivityResult
@@ -94,7 +96,23 @@ fun NotebookScreen(viewModel: NotebookViewModel = hiltViewModel()) {
     }
 
     Row(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        Column(Modifier.weight(1f).fillMaxHeight().padding(top = 12.dp)) {
+        Column(
+            Modifier
+                .weight(1f)
+                .fillMaxHeight()
+                .padding(top = 12.dp)
+                // A real touch on this pane is what makes the PDF the sync driver;
+                // observe only, never consume.
+                .pointerInput(Unit) {
+                    awaitEachGesture {
+                        awaitFirstDown(requireUnconsumed = false)
+                        viewModel.onPdfTouched()
+                        while (awaitPointerEvent().changes.any { it.pressed }) {
+                            // Wait out the gesture.
+                        }
+                    }
+                },
+        ) {
             Row(
                 Modifier.padding(horizontal = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -126,11 +144,8 @@ fun NotebookScreen(viewModel: NotebookViewModel = hiltViewModel()) {
                     onAnchorTap = viewModel::flashAnchor,
                     onAnchorRemove = viewModel::removeAnchor,
                     onWebLink = { pendingWebLink = it },
-                    scrollToPage = outlineTarget ?: pdfSyncTarget,
-                    onScrollHandled = {
-                        outlineTarget = null
-                        viewModel.onPdfScrollHandled()
-                    },
+                    scrollToPage = pdfSyncTarget,
+                    onScrollHandled = viewModel::onPdfScrollHandled,
                     onFirstVisiblePage = viewModel::onPdfFirstVisiblePage,
                 )
             }
@@ -169,7 +184,7 @@ fun NotebookScreen(viewModel: NotebookViewModel = hiltViewModel()) {
                                 .fillMaxWidth()
                                 .clickable {
                                     showOutline = false
-                                    outlineTarget = node.pageIndex
+                                    viewModel.requestPdfPage(node.pageIndex)
                                 }
                                 .padding(
                                     start = 24.dp + 20.dp * node.depth,
