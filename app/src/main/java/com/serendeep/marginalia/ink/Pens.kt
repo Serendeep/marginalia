@@ -12,3 +12,5 @@ object Pens {
     fun pen(colorArgb: Int, sizePx: Float): Brush =
         Brush(StockBrushes.pressurePen(), sizePx, EPSILON).copyWithColorIntArgb(colorArgb)
 }
+
+enum class Pen { GRAPHITE, INDIGO, RUST }

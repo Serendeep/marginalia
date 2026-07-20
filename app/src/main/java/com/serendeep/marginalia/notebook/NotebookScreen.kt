@@ -27,7 +27,6 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
@@ -51,6 +50,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.serendeep.marginalia.ink.InkCanvas
 import com.serendeep.marginalia.ink.InkTool
+import com.serendeep.marginalia.ink.Pen
 import com.serendeep.marginalia.ink.Pens
 import com.serendeep.marginalia.pdf.PageAnchor
 import com.serendeep.marginalia.pdf.PdfDocumentSource
@@ -86,6 +86,8 @@ fun NotebookScreen(viewModel: NotebookViewModel = hiltViewModel()) {
 
     val strokes by viewModel.strokes.collectAsStateWithLifecycle()
     val tool by viewModel.tool.collectAsStateWithLifecycle()
+    val selectedPen by viewModel.selectedPen.collectAsStateWithLifecycle()
+    val penDown by viewModel.penDown.collectAsStateWithLifecycle()
     val anchors by viewModel.anchors.collectAsStateWithLifecycle()
     val activeAnchor by viewModel.activeAnchor.collectAsStateWithLifecycle()
     val canvasOffset by viewModel.canvasOffset.collectAsStateWithLifecycle()
@@ -228,10 +230,16 @@ fun NotebookScreen(viewModel: NotebookViewModel = hiltViewModel()) {
                     }
                 },
         ) {
+            val penPalette = LocalPenPalette.current
+            val penColor = when (selectedPen) {
+                Pen.GRAPHITE -> penPalette.graphite
+                Pen.INDIGO -> penPalette.indigo
+                Pen.RUST -> penPalette.rust
+            }
             InkCanvas(
                 strokes = strokeList,
                 tool = tool,
-                penColor = LocalPenPalette.current.graphite.toArgb(),
+                penColor = penColor.toArgb(),
                 penSizePx = Pens.DEFAULT_SIZE_PX,
                 canvasOffset = canvasOffset,
                 onStrokeFinished = viewModel::onStrokeFinished,
@@ -241,23 +249,15 @@ fun NotebookScreen(viewModel: NotebookViewModel = hiltViewModel()) {
                 onPenActive = viewModel::setPenActive,
             )
 
-            Row(
-                Modifier.align(Alignment.TopEnd).padding(8.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                FilterChip(
-                    selected = tool == InkTool.PEN,
-                    onClick = { viewModel.setTool(InkTool.PEN) },
-                    label = { Text("Pen") },
-                )
-                FilterChip(
-                    selected = tool == InkTool.ERASER,
-                    onClick = { viewModel.setTool(InkTool.ERASER) },
-                    label = { Text("Eraser") },
-                )
-                TextButton(onClick = viewModel::undo) { Text("Undo") }
-            }
+            ToolRail(
+                tool = tool,
+                selectedPen = selectedPen,
+                penDown = penDown,
+                onSelectPen = viewModel::selectPen,
+                onEraser = { viewModel.setTool(InkTool.ERASER) },
+                onUndo = viewModel::undo,
+                modifier = Modifier.align(Alignment.TopEnd).padding(12.dp),
+            )
 
             activeAnchor?.let { anchor ->
                 AssistChip(
