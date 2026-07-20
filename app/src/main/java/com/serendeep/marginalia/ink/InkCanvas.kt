@@ -3,8 +3,10 @@ package com.serendeep.marginalia.ink
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Matrix
+import android.os.SystemClock
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewConfiguration
 import android.view.ViewGroup
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -79,6 +81,17 @@ fun InkCanvas(
                         onScrollBy = onScroll,
                         onPenActive = { onPen(it) },
                     )
+                }
+                // Hovering counts as "pen near" so a palm landing just before the
+                // nib does is already ignored.
+                inkView.setOnGenericMotionListener { _, e ->
+                    val hovering = e.actionMasked == MotionEvent.ACTION_HOVER_ENTER ||
+                        e.actionMasked == MotionEvent.ACTION_HOVER_MOVE
+                    if (hovering && e.getToolType(0) == MotionEvent.TOOL_TYPE_STYLUS) {
+                        touch.stylusNearUntil =
+                            SystemClock.uptimeMillis() + InkTouchHandler.STYLUS_NEAR_MS
+                    }
+                    false
                 }
             }
         },
@@ -176,7 +189,13 @@ private class InkTouchHandler(
 ) {
     private var strokeId: InProgressStrokeId? = null
     private var pointerId = MotionEvent.INVALID_POINTER_ID
+    private var scrollPointerId = MotionEvent.INVALID_POINTER_ID
     private var fingerY = 0f
+    private var scrolling = false
+    private val touchSlop = ViewConfiguration.get(view.context).scaledTouchSlop
+
+    /** While the stylus hovers or touches, finger contacts are palms, not scrolls. */
+    var stylusNearUntil = 0L
 
     fun onTouch(
         event: MotionEvent,
@@ -187,18 +206,54 @@ private class InkTouchHandler(
         onPenActive: (Boolean) -> Unit,
     ): Boolean {
         if (event.getToolType(0) == MotionEvent.TOOL_TYPE_STYLUS) {
+            stylusNearUntil = SystemClock.uptimeMillis() + STYLUS_NEAR_MS
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> onPenActive(true)
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> onPenActive(false)
             }
         }
         if (event.getToolType(0) != MotionEvent.TOOL_TYPE_STYLUS) {
-            // Fingers never ink; a single-finger drag scrolls the sheet.
+            // Fingers never ink; a single clean finger drag scrolls the sheet.
+            // A contact while the pen is near is a resting palm and does nothing.
+            if (SystemClock.uptimeMillis() < stylusNearUntil) {
+                scrolling = false
+                scrollPointerId = MotionEvent.INVALID_POINTER_ID
+                return true
+            }
             when (event.actionMasked) {
-                MotionEvent.ACTION_DOWN -> fingerY = event.y
-                MotionEvent.ACTION_MOVE -> {
-                    onScrollBy(fingerY - event.y)
+                MotionEvent.ACTION_DOWN -> {
+                    scrollPointerId = event.getPointerId(0)
                     fingerY = event.y
+                    scrolling = false
+                }
+
+                // A second contact means a palm blob; abandon the scroll gesture.
+                MotionEvent.ACTION_POINTER_DOWN -> {
+                    scrollPointerId = MotionEvent.INVALID_POINTER_ID
+                    scrolling = false
+                }
+
+                MotionEvent.ACTION_MOVE -> {
+                    if (event.pointerCount > 1) return true
+                    val idx = event.findPointerIndex(scrollPointerId)
+                    if (idx < 0) return true
+                    val y = event.getY(idx)
+                    val dy = fingerY - y
+                    if (!scrolling) {
+                        // Resting jitter stays put; real drags pass the slop first.
+                        if (kotlin.math.abs(dy) > touchSlop) {
+                            scrolling = true
+                            fingerY = y
+                        }
+                    } else {
+                        onScrollBy(dy)
+                        fingerY = y
+                    }
+                }
+
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    scrollPointerId = MotionEvent.INVALID_POINTER_ID
+                    scrolling = false
                 }
             }
             return true
@@ -246,5 +301,9 @@ private class InkTouchHandler(
 
             else -> false
         }
+    }
+
+    companion object {
+        const val STYLUS_NEAR_MS = 600L
     }
 }
