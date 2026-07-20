@@ -27,17 +27,24 @@ class LibraryImportTest {
     private lateinit var importer: PdfImporter
     private lateinit var pdfsDir: File
 
+    // The real app's imported PDFs live in filesDir/pdfs; never wipe it.
+    // Assertions compare against this snapshot instead of an empty dir.
+    private lateinit var preExisting: Set<String>
+
     @Before
     fun setup() {
         db = Room.inMemoryDatabaseBuilder(context, MarginaliaDatabase::class.java).build()
         repo = MarginaliaRepository(db.courseDao(), db.lectureDao(), db.documentDao(), db.strokeDao(), db.anchorDao())
         importer = PdfImporter(context, repo)
         pdfsDir = File(context.filesDir, "pdfs")
-        pdfsDir.deleteRecursively()
+        preExisting = pdfsDir.list()?.toSet() ?: emptySet()
     }
 
     @After
-    fun teardown() = db.close()
+    fun teardown() {
+        db.close()
+        pdfsDir.list()?.filterNot { it in preExisting }?.forEach { File(pdfsDir, it).delete() }
+    }
 
     @Test
     fun validPdfIsCopiedAndRegistered() = runBlocking {
@@ -68,7 +75,8 @@ class LibraryImportTest {
         val result = importer.import(lecture.id, garbage.toUri())
 
         assertTrue("rejected as failure", result is PdfImporter.Result.Failure)
-        assertTrue("no copied file left behind", pdfsDir.listFiles().isNullOrEmpty())
+        val leftover = pdfsDir.list()?.filterNot { it in preExisting }.orEmpty()
+        assertTrue("no copied file left behind: $leftover", leftover.isEmpty())
         assertTrue("no document row created", repo.observeDocuments(lecture.id).first().isEmpty())
     }
 
