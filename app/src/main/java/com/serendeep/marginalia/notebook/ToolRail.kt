@@ -4,6 +4,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,10 +19,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
@@ -33,18 +35,23 @@ import androidx.compose.ui.graphics.vector.addPathNodes
 import androidx.compose.ui.unit.dp
 import com.serendeep.marginalia.ink.InkTool
 import com.serendeep.marginalia.ink.Pen
-import com.serendeep.marginalia.ui.theme.ChromeDark
-import com.serendeep.marginalia.ui.theme.ChromeLight
+import com.serendeep.marginalia.ui.theme.GlassBorderDark
+import com.serendeep.marginalia.ui.theme.GlassBorderLight
+import com.serendeep.marginalia.ui.theme.GlassTintDark
+import com.serendeep.marginalia.ui.theme.GlassTintLight
+import com.serendeep.marginalia.ui.theme.InkLight
 import com.serendeep.marginalia.ui.theme.LocalDarkTheme
 import com.serendeep.marginalia.ui.theme.LocalPenPalette
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.HazeStyle
+import dev.chrisbanes.haze.HazeTint
+import dev.chrisbanes.haze.hazeEffect
 
-private val IconColor = Color(0xFFEDEFF2)
-private val RingColor = Color.White.copy(alpha = 0.85f)
 private val DimSpec = tween<Float>(180)
 private const val TOUCH_TARGET_DP = 44
 private const val SWATCH_DIAMETER_DP = 18
 
-/** Floating vertical icon rail: pen swatches, eraser, undo/redo. */
+/** Floating frosted-glass rail: pen swatches, eraser, undo/redo. */
 @Composable
 fun ToolRail(
     tool: InkTool,
@@ -56,42 +63,60 @@ fun ToolRail(
     onEraser: () -> Unit,
     onUndo: () -> Unit,
     onRedo: () -> Unit,
+    hazeState: HazeState,
     modifier: Modifier = Modifier,
 ) {
-    val chrome = if (LocalDarkTheme.current) ChromeDark else ChromeLight
+    val dark = LocalDarkTheme.current
+    val iconColor = if (dark) Color(0xFFE8EAEE) else InkLight
     val palette = LocalPenPalette.current
+    val accent = MaterialTheme.colorScheme.primary
     val alpha by animateFloatAsState(if (penDown) 0.25f else 1f, DimSpec, label = "toolRailAlpha")
-    val shape = RoundedCornerShape(22.dp)
+    val shape = RoundedCornerShape(29.dp)
 
     Column(
         modifier
             .graphicsLayer { this.alpha = alpha }
-            .shadow(6.dp, shape)
-            .background(chrome, shape)
-            .padding(6.dp),
+            .clip(shape)
+            .hazeEffect(
+                state = hazeState,
+                style = HazeStyle(
+                    backgroundColor = MaterialTheme.colorScheme.surface,
+                    tint = HazeTint(if (dark) GlassTintDark else GlassTintLight),
+                    blurRadius = 24.dp,
+                    noiseFactor = 0.02f,
+                ),
+            )
+            .border(1.dp, if (dark) GlassBorderDark else GlassBorderLight, shape)
+            .padding(vertical = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        PenSwatch(palette.graphite, selected = tool == InkTool.PEN && selectedPen == Pen.GRAPHITE) {
-            onSelectPen(Pen.GRAPHITE)
-        }
-        PenSwatch(palette.indigo, selected = tool == InkTool.PEN && selectedPen == Pen.INDIGO) {
-            onSelectPen(Pen.INDIGO)
-        }
-        PenSwatch(palette.rust, selected = tool == InkTool.PEN && selectedPen == Pen.RUST) {
-            onSelectPen(Pen.RUST)
-        }
+        PenSwatch(
+            palette.graphite,
+            selected = tool == InkTool.PEN && selectedPen == Pen.GRAPHITE,
+            glow = accent,
+        ) { onSelectPen(Pen.GRAPHITE) }
+        PenSwatch(
+            palette.indigo,
+            selected = tool == InkTool.PEN && selectedPen == Pen.INDIGO,
+            glow = accent,
+        ) { onSelectPen(Pen.INDIGO) }
+        PenSwatch(
+            palette.rust,
+            selected = tool == InkTool.PEN && selectedPen == Pen.RUST,
+            glow = accent,
+        ) { onSelectPen(Pen.RUST) }
         HorizontalDivider(
             Modifier.width(24.dp).padding(vertical = 4.dp),
-            color = Color.White.copy(alpha = 0.14f),
+            color = iconColor.copy(alpha = 0.16f),
         )
-        EraserButton(selected = tool == InkTool.ERASER, onClick = onEraser)
-        HistoryButton(enabled = canUndo, glyph = UndoGlyph, onClick = onUndo)
-        HistoryButton(enabled = canRedo, glyph = RedoGlyph, onClick = onRedo)
+        EraserButton(selected = tool == InkTool.ERASER, iconColor = iconColor, onClick = onEraser)
+        HistoryButton(enabled = canUndo, glyph = UndoGlyph, tint = iconColor, onClick = onUndo)
+        HistoryButton(enabled = canRedo, glyph = RedoGlyph, tint = iconColor, onClick = onRedo)
     }
 }
 
 @Composable
-private fun PenSwatch(color: Color, selected: Boolean, onClick: () -> Unit) {
+private fun PenSwatch(color: Color, selected: Boolean, glow: Color, onClick: () -> Unit) {
     Box(
         Modifier.size(TOUCH_TARGET_DP.dp).clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
@@ -99,7 +124,16 @@ private fun PenSwatch(color: Color, selected: Boolean, onClick: () -> Unit) {
         Canvas(Modifier.size(TOUCH_TARGET_DP.dp)) {
             val fillRadius = SWATCH_DIAMETER_DP.dp.toPx() / 2f
             if (selected) {
-                drawCircle(RingColor, radius = fillRadius + 3.dp.toPx(), style = Stroke(2.dp.toPx()))
+                // Soft luminous halo plus a crisp ring; the glow never touches ink.
+                drawCircle(
+                    brush = Brush.radialGradient(
+                        colors = listOf(glow.copy(alpha = 0.45f), Color.Transparent),
+                        center = center,
+                        radius = fillRadius * 2.4f,
+                    ),
+                    radius = fillRadius * 2.4f,
+                )
+                drawCircle(glow.copy(alpha = 0.9f), radius = fillRadius + 4.dp.toPx(), style = Stroke(2.dp.toPx()))
             }
             drawCircle(color, radius = fillRadius)
         }
@@ -107,7 +141,7 @@ private fun PenSwatch(color: Color, selected: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-private fun EraserButton(selected: Boolean, onClick: () -> Unit) {
+private fun EraserButton(selected: Boolean, iconColor: Color, onClick: () -> Unit) {
     val accent = MaterialTheme.colorScheme.primary
     Box(
         Modifier.size(TOUCH_TARGET_DP.dp).clickable(onClick = onClick),
@@ -117,14 +151,15 @@ private fun EraserButton(selected: Boolean, onClick: () -> Unit) {
             Box(
                 Modifier
                     .size(32.dp)
-                    .background(accent.copy(alpha = 0.25f), RoundedCornerShape(10.dp)),
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(accent.copy(alpha = 0.25f)),
             )
         }
         Canvas(Modifier.size(22.dp)) {
             val strokeWidth = 2.dp.toPx()
             rotate(-20f) {
                 drawRoundRect(
-                    color = IconColor,
+                    color = iconColor,
                     topLeft = Offset(size.width * 0.2f, size.height * 0.22f),
                     size = Size(size.width * 0.6f, size.height * 0.4f),
                     cornerRadius = CornerRadius(4.dp.toPx()),
@@ -132,7 +167,7 @@ private fun EraserButton(selected: Boolean, onClick: () -> Unit) {
                 )
             }
             drawLine(
-                color = IconColor,
+                color = iconColor,
                 start = Offset(size.width * 0.15f, size.height * 0.85f),
                 end = Offset(size.width * 0.85f, size.height * 0.85f),
                 strokeWidth = strokeWidth,
@@ -143,7 +178,7 @@ private fun EraserButton(selected: Boolean, onClick: () -> Unit) {
 }
 
 // Standard Material undo/redo outlines, embedded as path data so no icon
-// library is needed.
+// library is needed. Fill is white; the Icon tint applies the themed color.
 private val UndoGlyph = historyGlyph(
     "undo",
     "M12.5,8c-2.65,0 -5.05,0.99 -6.9,2.6L2,7v9h9l-3.62,-3.62c1.39,-1.16 3.16,-1.88 5.12,-1.88 3.54,0 6.55,2.31 7.6,5.5l2.37,-0.78C21.08,11.03 17.15,8 12.5,8z",
@@ -162,11 +197,11 @@ private fun historyGlyph(name: String, pathData: String): ImageVector =
         viewportHeight = 24f,
     ).addPath(
         pathData = addPathNodes(pathData),
-        fill = SolidColor(IconColor),
+        fill = SolidColor(Color.White),
     ).build()
 
 @Composable
-private fun HistoryButton(enabled: Boolean, glyph: ImageVector, onClick: () -> Unit) {
+private fun HistoryButton(enabled: Boolean, glyph: ImageVector, tint: Color, onClick: () -> Unit) {
     Box(
         Modifier.size(TOUCH_TARGET_DP.dp).clickable(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center,
@@ -174,7 +209,7 @@ private fun HistoryButton(enabled: Boolean, glyph: ImageVector, onClick: () -> U
         Icon(
             glyph,
             contentDescription = glyph.name,
-            tint = Color.Unspecified,
+            tint = tint,
             modifier = Modifier.graphicsLayer { this.alpha = if (enabled) 1f else 0.35f },
         )
     }
