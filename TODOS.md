@@ -3,6 +3,20 @@
 Deferred work from the 2026-07-20 design + eng review sessions. Design doc of record:
 `~/.gstack/projects/pdf-notes/serendeep-nobranch-design-20260720-002316.md`
 
+## Liquid-glass UI polish
+- **What:** Frosted/translucent surfaces (toolbar, outline sheet, dialogs) over the Cool Focus palette.
+- **Why:** User wants a more modern, polished feel once core functionality lands.
+- **Pros:** Distinctive, premium look. **Cons:** Backdrop blur is a classic jank source; needs on-device perf validation.
+- **Context:** Compose has no real backdrop blur built in; use the Haze library. Keep the same design tokens, glass only on floating chrome, never on the writing sheet.
+- **Depends on:** Core functionality complete; user sign-off on the look.
+
+## Link overlays on rotated PDF pages
+- **What:** Respect the page /Rotate flag when mapping link rectangles to screen positions.
+- **Why:** mapRectToDevice currently passes rotation 0, so link taps misalign on rotated pages.
+- **Pros:** Correctness on scanned/rotated decks. **Cons:** Needs a rotated fixture to test.
+- **Context:** PdfDocumentSource.pageLinks; check whether the pdfium binding exposes page rotation.
+- **Depends on:** A real rotated lecture PDF to verify against.
+
 ## OCR for scanned/image-only PDFs
 - **What:** Make image-only PDFs text-searchable via on-device OCR.
 - **Why:** They currently import fine but are excluded from search with a "no text layer" badge; a semester will contain some.

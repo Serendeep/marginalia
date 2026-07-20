@@ -1,10 +1,12 @@
 package com.serendeep.marginalia.notebook
 
+import android.content.Intent
 import android.net.Uri
 import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Path
@@ -16,10 +18,15 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.VerticalDivider
@@ -48,10 +55,14 @@ import com.serendeep.marginalia.ui.theme.DotGridLight
 import com.serendeep.marginalia.ui.theme.LocalDarkTheme
 import com.serendeep.marginalia.ui.theme.LocalPenPalette
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NotebookScreen(viewModel: NotebookViewModel = hiltViewModel()) {
     val context = LocalContext.current
     var source by remember { mutableStateOf<PdfDocumentSource?>(null) }
+    var pendingWebLink by remember { mutableStateOf<String?>(null) }
+    var showOutline by remember { mutableStateOf(false) }
+    var outlineTarget by remember { mutableStateOf<Int?>(null) }
 
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
         if (uri == null) return@rememberLauncherForActivityResult
@@ -88,6 +99,10 @@ fun NotebookScreen(viewModel: NotebookViewModel = hiltViewModel()) {
                 Button(onClick = { picker.launch(arrayOf("application/pdf")) }) {
                     Text("Open PDF")
                 }
+                val outline = source?.outline().orEmpty()
+                if (outline.isNotEmpty()) {
+                    TextButton(onClick = { showOutline = true }) { Text("Outline") }
+                }
                 if (source != null) {
                     Text(
                         "Hold a spot on the page to link it to your notes",
@@ -106,7 +121,57 @@ fun NotebookScreen(viewModel: NotebookViewModel = hiltViewModel()) {
                     onPageLongPress = viewModel::placeAnchor,
                     onAnchorTap = viewModel::flashAnchor,
                     onAnchorRemove = viewModel::removeAnchor,
+                    onWebLink = { pendingWebLink = it },
+                    scrollToPage = outlineTarget,
+                    onScrollHandled = { outlineTarget = null },
                 )
+            }
+        }
+
+        pendingWebLink?.let { url ->
+            AlertDialog(
+                onDismissRequest = { pendingWebLink = null },
+                title = { Text("Open link?") },
+                text = { Text(Uri.parse(url).host ?: url) },
+                confirmButton = {
+                    TextButton(onClick = {
+                        pendingWebLink = null
+                        val parsed = Uri.parse(url)
+                        // Only ever hand http(s) to the system; PDFs can carry hostile schemes.
+                        if (parsed.scheme == "http" || parsed.scheme == "https") {
+                            runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, parsed)) }
+                        }
+                    }) { Text("Open") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { pendingWebLink = null }) { Text("Cancel") }
+                },
+            )
+        }
+
+        if (showOutline) {
+            val outline = source?.outline().orEmpty()
+            ModalBottomSheet(onDismissRequest = { showOutline = false }) {
+                LazyColumn(Modifier.fillMaxWidth()) {
+                    items(outline) { node ->
+                        Text(
+                            text = node.title,
+                            style = MaterialTheme.typography.bodyLarge,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    showOutline = false
+                                    outlineTarget = node.pageIndex
+                                }
+                                .padding(
+                                    start = 24.dp + 20.dp * node.depth,
+                                    end = 24.dp,
+                                    top = 10.dp,
+                                    bottom = 10.dp,
+                                ),
+                        )
+                    }
+                }
             }
         }
 

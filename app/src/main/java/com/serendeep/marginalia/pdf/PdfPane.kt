@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -30,8 +31,10 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberCoroutineScope
 
 /** A dot pinned to a spot on a page, holding the link to related notes. */
 data class PageAnchor(
@@ -51,13 +54,28 @@ fun PdfPane(
     onPageLongPress: ((page: Int, xFraction: Float, yFraction: Float) -> Unit)? = null,
     onAnchorTap: ((id: String) -> Unit)? = null,
     onAnchorRemove: ((id: String) -> Unit)? = null,
+    onWebLink: ((String) -> Unit)? = null,
+    scrollToPage: Int? = null,
+    onScrollHandled: (() -> Unit)? = null,
 ) {
     BoxWithConstraints(modifier) {
         val widthPx = with(LocalDensity.current) { maxWidth.roundToPx() }
         // Rebuild the list from scratch when the document changes so a new PDF
         // doesn't reuse the previous one's cached pages or scroll position.
         key(source) {
-            LazyColumn(Modifier.fillMaxSize()) {
+            val listState = rememberLazyListState()
+            val scope = rememberCoroutineScope()
+
+            // Outside callers (the outline drawer) request a page here; consume
+            // the request once done so the same page can be asked for again.
+            LaunchedEffect(scrollToPage) {
+                if (scrollToPage != null) {
+                    listState.animateScrollToItem(scrollToPage.coerceIn(0, source.pageCount - 1))
+                    onScrollHandled?.invoke()
+                }
+            }
+
+            LazyColumn(Modifier.fillMaxSize(), state = listState) {
                 items(source.pageCount) { index ->
                     PdfPageItem(
                         source = source,
@@ -69,6 +87,16 @@ fun PdfPane(
                         },
                         onAnchorTap = onAnchorTap,
                         onAnchorRemove = onAnchorRemove,
+                        onLinkTap = { link ->
+                            val dest = link.destPage
+                            if (dest != null) {
+                                scope.launch {
+                                    listState.animateScrollToItem(dest.coerceIn(0, source.pageCount - 1))
+                                }
+                            } else {
+                                link.uri?.let { onWebLink?.invoke(it) }
+                            }
+                        },
                     )
                 }
             }
@@ -85,14 +113,17 @@ private fun PdfPageItem(
     onLongPress: ((xFraction: Float, yFraction: Float) -> Unit)? = null,
     onAnchorTap: ((id: String) -> Unit)? = null,
     onAnchorRemove: ((id: String) -> Unit)? = null,
+    onLinkTap: ((PageLink) -> Unit)? = null,
 ) {
     var bitmap by remember(source, index, widthPx) { mutableStateOf<Bitmap?>(null) }
     var aspect by remember(source, index) { mutableStateOf(0.7f) }
+    var links by remember(source, index) { mutableStateOf<List<PageLink>>(emptyList()) }
 
     LaunchedEffect(source, index, widthPx) {
         if (widthPx <= 0) return@LaunchedEffect
         aspect = source.pageAspectRatio(index)
         bitmap = withContext(Dispatchers.Default) { source.renderFullPage(index, widthPx) }
+        links = source.pageLinks(index)
     }
 
     // Height follows the page aspect (width / (w:h ratio)).
@@ -123,6 +154,24 @@ private fun PdfPageItem(
             )
         }
         val widthDp = with(LocalDensity.current) { widthPx.toDp() }
+        // Invisible tap targets over the link annotations, scaled to the item size.
+        links.forEach { link ->
+            androidx.compose.foundation.layout.Box(
+                Modifier
+                    .align(Alignment.TopStart)
+                    .offset(
+                        x = widthDp * link.bounds.left,
+                        y = heightDp * link.bounds.top,
+                    )
+                    .size(
+                        width = widthDp * link.bounds.width(),
+                        height = heightDp * link.bounds.height(),
+                    )
+                    .pointerInput(link) {
+                        detectTapGestures(onTap = { onLinkTap?.invoke(link) })
+                    },
+            )
+        }
         anchors.forEach { anchor ->
             AnchorMarker(
                 anchor = anchor,
