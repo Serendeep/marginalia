@@ -8,103 +8,91 @@ class ScrollSyncTest {
     private val pageHeight = 1000f
 
     @Test
-    fun emptyEntriesMapProportionally() {
+    fun emptyPairsMapProportionally() {
         val sync = ScrollSync(emptyList(), pageCount = 10, pageHeightPx = pageHeight)
-        assertEquals(0f, sync.canvasOffsetForPage(0), 0.01f)
-        assertEquals(3000f, sync.canvasOffsetForPage(3), 0.01f)
-        assertEquals(0, sync.pageForCanvasOffset(0f))
-        assertEquals(4, sync.pageForCanvasOffset(4500f))
-        assertEquals(9, sync.pageForCanvasOffset(99999f))
+        assertEquals(0f, sync.canvasForPdf(0f), 0.01f)
+        assertEquals(3000f, sync.canvasForPdf(3f), 0.01f)
+        assertEquals(0f, sync.pdfForCanvas(0f), 0.01f)
+        assertEquals(4.5f, sync.pdfForCanvas(4500f), 0.01f)
+        assertEquals(9f, sync.pdfForCanvas(99999f), 0.01f)
     }
 
     @Test
-    fun zeroPagesAlwaysResolvesToPageZero() {
+    fun zeroPagesAlwaysResolvesToStart() {
         val sync = ScrollSync(emptyList(), pageCount = 0, pageHeightPx = pageHeight)
-        assertEquals(0, sync.pageForCanvasOffset(5000f))
-        assertEquals(0f, sync.canvasOffsetForPage(7), 0.01f)
+        assertEquals(0f, sync.pdfForCanvas(5000f), 0.01f)
+        assertEquals(0f, sync.canvasForPdf(7f), 0.01f)
     }
 
     @Test
-    fun singleEntry() {
-        val sync = ScrollSync(listOf(SyncEntry(2, 500f, 700f)), pageCount = 10, pageHeightPx = pageHeight)
-        assertEquals(500f, sync.canvasOffsetForPage(2), 0.01f)
-        assertEquals(2, sync.pageForCanvasOffset(600f))
-        // Uninked neighbours extend at one screen per page, clamped at the top.
-        assertEquals(1500f, sync.canvasOffsetForPage(3), 0.01f)
-        assertEquals(0f, sync.canvasOffsetForPage(0), 0.01f)
-        assertEquals(3, sync.pageForCanvasOffset(1700f))
-        assertEquals(1, sync.pageForCanvasOffset(100f))
+    fun writeTimePairRestoresExactAlignment() {
+        // Written while the PDF showed 35% into page 2 and the sheet sat at 1780px:
+        // returning to that PDF position must restore that exact sheet offset.
+        val sync = ScrollSync(listOf(SyncPair(2.35f, 1780f)), pageCount = 10, pageHeightPx = pageHeight)
+        assertEquals(1780f, sync.canvasForPdf(2.35f), 0.01f)
+        assertEquals(2.35f, sync.pdfForCanvas(1780f), 0.01f)
     }
 
     @Test
-    fun denseRunInterpolates() {
-        val entries = listOf(
-            SyncEntry(0, 0f, 200f),
-            SyncEntry(1, 300f, 500f),
-            SyncEntry(2, 600f, 900f),
-            SyncEntry(4, 1000f, 1400f),
+    fun singlePairExtendsAtOneScreenPerPage() {
+        val sync = ScrollSync(listOf(SyncPair(2f, 500f)), pageCount = 10, pageHeightPx = pageHeight)
+        assertEquals(500f, sync.canvasForPdf(2f), 0.01f)
+        assertEquals(1500f, sync.canvasForPdf(3f), 0.01f)
+        assertEquals(0f, sync.canvasForPdf(0f), 0.01f)
+        assertEquals(3.2f, sync.pdfForCanvas(1700f), 0.01f)
+        assertEquals(1.6f, sync.pdfForCanvas(100f), 0.01f)
+    }
+
+    @Test
+    fun offsetZeroAlwaysInvertsToStart() {
+        val sync = ScrollSync(listOf(SyncPair(2f, 500f)), pageCount = 10, pageHeightPx = pageHeight)
+        assertEquals(0f, sync.canvasForPdf(0f), 0.01f)
+        assertEquals(0f, sync.pdfForCanvas(0f), 0.01f)
+        assertEquals(0f, sync.pdfForCanvas(sync.canvasForPdf(0f)), 0.01f)
+    }
+
+    @Test
+    fun densePairsInterpolateBothDirections() {
+        val pairs = listOf(
+            SyncPair(0f, 0f),
+            SyncPair(1f, 300f),
+            SyncPair(2f, 600f),
+            SyncPair(4f, 1000f),
         )
-        val sync = ScrollSync(entries, pageCount = 10, pageHeightPx = pageHeight)
-        assertEquals(300f, sync.canvasOffsetForPage(1), 0.01f)
-        // Page 3 has no ink; it interpolates between page 2 (600) and page 4 (1000).
-        assertEquals(800f, sync.canvasOffsetForPage(3), 0.01f)
-        assertEquals(0, sync.pageForCanvasOffset(100f))
-        assertEquals(1, sync.pageForCanvasOffset(450f))
-        assertEquals(2, sync.pageForCanvasOffset(700f))
+        val sync = ScrollSync(pairs, pageCount = 10, pageHeightPx = pageHeight)
+        assertEquals(300f, sync.canvasForPdf(1f), 0.01f)
+        assertEquals(800f, sync.canvasForPdf(3f), 0.01f)
+        assertEquals(1.5f, sync.pdfForCanvas(450f), 0.01f)
+        assertEquals(2.5f, sync.pdfForCanvas(700f), 0.01f)
     }
 
     @Test
-    fun sparseEntriesFallBackProportionally() {
-        val entries = listOf(SyncEntry(0, 0f, 300f), SyncEntry(8, 400f, 900f))
-        val sync = ScrollSync(entries, pageCount = 10, pageHeightPx = pageHeight)
-        // Page 9 has no ink and sits past the run: nearest anchor plus one screen.
-        assertEquals(1400f, sync.canvasOffsetForPage(9), 0.01f)
-        // Past the run's canvas end, pages advance at one screen per page.
-        assertEquals(9, sync.pageForCanvasOffset(2000f))
-    }
-
-    @Test
-    fun revisitLaterRunWinsItsRange() {
-        val entries = listOf(
-            SyncEntry(0, 0f, 400f),
-            SyncEntry(5, 500f, 900f),
-            SyncEntry(2, 1000f, 1400f),
-            SyncEntry(3, 1500f, 1900f),
+    fun roundTripThroughRecordedPairsIsExact() {
+        val pairs = listOf(
+            SyncPair(1.2f, 100f),
+            SyncPair(3.7f, 500f),
+            SyncPair(6.1f, 900f),
         )
-        val sync = ScrollSync(entries, pageCount = 10, pageHeightPx = pageHeight)
-        // Canvas positions inside the second run resolve to the revisited pages.
-        assertEquals(2, sync.pageForCanvasOffset(1100f))
-        assertEquals(3, sync.pageForCanvasOffset(1600f))
-        // The later visit owns page 2's position.
-        assertEquals(1000f, sync.canvasOffsetForPage(2), 0.01f)
-        // Page 5 still resolves through the first run.
-        assertEquals(500f, sync.canvasOffsetForPage(5), 0.01f)
-        // Early canvas still maps through the first run.
-        assertEquals(0, sync.pageForCanvasOffset(50f))
-    }
-
-    @Test
-    fun roundTripStaysOnPage() {
-        val entries = listOf(
-            SyncEntry(1, 100f, 300f),
-            SyncEntry(3, 500f, 800f),
-            SyncEntry(6, 900f, 1300f),
-        )
-        val sync = ScrollSync(entries, pageCount = 10, pageHeightPx = pageHeight)
-        for (page in intArrayOf(1, 3, 6)) {
-            assertEquals(page, sync.pageForCanvasOffset(sync.canvasOffsetForPage(page)))
+        val sync = ScrollSync(pairs, pageCount = 10, pageHeightPx = pageHeight)
+        for (p in floatArrayOf(1.2f, 3.7f, 6.1f)) {
+            assertEquals(p, sync.pdfForCanvas(sync.canvasForPdf(p)), 0.01f)
         }
     }
 
     @Test
-    fun offsetZeroAlwaysInvertsToFirstPage() {
-        val sync = ScrollSync(
-            listOf(SyncEntry(2, 500f, 700f)),
-            pageCount = 10,
-            pageHeightPx = pageHeight,
+    fun revisitLaterRunWinsItsRange() {
+        val pairs = listOf(
+            SyncPair(0f, 0f),
+            SyncPair(5f, 500f),
+            SyncPair(2f, 1000f),
+            SyncPair(3f, 1500f),
         )
-        assertEquals(0f, sync.canvasOffsetForPage(0), 0.001f)
-        assertEquals(0, sync.pageForCanvasOffset(0f))
-        assertEquals(0, sync.pageForCanvasOffset(sync.canvasOffsetForPage(0)))
+        val sync = ScrollSync(pairs, pageCount = 10, pageHeightPx = pageHeight)
+        assertEquals(2f, sync.pdfForCanvas(1000f), 0.01f)
+        assertEquals(3f, sync.pdfForCanvas(1500f), 0.01f)
+        // The later visit owns page 2's canvas position.
+        assertEquals(1000f, sync.canvasForPdf(2f), 0.01f)
+        // Page 5 still resolves through the first run.
+        assertEquals(500f, sync.canvasForPdf(5f), 0.01f)
     }
 }

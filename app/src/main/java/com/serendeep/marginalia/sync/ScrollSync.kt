@@ -2,105 +2,99 @@ package com.serendeep.marginalia.sync
 
 import kotlin.math.abs
 
-/** One stroke's footprint: the PDF page it was written against and its canvas span. */
-data class SyncEntry(val pdfPage: Int, val canvasTop: Float, val canvasBottom: Float)
+/**
+ * One recorded correspondence: while the PDF showed [pdfPos] (page index plus
+ * the fraction scrolled into it), the note sheet sat at [canvasPos] px.
+ */
+data class SyncPair(val pdfPos: Float, val canvasPos: Float)
 
 /**
- * Maps between canvas scroll offset and PDF page. Entries are grouped into runs of
- * non-decreasing page order down the canvas; positions interpolate linearly inside
- * and between anchors. Pages without ink extend proportionally from the nearest
- * inked page at one [pageHeightPx] per page; with no ink at all the whole mapping
- * is proportional. When pages were revisited, the run written later owns its own
- * canvas range and its pages' positions.
+ * Maps between canvas scroll offset and continuous PDF position. Pairs are
+ * grouped into runs of non-decreasing pdf order down the canvas; positions
+ * interpolate linearly inside a run and across gaps. Beyond recorded pairs the
+ * mapping extends at one [pageHeightPx] per page; with no pairs at all it is
+ * fully proportional. Revisited material resolves through the run written last.
  */
 class ScrollSync(
-    entries: List<SyncEntry>,
+    pairs: List<SyncPair>,
     private val pageCount: Int,
     private val pageHeightPx: Float,
 ) {
-    private class Anchor(val page: Int, val pos: Float)
-    private class Run(val anchors: List<Anchor>, val canvasStart: Float, val canvasEnd: Float)
+    private class Run(val pairs: List<SyncPair>, val canvasStart: Float, val canvasEnd: Float)
 
     private val runs: List<Run>
 
     init {
-        val sorted = entries.sortedBy { it.canvasTop }
+        val sorted = pairs.sortedBy { it.canvasPos }
         val built = ArrayList<Run>()
-        var current = ArrayList<SyncEntry>()
-        for (e in sorted) {
-            if (current.isNotEmpty() && e.pdfPage < current.last().pdfPage) {
-                built.add(toRun(current))
+        var current = ArrayList<SyncPair>()
+        for (p in sorted) {
+            if (current.isNotEmpty() && p.pdfPos < current.last().pdfPos) {
+                built.add(Run(current, current.first().canvasPos, current.last().canvasPos))
                 current = ArrayList()
             }
-            current.add(e)
+            current.add(p)
         }
-        if (current.isNotEmpty()) built.add(toRun(current))
+        if (current.isNotEmpty()) {
+            built.add(Run(current, current.first().canvasPos, current.last().canvasPos))
+        }
         runs = built
     }
 
-    private fun toRun(run: List<SyncEntry>): Run {
-        val anchors = ArrayList<Anchor>()
-        for (e in run) {
-            if (anchors.isEmpty() || anchors.last().page != e.pdfPage) {
-                anchors.add(Anchor(e.pdfPage, e.canvasTop))
-            }
-        }
-        return Run(anchors, run.first().canvasTop, run.maxOf { it.canvasBottom })
-    }
-
-    fun canvasOffsetForPage(page: Int): Float {
-        val p = page.coerceIn(0, (pageCount - 1).coerceAtLeast(0))
+    fun canvasForPdf(pdfPos: Float): Float {
+        val p = pdfPos.coerceIn(0f, (pageCount - 1).coerceAtLeast(0).toFloat())
         for (run in runs.asReversed()) {
-            val anchors = run.anchors
-            if (p < anchors.first().page || p > anchors.last().page) continue
-            val hiIdx = anchors.indexOfFirst { it.page >= p }
-            val hi = anchors[hiIdx]
-            if (hi.page == p) return hi.pos
-            val lo = anchors[hiIdx - 1]
-            val t = (p - lo.page).toFloat() / (hi.page - lo.page)
-            return lo.pos + t * (hi.pos - lo.pos)
+            val a = run.pairs
+            if (p < a.first().pdfPos || p > a.last().pdfPos) continue
+            val hiIdx = a.indexOfFirst { it.pdfPos >= p }
+            val hi = a[hiIdx]
+            if (hi.pdfPos == p || hiIdx == 0) return hi.canvasPos
+            val lo = a[hiIdx - 1]
+            if (hi.pdfPos <= lo.pdfPos) return lo.canvasPos
+            val t = (p - lo.pdfPos) / (hi.pdfPos - lo.pdfPos)
+            return lo.canvasPos + t * (hi.canvasPos - lo.canvasPos)
         }
-        // No run holds this page: extend from the nearest inked page, one screen per page.
-        val nearest = runs.asReversed().flatMap { it.anchors }.minByOrNull { abs(it.page - p) }
+        val nearest = runs.asReversed().flatMap { it.pairs }.minByOrNull { abs(it.pdfPos - p) }
             ?: return p * pageHeightPx
-        return (nearest.pos + (p - nearest.page) * pageHeightPx).coerceAtLeast(0f)
+        return (nearest.canvasPos + (p - nearest.pdfPos) * pageHeightPx).coerceAtLeast(0f)
     }
 
-    fun pageForCanvasOffset(offset: Float): Int {
-        if (pageCount <= 0) return 0
+    fun pdfForCanvas(offset: Float): Float {
+        if (pageCount <= 0) return 0f
         val o = offset.coerceAtLeast(0f)
-        // The top of the canvas is always the first page: forward mapping clamps
-        // early pages to offset zero, so zero must invert to page zero.
-        if (o == 0f) return 0
+        // The top of the canvas is always the document's start: the forward
+        // mapping clamps early material to offset zero, so zero inverts to it.
+        if (o == 0f) return 0f
         val within = runs.asReversed().firstOrNull { o >= it.canvasStart && o <= it.canvasEnd }
-        if (within != null) return clampPage(pageWithin(within, o))
+        if (within != null) return clampPos(pdfWithin(within, o))
         val prev = runs.filter { it.canvasEnd < o }.maxByOrNull { it.canvasEnd }
         val next = runs.filter { it.canvasStart > o }.minByOrNull { it.canvasStart }
-        val page = when {
+        val pos = when {
             prev != null && next != null -> {
-                val loPage = prev.anchors.last().page
-                val hiPage = next.anchors.first().page
+                val lo = prev.pairs.last().pdfPos
+                val hi = next.pairs.first().pdfPos
                 val t = (o - prev.canvasEnd) / (next.canvasStart - prev.canvasEnd)
-                loPage + t * (hiPage - loPage)
+                lo + t * (hi - lo)
             }
-            next != null -> next.anchors.first().page - (next.canvasStart - o) / pageHeightPx
-            prev != null -> prev.anchors.last().page + (o - prev.canvasEnd) / pageHeightPx
+            next != null -> next.pairs.first().pdfPos - (next.canvasStart - o) / pageHeightPx
+            prev != null -> prev.pairs.last().pdfPos + (o - prev.canvasEnd) / pageHeightPx
             else -> o / pageHeightPx
         }
-        return clampPage(page.toInt())
+        return clampPos(pos)
     }
 
-    private fun pageWithin(run: Run, o: Float): Int {
-        val anchors = run.anchors
-        val hiIdx = anchors.indexOfFirst { it.pos > o }
-        if (hiIdx == 0) return anchors.first().page
-        if (hiIdx < 0) return anchors.last().page
-        val lo = anchors[hiIdx - 1]
-        val hi = anchors[hiIdx]
-        if (hi.pos <= lo.pos) return lo.page
-        val t = (o - lo.pos) / (hi.pos - lo.pos)
-        return (lo.page + t * (hi.page - lo.page)).toInt()
+    private fun pdfWithin(run: Run, o: Float): Float {
+        val a = run.pairs
+        val hiIdx = a.indexOfFirst { it.canvasPos > o }
+        if (hiIdx == 0) return a.first().pdfPos
+        if (hiIdx < 0) return a.last().pdfPos
+        val lo = a[hiIdx - 1]
+        val hi = a[hiIdx]
+        if (hi.canvasPos <= lo.canvasPos) return lo.pdfPos
+        val t = (o - lo.canvasPos) / (hi.canvasPos - lo.canvasPos)
+        return lo.pdfPos + t * (hi.pdfPos - lo.pdfPos)
     }
 
-    private fun clampPage(page: Int): Int = page.coerceIn(0, (pageCount - 1).coerceAtLeast(0))
+    private fun clampPos(pos: Float): Float =
+        pos.coerceIn(0f, (pageCount - 1).coerceAtLeast(0).toFloat())
 }

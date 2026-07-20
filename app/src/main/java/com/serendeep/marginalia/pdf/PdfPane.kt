@@ -82,9 +82,9 @@ fun PdfPane(
     onAnchorTap: ((id: String) -> Unit)? = null,
     onAnchorRemove: ((id: String) -> Unit)? = null,
     onWebLink: ((String) -> Unit)? = null,
-    scrollToPage: Int? = null,
+    scrollToPos: Float? = null,
     onScrollHandled: (() -> Unit)? = null,
-    onFirstVisiblePage: ((Int) -> Unit)? = null,
+    onScrollPos: ((Float) -> Unit)? = null,
 ) {
     BoxWithConstraints(modifier) {
         val density = LocalDensity.current
@@ -99,18 +99,31 @@ fun PdfPane(
             var zoom by remember { mutableStateOf(PdfZoomState()) }
             var sharp by remember { mutableStateOf<SharpSlice?>(null) }
 
-            LaunchedEffect(listState, onFirstVisiblePage) {
-                if (onFirstVisiblePage != null) {
-                    snapshotFlow { listState.firstVisibleItemIndex }
-                        .collect { onFirstVisiblePage(it) }
+            // Report the scroll position continuously: page index plus the
+            // fraction already scrolled into it.
+            LaunchedEffect(listState, onScrollPos) {
+                if (onScrollPos != null) {
+                    snapshotFlow {
+                        val item = listState.layoutInfo.visibleItemsInfo.firstOrNull()
+                        val size = item?.size ?: 0
+                        val frac = if (size > 0) {
+                            listState.firstVisibleItemScrollOffset.toFloat() / size
+                        } else {
+                            0f
+                        }
+                        listState.firstVisibleItemIndex + frac.coerceIn(0f, 0.999f)
+                    }.collect { onScrollPos(it) }
                 }
             }
 
-            // Outside callers (the outline drawer) request a page here; consume
-            // the request once done so the same page can be asked for again.
-            LaunchedEffect(scrollToPage) {
-                if (scrollToPage != null) {
-                    listState.animateScrollToItem(scrollToPage.coerceIn(0, source.pageCount - 1))
+            // Outside callers request a position here; consume the request once
+            // done so the same position can be asked for again.
+            LaunchedEffect(scrollToPos) {
+                if (scrollToPos != null) {
+                    val idx = scrollToPos.toInt().coerceIn(0, source.pageCount - 1)
+                    val frac = (scrollToPos - idx).coerceIn(0f, 0.999f)
+                    val itemSize = listState.layoutInfo.visibleItemsInfo.firstOrNull()?.size ?: 0
+                    listState.animateScrollToItem(idx, (frac * itemSize).toInt())
                     onScrollHandled?.invoke()
                 }
             }

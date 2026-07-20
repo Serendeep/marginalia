@@ -12,7 +12,7 @@ import com.serendeep.marginalia.ink.Pens
 import com.serendeep.marginalia.ink.StrokeEraser
 import com.serendeep.marginalia.ink.toStroke
 import com.serendeep.marginalia.sync.ScrollSync
-import com.serendeep.marginalia.sync.SyncEntry
+import com.serendeep.marginalia.sync.SyncPair
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -58,9 +58,9 @@ class NotebookViewModel @Inject constructor(
     private val _canvasOffset = MutableStateFlow(0f)
     val canvasOffset: StateFlow<Float> = _canvasOffset.asStateFlow()
 
-    /** Page the PDF pane should scroll to; consumed via [onPdfScrollHandled]. */
-    private val _pdfScrollTarget = MutableStateFlow<Int?>(null)
-    val pdfScrollTarget: StateFlow<Int?> = _pdfScrollTarget.asStateFlow()
+    /** Continuous position the PDF pane should scroll to; consumed via [onPdfScrollHandled]. */
+    private val _pdfScrollTarget = MutableStateFlow<Float?>(null)
+    val pdfScrollTarget: StateFlow<Float?> = _pdfScrollTarget.asStateFlow()
 
     private val ops = ArrayDeque<EditOp>()
     private var lectureId: String? = null
@@ -68,6 +68,7 @@ class NotebookViewModel @Inject constructor(
     private var pdfPageCount = 0
     private var inkPaneHeightPx = 1600f
     private var firstVisiblePage = 0
+    private var pdfPos = 0f
 
     // Feedback latch: the pane the user drove last owns the sync for a short
     // window, so the programmatic echo from the other pane is ignored.
@@ -77,7 +78,7 @@ class NotebookViewModel @Inject constructor(
     private var canvasAnim: Job? = null
     private var penActive = false
     private var pendingCanvasTarget: Float? = null
-    private var expectedPdfPage: Int? = null
+    private var expectedPdfPos: Float? = null
     private var syncCanvasAfterRequest = false
 
     init {
@@ -117,7 +118,9 @@ class NotebookViewModel @Inject constructor(
             documentId = documentId,
             anchorId = _activeAnchor.value?.id,
             pdfPage = firstVisiblePage,
-            viewport = AnchorBox(0f, 0f, 0f, 0f),
+            // The correspondence pair that lets sync restore this exact alignment:
+            // what the PDF showed, and where the sheet sat, as the ink went down.
+            viewport = AnchorBox(pdfPos, _canvasOffset.value, 0f, 0f),
             bounds = strokeBounds(stroke.inputs),
             startedAt = now(),
             endedAt = now(),
@@ -247,11 +250,11 @@ class NotebookViewModel @Inject constructor(
         driver = Driver.CANVAS
         drivenAt = now()
         if (pdfPageCount <= 0) return
-        val page = sync().pageForCanvasOffset(_canvasOffset.value)
-        if (page != firstVisiblePage) {
-            expectedPdfPage = page
+        val pos = sync().pdfForCanvas(_canvasOffset.value)
+        if (kotlin.math.abs(pos - pdfPos) > POS_EPSILON) {
+            expectedPdfPos = pos
             syncCanvasAfterRequest = false
-            _pdfScrollTarget.value = page
+            _pdfScrollTarget.value = pos
         }
     }
 
@@ -263,9 +266,9 @@ class NotebookViewModel @Inject constructor(
 
     /** Deliberate navigation (outline, anchor jumps): scroll the PDF, then bring the notes along. */
     fun requestPdfPage(page: Int) {
-        expectedPdfPage = page
+        expectedPdfPos = page.toFloat()
         syncCanvasAfterRequest = true
-        _pdfScrollTarget.value = page
+        _pdfScrollTarget.value = page.toFloat()
     }
 
     /** The stylus is touching the sheet; the canvas must not move under it. */
@@ -282,30 +285,32 @@ class NotebookViewModel @Inject constructor(
     }
 
     /**
-     * PDF pane reports its top visible page. Reports alone never claim driverhood:
-     * they move the canvas only after a real touch on the PDF pane ([onPdfTouched])
-     * or as the tail of a deliberate navigation ([requestPdfPage]).
+     * PDF pane reports its continuous scroll position. Reports alone never claim
+     * driverhood: they move the canvas only after a real touch on the PDF pane
+     * ([onPdfTouched]) or as the tail of a deliberate navigation ([requestPdfPage]).
      */
-    fun onPdfFirstVisiblePage(page: Int) {
-        firstVisiblePage = page
+    fun onPdfScrollPos(pos: Float) {
+        pdfPos = pos
+        firstVisiblePage = pos.toInt()
         // While our own scroll request is in flight, every report is an echo.
         if (_pdfScrollTarget.value != null) return
-        if (page == expectedPdfPage) {
-            expectedPdfPage = null
+        val expected = expectedPdfPos
+        if (expected != null && kotlin.math.abs(pos - expected) < POS_EPSILON) {
+            expectedPdfPos = null
             if (syncCanvasAfterRequest) {
                 syncCanvasAfterRequest = false
-                syncCanvasToPage(page)
+                syncCanvasToPos(pos)
             }
             return
         }
         if (driver == Driver.PDF && now() - drivenAt < PDF_DRIVE_WINDOW_MS) {
             drivenAt = now()
-            syncCanvasToPage(page)
+            syncCanvasToPos(pos)
         }
     }
 
-    private fun syncCanvasToPage(page: Int) {
-        val target = sync().canvasOffsetForPage(page)
+    private fun syncCanvasToPos(pos: Float) {
+        val target = sync().canvasForPdf(pos)
         if (penActive) pendingCanvasTarget = target else animateCanvasTo(target)
     }
 
@@ -314,7 +319,16 @@ class NotebookViewModel @Inject constructor(
     }
 
     private fun sync(): ScrollSync = ScrollSync(
-        entries = _strokes.value.map { SyncEntry(it.record.pdfPage, it.record.bounds.top, it.record.bounds.bottom) },
+        pairs = _strokes.value.map { rendered ->
+            val v = rendered.record.viewport
+            // Older strokes predate correspondence pairs; approximate with the
+            // page they were written on and where their ink starts.
+            if (v.left == 0f && v.top == 0f && v.right == 0f && v.bottom == 0f) {
+                SyncPair(rendered.record.pdfPage.toFloat(), rendered.record.bounds.top)
+            } else {
+                SyncPair(v.left, v.top)
+            }
+        },
         pageCount = pdfPageCount,
         pageHeightPx = inkPaneHeightPx,
     )
@@ -366,6 +380,7 @@ class NotebookViewModel @Inject constructor(
     private companion object {
         const val HIGHLIGHT_COLOR: Int = 0xFF3557A6.toInt()
         const val PDF_DRIVE_WINDOW_MS = 2000L
+        const val POS_EPSILON = 0.05f
         const val CANVAS_ANIM_MS = 250f
     }
 }
