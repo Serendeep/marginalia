@@ -1,56 +1,54 @@
 # Marginalia
 
-Linked side-by-side lecture notes for Android tablets — PDFs organized by course,
-low-latency stylus handwriting in a pane *beside* the slides. Stylus writes,
-finger scrolls, no modes. Kotlin / Jetpack Compose, Android-only, offline-first.
+Handwritten lecture notes next to the slides, for Android tablets.
 
-Design doc of record: `~/.gstack/projects/pdf-notes/serendeep-nobranch-design-20260720-002316.md`
-Deferred work: [`TODOS.md`](TODOS.md)
+Marginalia keeps your course PDFs in one place and lets you write beside them
+with a stylus instead of scribbling on top of the page. Notes stay anchored to
+the page you wrote them against. The stylus draws; your finger scrolls and
+zooms. There's no drawing/scrolling mode to toggle.
 
-## Status: Week-0 pdfium spike
+It's an Android-only, offline-first personal project built with Kotlin and
+Jetpack Compose.
 
-Before committing to pdfium as M1's PDF engine, this repo is currently a
-validation spike. It boots to `PdfiumSpikeScreen`, where you pick a real lecture
-PDF and see render times, page sizes, and extracted text.
+## Status
 
-### Stack (locked in eng review)
+Early, and built in pieces:
 
-- Kotlin 2.0 · Jetpack Compose · single Gradle module · Hilt DI (wired, unused so far)
-- PDF engine: `io.legere:pdfiumandroid` (maintained Apache-2.0 pdfium binding)
-- minSdk 29 · compileSdk 35
+- [x] Storage: courses, lectures, documents, and strokes in Room
+- [x] PDF pane: open a PDF and scroll through it
+- [ ] Ink pane: write, erase, and undo with the stylus
+- [ ] Linked two-pane layout with scroll sync
+- [ ] Course library and PDF import
 
-## Run the spike
+Right now the app opens to a single screen where you pick a PDF and read it.
 
-### On your tablet (the real test)
+## Building
 
-```bash
-export ANDROID_HOME=$HOME/Android
-./gradlew installDebug          # tablet connected via USB, debugging on
+You need the Android SDK and JDK 17 or newer.
+
+```
+./gradlew installDebug
+```
+
+Launch it from the tablet, or start it over adb:
+
+```
 adb shell am start -n com.serendeep.marginalia/.MainActivity
 ```
 
-Then tap **Pick a lecture PDF** and load, in turn:
+Run the tests on a connected device or emulator:
 
-1. a normal text PDF (slides)   → expect `Text layer: YES`, render well under a frame
-2. a **scanned** PDF            → expect `Text layer: NO` (correct — no OCR yet)
-3. a **rotated** PDF            → expect correct page dimensions, upright render
-4. a **300+ page** PDF          → expect fast open, sampled pages render fine, no OOM
-
-### Pass bars (from the design doc)
-
-- opens without crashing across scanned / rotated / huge files
-- per-page render comfortably under a frame budget (target < ~50ms at ~1080px width)
-- text PDFs report `charCount > 0` with readable sample text
-- scanned PDFs report `charCount == 0` (→ "no text layer", as designed)
-
-If pdfium fails any of these on your hardware, the fallback is to evaluate
-`androidx.pdf` (still alpha) — see TODOS.md.
-
-### Automated half (emulator or device)
-
-```bash
+```
 ./gradlew connectedDebugAndroidTest
 ```
 
-`PdfiumSpikeTest` generates a text-bearing PDF at runtime and asserts pdfium
-renders it and extracts the text.
+## Built with
+
+- Kotlin, Jetpack Compose, Hilt
+- Room for storage
+- [pdfium](https://github.com/legere-org/pdfiumandroid) for PDF rendering
+- [androidx.ink](https://developer.android.com/jetpack/androidx/releases/ink) for handwriting
+
+## Notes
+
+Known gaps and deferred work are in [TODOS.md](TODOS.md).
