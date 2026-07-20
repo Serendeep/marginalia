@@ -5,7 +5,9 @@ import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
-import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.Path
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -29,7 +31,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
@@ -44,6 +45,7 @@ import com.serendeep.marginalia.pdf.PdfDocumentSource
 import com.serendeep.marginalia.pdf.PdfPane
 import com.serendeep.marginalia.ui.theme.DotGridDark
 import com.serendeep.marginalia.ui.theme.DotGridLight
+import com.serendeep.marginalia.ui.theme.LocalDarkTheme
 import com.serendeep.marginalia.ui.theme.LocalPenPalette
 
 @Composable
@@ -110,25 +112,28 @@ fun NotebookScreen(viewModel: NotebookViewModel = hiltViewModel()) {
 
         VerticalDivider()
 
-        val dotColor = if (isSystemInDarkTheme()) DotGridDark else DotGridLight
+        val dotColor = if (LocalDarkTheme.current) DotGridDark else DotGridLight
         Box(
             Modifier
                 .weight(1f)
                 .fillMaxHeight()
                 .background(MaterialTheme.colorScheme.surface)
-                .drawBehind {
-                    // Dot grid on the note sheet, 22dp pitch.
+                .drawWithCache {
+                    // Dot grid on the note sheet, 22dp pitch. Built once per size,
+                    // drawn as a single path so redraws stay cheap.
                     val step = 22.dp.toPx()
                     val radius = 1.dp.toPx()
+                    val grid = Path()
                     var x = step
                     while (x < size.width) {
                         var y = step
                         while (y < size.height) {
-                            drawCircle(dotColor, radius, Offset(x, y))
+                            grid.addOval(Rect(Offset(x, y), radius))
                             y += step
                         }
                         x += step
                     }
+                    onDrawBehind { drawPath(grid, dotColor) }
                 },
         ) {
             InkCanvas(

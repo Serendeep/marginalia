@@ -22,6 +22,9 @@ val LocalPenPalette = staticCompositionLocalOf {
     PenPalette(PenGraphiteLight, PenIndigoLight, PenRustLight)
 }
 
+/** Whether MarginaliaTheme is currently dark, regardless of the system setting. */
+val LocalDarkTheme = staticCompositionLocalOf { false }
+
 private val LightPens = PenPalette(PenGraphiteLight, PenIndigoLight, PenRustLight)
 private val DarkPens = PenPalette(PenGraphiteDark, PenIndigoDark, PenRustDark)
 
@@ -72,7 +75,10 @@ fun MarginaliaTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit,
 ) {
-    CompositionLocalProvider(LocalPenPalette provides if (darkTheme) DarkPens else LightPens) {
+    CompositionLocalProvider(
+        LocalPenPalette provides if (darkTheme) DarkPens else LightPens,
+        LocalDarkTheme provides darkTheme,
+    ) {
         MaterialTheme(
             colorScheme = if (darkTheme) DarkColors else LightColors,
             typography = MarginaliaTypography,
