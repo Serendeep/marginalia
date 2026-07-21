@@ -30,12 +30,20 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.layout.height
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
+import com.composables.core.DragIndication
+import com.composables.core.ModalBottomSheet
+import com.composables.core.Scrim
+import com.composables.core.Sheet
+import com.composables.core.SheetDetent
+import com.composables.core.SheetDetent.Companion.FullyExpanded
+import com.composables.core.SheetDetent.Companion.Hidden
+import com.composables.core.rememberModalBottomSheetState
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
@@ -62,6 +70,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.serendeep.marginalia.sharedCover
 import com.serendeep.marginalia.ink.InkCanvas
 import com.serendeep.marginalia.ink.InkTool
 import com.serendeep.marginalia.ink.Pen
@@ -98,7 +107,11 @@ fun NotebookScreen(
     val context = LocalContext.current
     var source by remember { mutableStateOf<PdfDocumentSource?>(null) }
     var pendingWebLink by remember { mutableStateOf<String?>(null) }
-    var showOutline by remember { mutableStateOf(false) }
+    val peekDetent = remember { SheetDetent("peek") { containerHeight, _ -> containerHeight * 0.5f } }
+    val outlineSheet = rememberModalBottomSheetState(
+        initialDetent = Hidden,
+        detents = listOf(Hidden, peekDetent, FullyExpanded),
+    )
 
     LaunchedEffect(lectureId) { viewModel.openLecture(lectureId) }
 
@@ -137,6 +150,7 @@ fun NotebookScreen(
             Modifier
                 .weight(1f)
                 .fillMaxHeight()
+                .sharedCover("pdf-$lectureId")
                 // A real touch on this pane is what makes the PDF the sync driver;
                 // observe only, never consume.
                 .pointerInput(Unit) {
@@ -172,7 +186,7 @@ fun NotebookScreen(
                 title = document?.fileName?.removeSuffix(".pdf") ?: "Notebook",
                 hasOutline = current?.outline().orEmpty().isNotEmpty(),
                 onBack = onBack,
-                onOutline = { showOutline = true },
+                onOutline = { outlineSheet.currentDetent = peekDetent },
                 hazeState = pdfHaze,
                 modifier = Modifier.align(Alignment.TopStart).padding(12.dp),
             )
@@ -181,6 +195,9 @@ fun NotebookScreen(
         pendingWebLink?.let { url ->
             AlertDialog(
                 onDismissRequest = { pendingWebLink = null },
+                shape = RoundedCornerShape(28.dp),
+                containerColor = MaterialTheme.colorScheme.surface,
+                titleContentColor = MaterialTheme.colorScheme.onSurface,
                 title = { Text("Open link?") },
                 text = { Text(Uri.parse(url).host ?: url) },
                 confirmButton = {
@@ -199,27 +216,73 @@ fun NotebookScreen(
             )
         }
 
-        if (showOutline) {
-            val outline = source?.outline().orEmpty()
-            ModalBottomSheet(onDismissRequest = { showOutline = false }) {
-                LazyColumn(Modifier.fillMaxWidth()) {
-                    items(outline) { node ->
-                        Text(
-                            text = node.title,
-                            style = MaterialTheme.typography.bodyLarge,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    showOutline = false
-                                    viewModel.requestPdfPage(node.pageIndex)
-                                }
-                                .padding(
-                                    start = 24.dp + 20.dp * node.depth,
-                                    end = 24.dp,
-                                    top = 10.dp,
-                                    bottom = 10.dp,
-                                ),
+        // Outline sheet: opens at half height for a glance, drags to full for
+        // long documents; a detent-aware sheet, not the stock two-state one.
+        ModalBottomSheet(state = outlineSheet) {
+            Scrim()
+            Sheet(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
+                    .background(MaterialTheme.colorScheme.surface)
+                    .border(
+                        1.dp,
+                        MaterialTheme.colorScheme.outlineVariant,
+                        RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+                    ),
+            ) {
+                val outline = source?.outline().orEmpty()
+                Column(Modifier.fillMaxWidth()) {
+                    DragIndication(
+                        Modifier
+                            .align(Alignment.CenterHorizontally)
+                            .padding(top = 12.dp, bottom = 8.dp)
+                            .background(
+                                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                                RoundedCornerShape(100),
+                            )
+                            .width(36.dp)
+                            .height(4.dp),
+                    )
+                    Row(
+                        Modifier.padding(start = 24.dp, bottom = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Box(
+                            Modifier
+                                .width(3.dp)
+                                .height(11.dp)
+                                .clip(RoundedCornerShape(2.dp))
+                                .background(MaterialTheme.colorScheme.primary),
                         )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            "OUTLINE",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            letterSpacing = 1.2.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    LazyColumn(Modifier.fillMaxWidth()) {
+                        items(outline) { node ->
+                            Text(
+                                text = node.title,
+                                style = MaterialTheme.typography.bodyLarge,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        outlineSheet.currentDetent = Hidden
+                                        viewModel.requestPdfPage(node.pageIndex)
+                                    }
+                                    .padding(
+                                        start = 24.dp + 20.dp * node.depth,
+                                        end = 24.dp,
+                                        top = 10.dp,
+                                        bottom = 10.dp,
+                                    ),
+                            )
+                        }
                     }
                 }
             }

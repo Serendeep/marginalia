@@ -67,6 +67,7 @@ dependencies {
     implementation(libs.coil.compose)
     implementation(libs.graphics.shapes)
     implementation(libs.konfetti)
+    implementation(libs.composables.core)
     implementation(libs.pdfium)
 
     implementation(libs.room.runtime)

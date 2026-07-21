@@ -69,6 +69,7 @@ import androidx.graphics.shapes.toPath
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
+import com.serendeep.marginalia.sharedCover
 import com.serendeep.marginalia.ui.theme.DisplayFamily
 import com.serendeep.marginalia.ui.theme.GlassTintDark
 import com.serendeep.marginalia.ui.theme.GlassTintLight
@@ -335,6 +336,7 @@ private fun ContinueCard(
             Modifier
                 .width(132.dp)
                 .aspectRatio(0.72f)
+                .sharedCover("pdf-${item.lecture.id}")
                 .clip(RoundedCornerShape(14.dp))
                 .background(MaterialTheme.colorScheme.surface),
         ) {
@@ -415,6 +417,7 @@ private fun CoverCard(
             Modifier
                 .fillMaxWidth()
                 .aspectRatio(0.72f)
+                .sharedCover("pdf-${item.lecture.id}")
                 .clip(coverShape)
                 .background(MaterialTheme.colorScheme.surfaceVariant)
                 .border(1.dp, MaterialTheme.colorScheme.outlineVariant, coverShape),
@@ -455,7 +458,12 @@ private fun CoverCard(
                 contentAlignment = Alignment.Center,
             ) {
                 Text("⋯", fontSize = 14.sp, color = MaterialTheme.colorScheme.onBackground)
-                DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+                DropdownMenu(
+                    expanded = showMenu,
+                    onDismissRequest = { showMenu = false },
+                    shape = RoundedCornerShape(16.dp),
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                ) {
                     DropdownMenuItem(
                         text = { Text(if (item.document == null) "Import PDF" else "Replace PDF") },
                         onClick = {
@@ -547,6 +555,9 @@ private fun NamePromptDialog(
     var text by remember { mutableStateOf("") }
     AlertDialog(
         onDismissRequest = onDismiss,
+        shape = RoundedCornerShape(28.dp),
+        containerColor = MaterialTheme.colorScheme.surface,
+        titleContentColor = MaterialTheme.colorScheme.onSurface,
         title = { Text(title) },
         text = {
             OutlinedTextField(value = text, onValueChange = { text = it }, singleLine = true)
