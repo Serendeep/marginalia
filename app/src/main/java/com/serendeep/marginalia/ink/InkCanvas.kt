@@ -76,7 +76,7 @@ fun InkCanvas(
                 inkView.setOnTouchListener { _, event ->
                     touch.onTouch(
                         event = event,
-                        brush = Pens.pen(currentPenColor, currentPenSize),
+                        brush = { Pens.pen(currentPenColor, currentPenSize) },
                         erasing = currentTool == InkTool.ERASER,
                         // Erasing works on stored strokes, so hit-test in canvas space.
                         onErase = { x, y -> onEraseAt(x, y + container.canvasOffset) },
@@ -201,7 +201,8 @@ private class InkTouchHandler(
 
     fun onTouch(
         event: MotionEvent,
-        brush: Brush,
+        // Built lazily: a brush is only needed at stroke start, never per event.
+        brush: () -> Brush,
         erasing: Boolean,
         onErase: (Float, Float) -> Unit,
         onScrollBy: (Float) -> Unit,
@@ -276,7 +277,7 @@ private class InkTouchHandler(
         return when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 pointerId = event.getPointerId(0)
-                strokeId = view.startStroke(event, pointerId, brush)
+                strokeId = view.startStroke(event, pointerId, brush())
                 true
             }
 

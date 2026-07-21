@@ -32,6 +32,8 @@ import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.addPathNodes
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
 import com.serendeep.marginalia.ink.InkTool
 import com.serendeep.marginalia.ink.Pen
@@ -42,6 +44,7 @@ import com.serendeep.marginalia.ui.theme.GlassTintLight
 import com.serendeep.marginalia.ui.theme.InkLight
 import com.serendeep.marginalia.ui.theme.LocalDarkTheme
 import com.serendeep.marginalia.ui.theme.LocalPenPalette
+import dev.chrisbanes.haze.HazeInputScale
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.HazeStyle
 import dev.chrisbanes.haze.HazeTint
@@ -70,6 +73,7 @@ fun ToolRail(
     val iconColor = if (dark) Color(0xFFE8EAEE) else InkLight
     val palette = LocalPenPalette.current
     val accent = MaterialTheme.colorScheme.primary
+    val haptics = LocalHapticFeedback.current
     val alpha by animateFloatAsState(if (penDown) 0.25f else 1f, DimSpec, label = "toolRailAlpha")
     val shape = RoundedCornerShape(29.dp)
 
@@ -77,41 +81,64 @@ fun ToolRail(
         modifier
             .graphicsLayer { this.alpha = alpha }
             .clip(shape)
-            .hazeEffect(
-                state = hazeState,
-                style = HazeStyle(
-                    backgroundColor = MaterialTheme.colorScheme.surface,
-                    tint = HazeTint(if (dark) GlassTintDark else GlassTintLight),
-                    blurRadius = 24.dp,
-                    noiseFactor = 0.02f,
-                ),
+            .then(
+                // Every wet-ink invalidation would recompute the blur; while the
+                // pen is down the rail freezes to a flat glass tint instead.
+                if (penDown) {
+                    Modifier.background(MaterialTheme.colorScheme.surface.copy(alpha = 0.7f))
+                } else {
+                    Modifier.hazeEffect(
+                        state = hazeState,
+                        style = HazeStyle(
+                            backgroundColor = MaterialTheme.colorScheme.surface,
+                            tint = HazeTint(if (dark) GlassTintDark else GlassTintLight),
+                            blurRadius = 24.dp,
+                            noiseFactor = 0.02f,
+                        ),
+                    ) {
+                        inputScale = HazeInputScale.Fixed(0.5f)
+                    }
+                },
             )
             .border(1.dp, if (dark) GlassBorderDark else GlassBorderLight, shape)
             .padding(vertical = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
+        val selectPen: (Pen) -> Unit = {
+            haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
+            onSelectPen(it)
+        }
         PenSwatch(
             palette.graphite,
             selected = tool == InkTool.PEN && selectedPen == Pen.GRAPHITE,
             glow = accent,
-        ) { onSelectPen(Pen.GRAPHITE) }
+        ) { selectPen(Pen.GRAPHITE) }
         PenSwatch(
             palette.indigo,
             selected = tool == InkTool.PEN && selectedPen == Pen.INDIGO,
             glow = accent,
-        ) { onSelectPen(Pen.INDIGO) }
+        ) { selectPen(Pen.INDIGO) }
         PenSwatch(
             palette.rust,
             selected = tool == InkTool.PEN && selectedPen == Pen.RUST,
             glow = accent,
-        ) { onSelectPen(Pen.RUST) }
+        ) { selectPen(Pen.RUST) }
         HorizontalDivider(
             Modifier.width(24.dp).padding(vertical = 4.dp),
             color = iconColor.copy(alpha = 0.16f),
         )
-        EraserButton(selected = tool == InkTool.ERASER, iconColor = iconColor, onClick = onEraser)
-        HistoryButton(enabled = canUndo, glyph = UndoGlyph, tint = iconColor, onClick = onUndo)
-        HistoryButton(enabled = canRedo, glyph = RedoGlyph, tint = iconColor, onClick = onRedo)
+        EraserButton(selected = tool == InkTool.ERASER, iconColor = iconColor) {
+            haptics.performHapticFeedback(HapticFeedbackType.ToggleOn)
+            onEraser()
+        }
+        HistoryButton(enabled = canUndo, glyph = UndoGlyph, tint = iconColor) {
+            haptics.performHapticFeedback(HapticFeedbackType.Reject)
+            onUndo()
+        }
+        HistoryButton(enabled = canRedo, glyph = RedoGlyph, tint = iconColor) {
+            haptics.performHapticFeedback(HapticFeedbackType.Confirm)
+            onRedo()
+        }
     }
 }
 

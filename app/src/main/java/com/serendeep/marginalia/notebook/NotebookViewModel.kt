@@ -415,20 +415,32 @@ class NotebookViewModel @Inject constructor(
         _pdfScrollTarget.value = null
     }
 
-    private fun sync(): ScrollSync = ScrollSync(
-        pairs = _strokes.value.map { rendered ->
-            val v = rendered.record.viewport
-            // Older strokes predate correspondence pairs; approximate with the
-            // page they were written on and where their ink starts.
-            if (v.left == 0f && v.top == 0f && v.right == 0f && v.bottom == 0f) {
-                SyncPair(rendered.record.pdfPage.toFloat(), rendered.record.bounds.top)
-            } else {
-                SyncPair(v.left, v.top)
-            }
-        },
-        pageCount = pdfPageCount,
-        pageHeightPx = inkPaneHeightPx,
-    )
+    // Rebuilding the mapping sorts every stroke; scroll events arrive far too
+    // often for that, so the instance is cached until its inputs change.
+    private var syncCache: ScrollSync? = null
+    private var syncCacheKey: Triple<List<RenderedStroke>, Int, Float>? = null
+
+    private fun sync(): ScrollSync {
+        val key = Triple(_strokes.value, pdfPageCount, inkPaneHeightPx)
+        syncCache?.let { if (key == syncCacheKey) return it }
+        val built = ScrollSync(
+            pairs = key.first.map { rendered ->
+                val v = rendered.record.viewport
+                // Older strokes predate correspondence pairs; approximate with the
+                // page they were written on and where their ink starts.
+                if (v.left == 0f && v.top == 0f && v.right == 0f && v.bottom == 0f) {
+                    SyncPair(rendered.record.pdfPage.toFloat(), rendered.record.bounds.top)
+                } else {
+                    SyncPair(v.left, v.top)
+                }
+            },
+            pageCount = pdfPageCount,
+            pageHeightPx = inkPaneHeightPx,
+        )
+        syncCache = built
+        syncCacheKey = key
+        return built
+    }
 
     private fun animateCanvasTo(target: Float) {
         canvasAnim?.cancel()

@@ -47,6 +47,13 @@ class PdfDocumentSource private constructor(
     private val aspectRatios = HashMap<Int, Float>()
     private val pageLinks = HashMap<Int, List<PageLink>>()
 
+    // Scrolling back to a page must not pay a full native re-render; a few
+    // recent full-page bitmaps cover the visible neighbourhood.
+    private val pageCache = object : LinkedHashMap<Long, Bitmap>(8, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Long, Bitmap>): Boolean =
+            size > PAGE_CACHE_SIZE
+    }
+
     val pageCount: Int = document.getPageCount()
 
     // Read once at open time, before the document is shared across coroutines,
@@ -117,12 +124,15 @@ class PdfDocumentSource private constructor(
     /** Render a whole page at [widthPx] wide, height following the page aspect. */
     suspend fun renderFullPage(index: Int, widthPx: Int): Bitmap = lock.withLock {
         if (closed) return@withLock blank()
+        val key = index.toLong() shl 32 or widthPx.toLong()
+        pageCache[key]?.let { return@withLock it }
         document.openPage(index).use { page ->
             val w = page.getPageWidthPoint().coerceAtLeast(1)
             val h = page.getPageHeightPoint().coerceAtLeast(1)
             val heightPx = (widthPx.toLong() * h / w).toInt().coerceAtLeast(1)
             val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
             page.renderPageBitmap(bitmap, 0, 0, widthPx, heightPx)
+            pageCache[key] = bitmap
             bitmap
         }
     }
@@ -159,6 +169,7 @@ class PdfDocumentSource private constructor(
             lock.withLock {
                 if (closed) return@withLock
                 closed = true
+                pageCache.clear()
                 runCatching { document.close() }
                 runCatching { pfd.close() }
             }
@@ -168,6 +179,8 @@ class PdfDocumentSource private constructor(
     private fun blank(): Bitmap = Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
 
     companion object {
+        private const val PAGE_CACHE_SIZE = 6
+
         fun open(context: Context, file: File): PdfDocumentSource =
             open(context, ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY))
 
