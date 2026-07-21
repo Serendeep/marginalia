@@ -61,12 +61,12 @@ dependencies {
     implementation(libs.androidx.ui)
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.material3)
-    implementation(libs.androidx.ui.text.google.fonts)
 
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.haze)
     implementation(libs.coil.compose)
     implementation(libs.graphics.shapes)
+    implementation(libs.konfetti)
     implementation(libs.pdfium)
 
     implementation(libs.room.runtime)
