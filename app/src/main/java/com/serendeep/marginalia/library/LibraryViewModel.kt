@@ -88,6 +88,10 @@ class LibraryViewModel @Inject constructor(
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
 
+    /** Bumps once per successful import batch; the screen celebrates it. */
+    private val _celebration = MutableStateFlow(0)
+    val celebration: StateFlow<Int> = _celebration.asStateFlow()
+
     fun createCourse(name: String) {
         if (name.isBlank()) return
         viewModelScope.launch { repository.createCourse(name.trim()) }
@@ -111,17 +115,23 @@ class LibraryViewModel @Inject constructor(
         if (uris.isEmpty()) return
         viewModelScope.launch {
             val target = courseId ?: unsortedCourse().id
+            var imported = 0
             for (uri in uris) {
                 val title = importer.displayName(uri).removeSuffix(".pdf").ifBlank { "Untitled" }
                 val lecture = repository.createLecture(target, title)
                 when (val result = importer.import(lecture.id, uri)) {
-                    is PdfImporter.Result.Success -> _error.value = null
+                    is PdfImporter.Result.Success -> {
+                        _error.value = null
+                        imported++
+                    }
+
                     is PdfImporter.Result.Failure -> {
                         repository.deleteLecture(lecture)
                         _error.value = result.message
                     }
                 }
             }
+            if (imported > 0) _celebration.value += 1
         }
     }
 
