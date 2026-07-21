@@ -73,7 +73,15 @@ import com.serendeep.marginalia.ui.theme.DisplayFamily
 import com.serendeep.marginalia.ui.theme.GlassTintDark
 import com.serendeep.marginalia.ui.theme.GlassTintLight
 import com.serendeep.marginalia.ui.theme.LocalDarkTheme
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import dev.chrisbanes.haze.HazeInputScale
 import dev.chrisbanes.haze.HazeState
+import nl.dionsegijn.konfetti.compose.KonfettiView
+import nl.dionsegijn.konfetti.core.Party
+import nl.dionsegijn.konfetti.core.Position
+import nl.dionsegijn.konfetti.core.emitter.Emitter
+import java.util.concurrent.TimeUnit
 import dev.chrisbanes.haze.HazeStyle
 import dev.chrisbanes.haze.HazeTint
 import dev.chrisbanes.haze.hazeEffect
@@ -174,7 +182,9 @@ fun LibraryScreen(
                         blurRadius = 24.dp,
                         noiseFactor = 0.02f,
                     ),
-                )
+                ) {
+                    inputScale = HazeInputScale.Fixed(0.5f)
+                }
                 .statusBarsPadding()
                 .padding(horizontal = 24.dp, vertical = 14.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -199,6 +209,31 @@ fun LibraryScreen(
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                 ) { Text("Import PDFs", fontWeight = FontWeight.Medium) }
             }
+        }
+
+        // A quiet drift of confetti in the app's own inks, once per import batch.
+        val celebration by viewModel.celebration.collectAsStateWithLifecycle()
+        val haptics = LocalHapticFeedback.current
+        if (celebration > 0) {
+            LaunchedEffect(celebration) {
+                haptics.performHapticFeedback(HapticFeedbackType.Confirm)
+            }
+            KonfettiView(
+                modifier = Modifier.fillMaxSize(),
+                parties = remember(celebration) {
+                    listOf(
+                        Party(
+                            speed = 12f,
+                            maxSpeed = 24f,
+                            damping = 0.92f,
+                            spread = 100,
+                            colors = listOf(0xFF7C9BD9.toInt(), 0xFFC98A5E.toInt(), 0xFFE8EAEE.toInt()),
+                            emitter = Emitter(duration = 400, TimeUnit.MILLISECONDS).max(45),
+                            position = Position.Relative(0.5, 0.0),
+                        ),
+                    )
+                },
+            )
         }
 
         error?.let { message ->

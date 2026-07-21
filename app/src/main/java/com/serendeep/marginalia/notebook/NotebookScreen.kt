@@ -78,11 +78,14 @@ import com.serendeep.marginalia.ui.theme.GlassTintLight
 import com.serendeep.marginalia.ui.theme.InkLight
 import com.serendeep.marginalia.ui.theme.LocalDarkTheme
 import com.serendeep.marginalia.ui.theme.LocalPenPalette
+import dev.chrisbanes.haze.HazeInputScale
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.HazeStyle
 import dev.chrisbanes.haze.HazeTint
 import dev.chrisbanes.haze.hazeEffect
 import dev.chrisbanes.haze.hazeSource
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -102,8 +105,12 @@ fun NotebookScreen(
     val document by viewModel.document.collectAsStateWithLifecycle()
     LaunchedEffect(document) {
         source?.close()
+        // Parsing a PDF is heavy native work; it must never block the frame
+        // that is animating this screen in.
         source = document?.let { doc ->
-            runCatching { PdfDocumentSource.open(context, File(doc.localPath)) }.getOrNull()
+            withContext(Dispatchers.IO) {
+                runCatching { PdfDocumentSource.open(context, File(doc.localPath)) }.getOrNull()
+            }
         }
     }
 
@@ -323,7 +330,9 @@ private fun DocumentBar(
                     blurRadius = 24.dp,
                     noiseFactor = 0.02f,
                 ),
-            )
+            ) {
+                inputScale = HazeInputScale.Fixed(0.5f)
+            }
             .border(1.dp, if (dark) GlassBorderDark else GlassBorderLight, shape)
             .padding(horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
