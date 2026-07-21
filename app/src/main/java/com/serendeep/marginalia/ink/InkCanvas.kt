@@ -3,6 +3,7 @@ package com.serendeep.marginalia.ink
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Matrix
+import android.graphics.Paint
 import android.os.SystemClock
 import android.view.MotionEvent
 import android.view.View
@@ -74,6 +75,7 @@ fun InkCanvas(
                 })
                 val touch = InkTouchHandler(inkView, MotionEventPredictor.newInstance(inkView))
                 inkView.setOnTouchListener { _, event ->
+                    if (event.actionMasked == MotionEvent.ACTION_DOWN) container.hoverView.hide()
                     touch.onTouch(
                         event = event,
                         brush = { Pens.pen(currentPenColor, currentPenSize) },
@@ -85,13 +87,21 @@ fun InkCanvas(
                     )
                 }
                 // Hovering counts as "pen near" so a palm landing just before the
-                // nib does is already ignored.
+                // nib does is already ignored; it also drives the nib ghost.
                 inkView.setOnGenericMotionListener { _, e ->
-                    val hovering = e.actionMasked == MotionEvent.ACTION_HOVER_ENTER ||
-                        e.actionMasked == MotionEvent.ACTION_HOVER_MOVE
-                    if (hovering && e.getToolType(0) == MotionEvent.TOOL_TYPE_STYLUS) {
-                        touch.stylusNearUntil =
-                            SystemClock.uptimeMillis() + InkTouchHandler.STYLUS_NEAR_MS
+                    val stylus = e.getToolType(0) == MotionEvent.TOOL_TYPE_STYLUS
+                    when {
+                        stylus && (
+                            e.actionMasked == MotionEvent.ACTION_HOVER_ENTER ||
+                                e.actionMasked == MotionEvent.ACTION_HOVER_MOVE
+                            ) -> {
+                            touch.stylusNearUntil =
+                                SystemClock.uptimeMillis() + InkTouchHandler.STYLUS_NEAR_MS
+                            container.hoverView.show(e.x, e.y, currentPenColor, currentPenSize)
+                        }
+
+                        e.actionMasked == MotionEvent.ACTION_HOVER_EXIT ->
+                            container.hoverView.hide()
                     }
                     false
                 }
@@ -124,11 +134,13 @@ private fun Stroke.shiftedY(dy: Float): Stroke {
 private class InkViewContainer(context: Context) : ViewGroup(context) {
     val dryView = DryInkView(context)
     val inkView = InProgressStrokesView(context)
+    val hoverView = HoverPreviewView(context)
     var canvasOffset = 0f
 
     init {
         addView(dryView)
         addView(inkView)
+        addView(hoverView)
     }
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
@@ -137,11 +149,46 @@ private class InkViewContainer(context: Context) : ViewGroup(context) {
         val childHeight = MeasureSpec.makeMeasureSpec(measuredHeight, MeasureSpec.EXACTLY)
         dryView.measure(childWidth, childHeight)
         inkView.measure(childWidth, childHeight)
+        hoverView.measure(childWidth, childHeight)
     }
 
     override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
         dryView.layout(0, 0, right - left, bottom - top)
         inkView.layout(0, 0, right - left, bottom - top)
+        hoverView.layout(0, 0, right - left, bottom - top)
+    }
+}
+
+/**
+ * The nib ghost: while the stylus hovers, a faint ring in the active pen
+ * color marks where ink would land. Hover never coincides with contact, so
+ * this can't touch wet-ink latency.
+ */
+private class HoverPreviewView(context: Context) : View(context) {
+    private val ring = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeWidth = 1.5f * resources.displayMetrics.density
+    }
+    private var hoverX = -1f
+    private var hoverY = -1f
+    private var radius = 0f
+
+    fun show(x: Float, y: Float, colorArgb: Int, penSizePx: Float) {
+        hoverX = x
+        hoverY = y
+        radius = (penSizePx / 2f).coerceAtLeast(3f) + 2f * resources.displayMetrics.density
+        ring.color = colorArgb
+        ring.alpha = 160
+        invalidate()
+    }
+
+    fun hide() {
+        hoverX = -1f
+        invalidate()
+    }
+
+    override fun onDraw(canvas: Canvas) {
+        if (hoverX >= 0) canvas.drawCircle(hoverX, hoverY, radius, ring)
     }
 }
 

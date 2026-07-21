@@ -9,6 +9,9 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedContentScope
+import androidx.compose.animation.SharedTransitionLayout
+import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -16,6 +19,9 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -32,6 +38,20 @@ private sealed class Screen {
     data class Notebook(val lectureId: String) : Screen()
 }
 
+/** Scopes for cover-to-notebook shared-element flight; null outside navigation. */
+val LocalSharedTransition = compositionLocalOf<SharedTransitionScope?> { null }
+val LocalNavAnimation = compositionLocalOf<AnimatedContentScope?> { null }
+
+/** A library cover and the notebook's PDF pane fly as one surface. */
+@Composable
+fun Modifier.sharedCover(key: String): Modifier {
+    val shared = LocalSharedTransition.current ?: return this
+    val anim = LocalNavAnimation.current ?: return this
+    return with(shared) {
+        this@sharedCover.sharedBounds(rememberSharedContentState(key), anim)
+    }
+}
+
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
 
@@ -44,33 +64,40 @@ class MainActivity : ComponentActivity() {
         setContent {
             MarginaliaTheme {
                 var screen by remember { mutableStateOf<Screen>(Screen.Library) }
-                AnimatedContent(
-                    targetState = screen,
-                    modifier = Modifier.fillMaxSize(),
-                    transitionSpec = {
-                        // Opening a notebook slides content in from the right;
-                        // returning to the library slides back the other way.
-                        val forward = targetState is Screen.Notebook
-                        val dir = if (forward) 1 else -1
-                        (slideInHorizontally(tween(260)) { dir * it / 10 } + fadeIn(tween(260)))
-                            .togetherWith(
-                                slideOutHorizontally(tween(260)) { -dir * it / 10 } + fadeOut(tween(200)),
-                            )
-                    },
-                    label = "screen",
-                ) { current ->
-                    when (current) {
-                        is Screen.Library -> LibraryScreen(
-                            onOpenLecture = { screen = Screen.Notebook(it) },
-                        )
+                SharedTransitionLayout(Modifier.fillMaxSize()) {
+                    AnimatedContent(
+                        targetState = screen,
+                        modifier = Modifier.fillMaxSize(),
+                        transitionSpec = {
+                            // Opening a notebook slides content in from the right;
+                            // returning to the library slides back the other way.
+                            val forward = targetState is Screen.Notebook
+                            val dir = if (forward) 1 else -1
+                            (slideInHorizontally(tween(260)) { dir * it / 10 } + fadeIn(tween(260)))
+                                .togetherWith(
+                                    slideOutHorizontally(tween(260)) { -dir * it / 10 } + fadeOut(tween(200)),
+                                )
+                        },
+                        label = "screen",
+                    ) { current ->
+                        CompositionLocalProvider(
+                            LocalSharedTransition provides this@SharedTransitionLayout,
+                            LocalNavAnimation provides this@AnimatedContent,
+                        ) {
+                            when (current) {
+                                is Screen.Library -> LibraryScreen(
+                                    onOpenLecture = { screen = Screen.Notebook(it) },
+                                )
 
-                        is Screen.Notebook -> {
-                            BackHandler { screen = Screen.Library }
-                            NotebookScreen(
-                                viewModel = notebookViewModel,
-                                lectureId = current.lectureId,
-                                onBack = { screen = Screen.Library },
-                            )
+                                is Screen.Notebook -> {
+                                    BackHandler { screen = Screen.Library }
+                                    NotebookScreen(
+                                        viewModel = notebookViewModel,
+                                        lectureId = current.lectureId,
+                                        onBack = { screen = Screen.Library },
+                                    )
+                                }
+                            }
                         }
                     }
                 }
