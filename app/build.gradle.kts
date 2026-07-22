@@ -66,8 +66,8 @@ dependencies {
     implementation(libs.haze)
     implementation(libs.coil.compose)
     implementation(libs.graphics.shapes)
-    implementation(libs.konfetti)
     implementation(libs.composables.core)
+    implementation(libs.material.icons.extended)
     implementation(libs.pdfium)
 
     implementation(libs.room.runtime)
