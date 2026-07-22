@@ -31,9 +31,12 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.layout.height
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBackIos
+import androidx.compose.material.icons.automirrored.filled.FormatListBulleted
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import com.composables.core.DragIndication
@@ -58,7 +61,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.toArgb
@@ -71,6 +73,10 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.serendeep.marginalia.sharedCover
+import com.serendeep.marginalia.ui.components.GlassButton
+import com.serendeep.marginalia.ui.components.GlassDialog
+import com.serendeep.marginalia.ui.components.GlassTextButton
+import com.serendeep.marginalia.ui.components.MarginLabel
 import com.serendeep.marginalia.ink.InkCanvas
 import com.serendeep.marginalia.ink.InkTool
 import com.serendeep.marginalia.ink.Pen
@@ -193,27 +199,24 @@ fun NotebookScreen(
         }
 
         pendingWebLink?.let { url ->
-            AlertDialog(
-                onDismissRequest = { pendingWebLink = null },
-                shape = RoundedCornerShape(28.dp),
-                containerColor = MaterialTheme.colorScheme.surface,
-                titleContentColor = MaterialTheme.colorScheme.onSurface,
-                title = { Text("Open link?") },
-                text = { Text(Uri.parse(url).host ?: url) },
-                confirmButton = {
-                    TextButton(onClick = {
+            GlassDialog(onDismiss = { pendingWebLink = null }) {
+                Text("Open link?", style = MaterialTheme.typography.titleMedium)
+                Spacer(Modifier.height(8.dp))
+                Text(Uri.parse(url).host ?: url, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.height(20.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    GlassTextButton("Cancel", onClick = { pendingWebLink = null })
+                    Spacer(Modifier.width(8.dp))
+                    GlassButton("Open", onClick = {
                         pendingWebLink = null
                         val parsed = Uri.parse(url)
                         // Only ever hand http(s) to the system; PDFs can carry hostile schemes.
                         if (parsed.scheme == "http" || parsed.scheme == "https") {
                             runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, parsed)) }
                         }
-                    }) { Text("Open") }
-                },
-                dismissButton = {
-                    TextButton(onClick = { pendingWebLink = null }) { Text("Cancel") }
-                },
-            )
+                    })
+                }
+            }
         }
 
         // Outline sheet: opens at half height for a glance, drags to full for
@@ -244,26 +247,7 @@ fun NotebookScreen(
                             .width(36.dp)
                             .height(4.dp),
                     )
-                    Row(
-                        Modifier.padding(start = 24.dp, bottom = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Box(
-                            Modifier
-                                .width(3.dp)
-                                .height(11.dp)
-                                .clip(RoundedCornerShape(2.dp))
-                                .background(MaterialTheme.colorScheme.primary),
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            "OUTLINE",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            letterSpacing = 1.2.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
+                    MarginLabel("Outline", Modifier.padding(start = 24.dp, bottom = 6.dp))
                     LazyColumn(Modifier.fillMaxWidth()) {
                         items(outline) { node ->
                             Text(
@@ -404,17 +388,12 @@ private fun DocumentBar(
             Modifier.size(44.dp).clip(CircleShape).clickable(onClick = onBack),
             contentAlignment = Alignment.Center,
         ) {
-            Canvas(Modifier.size(18.dp)) {
-                drawPath(
-                    Path().apply {
-                        moveTo(size.width * 0.62f, size.height * 0.16f)
-                        lineTo(size.width * 0.30f, size.height * 0.50f)
-                        lineTo(size.width * 0.62f, size.height * 0.84f)
-                    },
-                    color = iconColor,
-                    style = Stroke(2.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round),
-                )
-            }
+            Icon(
+                Icons.AutoMirrored.Filled.ArrowBackIos,
+                contentDescription = "Back to library",
+                tint = iconColor,
+                modifier = Modifier.size(16.dp),
+            )
         }
         Text(
             title,
@@ -430,14 +409,12 @@ private fun DocumentBar(
                 Modifier.size(44.dp).clip(CircleShape).clickable(onClick = onOutline),
                 contentAlignment = Alignment.Center,
             ) {
-                Canvas(Modifier.size(18.dp)) {
-                    val sw = 2.dp.toPx()
-                    for (i in 0..2) {
-                        val y = size.height * (0.2f + 0.3f * i)
-                        val startX = if (i == 1) size.width * 0.25f else 0f
-                        drawLine(iconColor, Offset(startX, y), Offset(size.width, y), sw, cap = StrokeCap.Round)
-                    }
-                }
+                Icon(
+                    Icons.AutoMirrored.Filled.FormatListBulleted,
+                    contentDescription = "Outline",
+                    tint = iconColor,
+                    modifier = Modifier.size(18.dp),
+                )
             }
         } else {
             Spacer(Modifier.width(8.dp))

@@ -41,6 +41,9 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.MoreHoriz
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -70,6 +73,12 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import com.serendeep.marginalia.sharedCover
+import com.serendeep.marginalia.ui.components.GlassButton
+import com.serendeep.marginalia.ui.components.GlassMenu
+import com.serendeep.marginalia.ui.components.GlassMenuEntry
+import com.serendeep.marginalia.ui.components.GlassDialog
+import com.serendeep.marginalia.ui.components.GlassTextButton
+import com.serendeep.marginalia.ui.components.MarginLabel
 import com.serendeep.marginalia.ui.theme.DisplayFamily
 import com.serendeep.marginalia.ui.theme.GlassTintDark
 import com.serendeep.marginalia.ui.theme.GlassTintLight
@@ -78,11 +87,6 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import dev.chrisbanes.haze.HazeInputScale
 import dev.chrisbanes.haze.HazeState
-import nl.dionsegijn.konfetti.compose.KonfettiView
-import nl.dionsegijn.konfetti.core.Party
-import nl.dionsegijn.konfetti.core.Position
-import nl.dionsegijn.konfetti.core.emitter.Emitter
-import java.util.concurrent.TimeUnit
 import dev.chrisbanes.haze.HazeStyle
 import dev.chrisbanes.haze.HazeTint
 import dev.chrisbanes.haze.hazeEffect
@@ -200,41 +204,19 @@ fun LibraryScreen(
                 color = MaterialTheme.colorScheme.onBackground,
             )
             Row(verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClick = { showNewCourse = true }) {
-                    Text("New course", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
+                GlassTextButton("New course", onClick = { showNewCourse = true })
                 Spacer(Modifier.width(12.dp))
-                Button(
-                    onClick = { launchImport("quick") },
-                    shape = RoundedCornerShape(22.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                ) { Text("Import PDFs", fontWeight = FontWeight.Medium) }
+                GlassButton("Import PDFs", onClick = { launchImport("quick") })
             }
         }
 
-        // A quiet drift of confetti in the app's own inks, once per import batch.
+        // Import success stays quiet: one confirming tick, nothing on screen.
         val celebration by viewModel.celebration.collectAsStateWithLifecycle()
         val haptics = LocalHapticFeedback.current
         if (celebration > 0) {
             LaunchedEffect(celebration) {
                 haptics.performHapticFeedback(HapticFeedbackType.Confirm)
             }
-            KonfettiView(
-                modifier = Modifier.fillMaxSize(),
-                parties = remember(celebration) {
-                    listOf(
-                        Party(
-                            speed = 12f,
-                            maxSpeed = 24f,
-                            damping = 0.92f,
-                            spread = 100,
-                            colors = listOf(0xFF7C9BD9.toInt(), 0xFFC98A5E.toInt(), 0xFFE8EAEE.toInt()),
-                            emitter = Emitter(duration = 400, TimeUnit.MILLISECONDS).max(45),
-                            position = Position.Relative(0.5, 0.0),
-                        ),
-                    )
-                },
-            )
         }
 
         error?.let { message ->
@@ -286,20 +268,8 @@ private fun SectionLabel(title: String, onAddPdf: () -> Unit, modifier: Modifier
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            MarginTick()
-            Spacer(Modifier.width(8.dp))
-            Text(
-                title.uppercase(),
-                fontSize = 11.sp,
-                fontWeight = FontWeight.SemiBold,
-                letterSpacing = 1.2.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        TextButton(onClick = onAddPdf) {
-            Text("Add PDF", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
+        MarginLabel(title)
+        GlassTextButton("Add PDF", onClick = onAddPdf)
     }
 }
 
@@ -352,17 +322,7 @@ private fun ContinueCard(
         }
         Spacer(Modifier.width(18.dp))
         Column(Modifier.align(Alignment.CenterVertically)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                MarginTick(height = 11.dp)
-                Spacer(Modifier.width(7.dp))
-                Text(
-                    "CONTINUE",
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    letterSpacing = 1.4.sp,
-                    color = MaterialTheme.colorScheme.primary,
-                )
-            }
+            MarginLabel("Continue", tint = MaterialTheme.colorScheme.primary)
             Spacer(Modifier.height(8.dp))
             Text(
                 item.lecture.title,
@@ -402,7 +362,6 @@ private fun CoverCard(
         spring(stiffness = Spring.StiffnessMediumLow),
         label = "coverPress",
     )
-    var showMenu by remember { mutableStateOf(false) }
     val coverShape = RoundedCornerShape(18.dp)
 
     Column(
@@ -447,29 +406,24 @@ private fun CoverCard(
                 }
             }
 
-            Box(
-                Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(8.dp)
-                    .size(26.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.background.copy(alpha = 0.3f))
-                    .clickable { showMenu = true },
-                contentAlignment = Alignment.Center,
+            GlassMenu(
+                entries = listOf(
+                    GlassMenuEntry(if (item.document == null) "Import PDF" else "Replace PDF", onReplace),
+                ),
+                modifier = Modifier.align(Alignment.TopEnd).padding(8.dp),
             ) {
-                Text("⋯", fontSize = 14.sp, color = MaterialTheme.colorScheme.onBackground)
-                DropdownMenu(
-                    expanded = showMenu,
-                    onDismissRequest = { showMenu = false },
-                    shape = RoundedCornerShape(16.dp),
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                Box(
+                    Modifier
+                        .size(26.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.background.copy(alpha = 0.3f)),
+                    contentAlignment = Alignment.Center,
                 ) {
-                    DropdownMenuItem(
-                        text = { Text(if (item.document == null) "Import PDF" else "Replace PDF") },
-                        onClick = {
-                            showMenu = false
-                            onReplace()
-                        },
+                    Icon(
+                        Icons.Filled.MoreHoriz,
+                        contentDescription = "More",
+                        tint = MaterialTheme.colorScheme.onBackground,
+                        modifier = Modifier.size(16.dp),
                     )
                 }
             }
@@ -524,7 +478,7 @@ private fun EmptyShelf(onImport: () -> Unit) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Spacer(Modifier.height(20.dp))
-        Button(onClick = onImport, shape = RoundedCornerShape(22.dp)) { Text("Import PDFs") }
+        GlassButton("Import PDFs", onClick = onImport)
     }
 }
 
@@ -553,20 +507,15 @@ private fun NamePromptDialog(
     onConfirm: (String) -> Unit,
 ) {
     var text by remember { mutableStateOf("") }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        shape = RoundedCornerShape(28.dp),
-        containerColor = MaterialTheme.colorScheme.surface,
-        titleContentColor = MaterialTheme.colorScheme.onSurface,
-        title = { Text(title) },
-        text = {
-            OutlinedTextField(value = text, onValueChange = { text = it }, singleLine = true)
-        },
-        confirmButton = {
-            TextButton(onClick = { onConfirm(text) }, enabled = text.isNotBlank()) { Text("Create") }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
-        },
-    )
+    GlassDialog(onDismiss = onDismiss) {
+        Text(title, style = MaterialTheme.typography.titleMedium)
+        Spacer(Modifier.height(16.dp))
+        OutlinedTextField(value = text, onValueChange = { text = it }, singleLine = true)
+        Spacer(Modifier.height(20.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+            GlassTextButton("Cancel", onDismiss)
+            Spacer(Modifier.width(8.dp))
+            GlassButton("Create", { onConfirm(text) }, enabled = text.isNotBlank())
+        }
+    }
 }
