@@ -241,11 +241,10 @@ fun LibraryScreen(
     }
 
     if (showNewCourse) {
-        NamePromptDialog(
-            title = "New course",
+        CourseEditorDialog(
             onDismiss = { showNewCourse = false },
-            onConfirm = {
-                viewModel.createCourse(it, colorIndex = 0, emoji = null)
+            onSave = { name, colorIndex, emoji ->
+                viewModel.createCourse(name, colorIndex, emoji)
                 showNewCourse = false
             },
         )
