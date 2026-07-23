@@ -25,6 +25,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.MoreHoriz
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -55,8 +58,11 @@ import coil3.compose.AsyncImage
 import com.serendeep.marginalia.sharedCover
 import com.serendeep.marginalia.ui.components.GlassButton
 import com.serendeep.marginalia.ui.components.GlassDialog
+import com.serendeep.marginalia.ui.components.GlassMenu
+import com.serendeep.marginalia.ui.components.GlassMenuEntry
 import com.serendeep.marginalia.ui.components.GlassTextButton
 import com.serendeep.marginalia.ui.theme.CoursePalette
+import com.serendeep.marginalia.ui.theme.Danger
 import com.serendeep.marginalia.ui.theme.MonoFamily
 import kotlinx.coroutines.delay
 
@@ -68,12 +74,16 @@ fun LibraryScreen(
     val shelf by viewModel.shelf.collectAsStateWithLifecycle()
     val error by viewModel.error.collectAsStateWithLifecycle()
     var showNewCourse by remember { mutableStateOf(false) }
+    var renaming by remember { mutableStateOf<ShelfItem?>(null) }
+    var deleting by remember { mutableStateOf<ShelfItem?>(null) }
 
     // One screen-level launcher for every import flow; a per-card launcher in a
     // lazy grid would unregister when its card is recycled while the system
-    // picker is open. The target string encodes where the picked PDFs go:
-    // "quick" or "quick:<courseId>" spawn filename-titled lectures, and
-    // "replace:<lectureId>" adds a new version to an existing lecture.
+    // picker is open. The target string encodes where the picked PDFs go.
+    // Live today: "quick" (filename-titled lectures, uncategorized). Reserved
+    // for later call sites, branches kept: "quick:<courseId>" (import into a
+    // specific course) and "replace:<lectureId>" (re-import over an existing
+    // lecture's PDF).
     var importTarget by rememberSaveable { mutableStateOf<String?>(null) }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris: List<Uri> ->
         val target = importTarget
@@ -145,7 +155,28 @@ fun LibraryScreen(
                             courseColor = sectionColor,
                             viewModel = viewModel,
                             onOpen = { onOpenLecture(item.lecture.id) },
-                            menu = {},
+                            menu = {
+                                GlassMenu(
+                                    entries = buildList {
+                                        add(GlassMenuEntry("Rename") { renaming = item })
+                                        shelf.sections.mapNotNull { it.course }
+                                            .filter { it.id != item.lecture.courseId }
+                                            .forEach { course ->
+                                                add(GlassMenuEntry("Move to ${course.name}") {
+                                                    viewModel.moveLecture(item.lecture.id, course.id)
+                                                })
+                                            }
+                                        add(GlassMenuEntry("Delete PDF") { deleting = item })
+                                    },
+                                ) {
+                                    Icon(
+                                        Icons.Filled.MoreHoriz,
+                                        contentDescription = "More",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(20.dp),
+                                    )
+                                }
+                            },
                         )
                     }
                 }
@@ -187,6 +218,44 @@ fun LibraryScreen(
                 showNewCourse = false
             },
         )
+    }
+
+    renaming?.let { target ->
+        NamePromptDialog(
+            title = "Rename notebook",
+            onDismiss = { renaming = null },
+            onConfirm = { name ->
+                viewModel.renameLecture(target.lecture.id, name)
+                renaming = null
+            },
+        )
+    }
+
+    deleting?.let { target ->
+        GlassDialog(onDismiss = { deleting = null }) {
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                Text("Delete ${target.lecture.title}?", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    "This removes the imported PDF copy and all your notes on it.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.align(Alignment.End),
+                ) {
+                    GlassTextButton("Cancel", { deleting = null })
+                    GlassButton(
+                        "Delete",
+                        {
+                            viewModel.deleteLecture(target.lecture.id)
+                            deleting = null
+                        },
+                        containerColor = Danger,
+                    )
+                }
+            }
+        }
     }
 }
 
