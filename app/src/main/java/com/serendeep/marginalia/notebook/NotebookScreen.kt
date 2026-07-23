@@ -88,6 +88,7 @@ import com.serendeep.marginalia.ui.theme.DotGridDark
 import com.serendeep.marginalia.ui.theme.DotGridLight
 import com.serendeep.marginalia.ui.theme.GlassBorderDark
 import com.serendeep.marginalia.ui.theme.GlassBorderLight
+import com.serendeep.marginalia.ui.theme.GlassSmokeDark
 import com.serendeep.marginalia.ui.theme.GlassTintDark
 import com.serendeep.marginalia.ui.theme.GlassTintLight
 import com.serendeep.marginalia.ui.theme.InkLight
@@ -373,7 +374,9 @@ private fun DocumentBar(
                 state = hazeState,
                 style = HazeStyle(
                     backgroundColor = MaterialTheme.colorScheme.surface,
-                    tint = HazeTint(if (dark) GlassTintDark else GlassTintLight),
+                    // The bar floats over the PDF page, which is white in every
+                    // theme; clear glass would wash light text out there.
+                    tint = HazeTint(if (dark) GlassSmokeDark else GlassTintLight),
                     blurRadius = 24.dp,
                     noiseFactor = 0.02f,
                 ),

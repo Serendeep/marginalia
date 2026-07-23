@@ -80,6 +80,7 @@ import com.serendeep.marginalia.ui.components.GlassDialog
 import com.serendeep.marginalia.ui.components.GlassTextButton
 import com.serendeep.marginalia.ui.components.MarginLabel
 import com.serendeep.marginalia.ui.theme.DisplayFamily
+import com.serendeep.marginalia.ui.theme.GlassSmokeDark
 import com.serendeep.marginalia.ui.theme.GlassTintDark
 import com.serendeep.marginalia.ui.theme.GlassTintLight
 import com.serendeep.marginalia.ui.theme.LocalDarkTheme
@@ -183,7 +184,9 @@ fun LibraryScreen(
                     state = hazeState,
                     style = HazeStyle(
                         backgroundColor = MaterialTheme.colorScheme.background,
-                        tint = HazeTint(if (dark) GlassTintDark else GlassTintLight),
+                        // White covers scroll under this bar; smoke keeps the
+                        // title legible when they do.
+                        tint = HazeTint(if (dark) GlassSmokeDark else GlassTintLight),
                         blurRadius = 24.dp,
                         noiseFactor = 0.02f,
                     ),
