@@ -5,12 +5,12 @@ import androidx.compose.ui.graphics.Color
 // Liquid Glass. Dark is the primary mode; light is its frosted-porcelain twin.
 
 // Dark mode
-val BgDark = Color(0xFF101318)
-val SheetDark = Color(0xFF161A21)
-val InkDark = Color(0xFFE8EAEE)
-val AccentDark = Color(0xFF7C9BD9)
-val SoftInkDark = Color(0xFF8A93A0)
-val RuleDark = Color(0xFF262C35)
+val BgDark = Color(0xFF0B0C0E)
+val SheetDark = Color(0xFF111318)
+val InkDark = Color(0xFFF2F2F5)
+val AccentDark = Color(0xFF43E0F8)
+val SoftInkDark = Color(0xFF5C6470)
+val RuleDark = Color(0xFF16181D)
 val DividerDark = Color(0x1FFFFFFF)
 val GlassTintDark = Color(0x14FFFFFF)
 val GlassBorderDark = Color(0x24FFFFFF)
@@ -42,3 +42,20 @@ val PenIndigoLight = Color(0xFF4A6FB5)
 val PenIndigoDark = Color(0xFF7C9BD9)
 val PenRustLight = Color(0xFFA9663A)
 val PenRustDark = Color(0xFFC98A5E)
+
+val Danger = Color(0xFFFF6B6B)
+
+object CoursePalette {
+    val swatches = listOf(
+        Color(0xFF43E0F8), // cyan
+        Color(0xFFA78BFA), // violet
+        Color(0xFFFB7185), // coral
+        Color(0xFFFBBF24), // amber
+        Color(0xFFA3E635), // lime
+        Color(0xFF2DD4BF), // teal
+        Color(0xFFF472B6), // pink
+        Color(0xFFFB923C), // orange
+    )
+
+    fun color(index: Int): Color = swatches[index.mod(swatches.size)]
+}
