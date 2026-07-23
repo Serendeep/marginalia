@@ -77,6 +77,7 @@ import com.serendeep.marginalia.ui.components.GlassButton
 import com.serendeep.marginalia.ui.components.GlassDialog
 import com.serendeep.marginalia.ui.components.GlassTextButton
 import com.serendeep.marginalia.ui.components.MarginLabel
+import com.serendeep.marginalia.ui.components.glassBorder
 import com.serendeep.marginalia.ink.InkCanvas
 import com.serendeep.marginalia.ink.InkTool
 import com.serendeep.marginalia.ink.Pen
@@ -86,14 +87,13 @@ import com.serendeep.marginalia.pdf.PdfDocumentSource
 import com.serendeep.marginalia.pdf.PdfPane
 import com.serendeep.marginalia.ui.theme.DotGridDark
 import com.serendeep.marginalia.ui.theme.DotGridLight
-import com.serendeep.marginalia.ui.theme.GlassBorderDark
-import com.serendeep.marginalia.ui.theme.GlassBorderLight
 import com.serendeep.marginalia.ui.theme.GlassSmokeDark
 import com.serendeep.marginalia.ui.theme.GlassTintDark
 import com.serendeep.marginalia.ui.theme.GlassTintLight
 import com.serendeep.marginalia.ui.theme.InkLight
 import com.serendeep.marginalia.ui.theme.LocalDarkTheme
 import com.serendeep.marginalia.ui.theme.LocalPenPalette
+import com.serendeep.marginalia.ui.theme.MonoFamily
 import dev.chrisbanes.haze.HazeInputScale
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.HazeStyle
@@ -146,6 +146,8 @@ fun NotebookScreen(
     val activeAnchor by viewModel.activeAnchor.collectAsStateWithLifecycle()
     val canvasOffset by viewModel.canvasOffset.collectAsStateWithLifecycle()
     val pdfSyncTarget by viewModel.pdfScrollTarget.collectAsStateWithLifecycle()
+    val currentPage by viewModel.currentPage.collectAsStateWithLifecycle()
+    val pageCount by viewModel.pageCount.collectAsStateWithLifecycle()
     val strokeList = remember(strokes) { strokes.map { it.stroke } }
     val pageAnchors = remember(anchors) {
         anchors.map { PageAnchor(it.id, it.pdfPage, it.pageXFraction, it.pageYFraction, it.label) }
@@ -197,6 +199,13 @@ fun NotebookScreen(
                 hazeState = pdfHaze,
                 modifier = Modifier.align(Alignment.TopStart).padding(12.dp),
             )
+            if (pageCount > 0) {
+                PageIndicator(
+                    page = currentPage + 1,
+                    pageCount = pageCount,
+                    modifier = Modifier.align(Alignment.BottomCenter).padding(12.dp),
+                )
+            }
         }
 
         pendingWebLink?.let { url ->
@@ -383,7 +392,7 @@ private fun DocumentBar(
             ) {
                 inputScale = HazeInputScale.Fixed(0.5f)
             }
-            .border(1.dp, if (dark) GlassBorderDark else GlassBorderLight, shape)
+            .border(1.dp, glassBorder(), shape)
             .padding(horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -399,9 +408,11 @@ private fun DocumentBar(
             )
         }
         Text(
-            title,
-            fontSize = 14.sp,
+            title.uppercase(),
+            fontFamily = MonoFamily,
+            fontSize = 13.sp,
             fontWeight = FontWeight.SemiBold,
+            letterSpacing = 1.4.sp,
             color = iconColor,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
@@ -423,6 +434,26 @@ private fun DocumentBar(
             Spacer(Modifier.width(8.dp))
         }
     }
+}
+
+/** Small glass pill showing the PDF page under the viewport. */
+@Composable
+private fun PageIndicator(page: Int, pageCount: Int, modifier: Modifier = Modifier) {
+    val dark = LocalDarkTheme.current
+    val iconColor = if (dark) Color(0xFFE8EAEE) else InkLight
+    val shape = RoundedCornerShape(14.dp)
+    Text(
+        "PG %02d/%02d".format(page, pageCount),
+        fontFamily = MonoFamily,
+        fontSize = 11.sp,
+        letterSpacing = 1.2.sp,
+        color = iconColor,
+        modifier = modifier
+            .clip(shape)
+            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.7f))
+            .border(1.dp, glassBorder(), shape)
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+    )
 }
 
 @Composable
