@@ -15,6 +15,10 @@ val DividerDark = Color(0x1FFFFFFF)
 val GlassTintDark = Color(0x14FFFFFF)
 val GlassBorderDark = Color(0x24FFFFFF)
 
+// Chrome floating over content of unknown brightness (a white PDF page) needs
+// a tint that stays dark regardless of what the blur samples.
+val GlassSmokeDark = Color(0xB3161A21)
+
 // Light mode
 val BgLight = Color(0xFFEEF1F5)
 val SheetLight = Color(0xFFF9FAFC)
