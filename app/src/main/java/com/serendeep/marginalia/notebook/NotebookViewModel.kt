@@ -82,6 +82,17 @@ class NotebookViewModel @Inject constructor(
 
     private val _canRedo = MutableStateFlow(false)
     val canRedo: StateFlow<Boolean> = _canRedo.asStateFlow()
+
+    // Display-only mirrors of firstVisiblePage/pdfPageCount below, for the page
+    // indicator pill. StateFlow only notifies collectors on an actual value
+    // change, so despite onPdfScrollPos firing every scroll frame, this only
+    // triggers recomposition once per page crossed.
+    private val _currentPage = MutableStateFlow(0)
+    val currentPage: StateFlow<Int> = _currentPage.asStateFlow()
+
+    private val _pageCount = MutableStateFlow(0)
+    val pageCount: StateFlow<Int> = _pageCount.asStateFlow()
+
     private var lectureId: String? = null
     private var lectureJob: Job? = null
     private var documentId: String = ""
@@ -113,6 +124,8 @@ class NotebookViewModel @Inject constructor(
         _tool.value = InkTool.PEN
         firstVisiblePage = 0
         pdfPos = 0f
+        _currentPage.value = 0
+        _pageCount.value = 0
         ops.clear()
         redos.clear()
         syncUndoState()
@@ -141,6 +154,7 @@ class NotebookViewModel @Inject constructor(
                     _document.value = latest
                     documentId = latest?.id ?: ""
                     pdfPageCount = latest?.pageCount ?: 0
+                    _pageCount.value = pdfPageCount
                 }
             }
         }
@@ -389,6 +403,7 @@ class NotebookViewModel @Inject constructor(
     fun onPdfScrollPos(pos: Float) {
         pdfPos = pos
         firstVisiblePage = pos.toInt()
+        _currentPage.value = firstVisiblePage
         // While our own scroll request is in flight, every report is an echo.
         if (_pdfScrollTarget.value != null) return
         val expected = expectedPdfPos

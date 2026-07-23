@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Redo
@@ -26,7 +27,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -38,8 +38,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
 import com.serendeep.marginalia.ink.InkTool
 import com.serendeep.marginalia.ink.Pen
-import com.serendeep.marginalia.ui.theme.GlassBorderDark
-import com.serendeep.marginalia.ui.theme.GlassBorderLight
+import com.serendeep.marginalia.ui.components.glassBorder
 import com.serendeep.marginalia.ui.theme.GlassTintDark
 import com.serendeep.marginalia.ui.theme.GlassTintLight
 import com.serendeep.marginalia.ui.theme.InkLight
@@ -101,7 +100,7 @@ fun ToolRail(
                     }
                 },
             )
-            .border(1.dp, if (dark) GlassBorderDark else GlassBorderLight, shape)
+            .border(1.dp, glassBorder(), shape)
             .padding(vertical = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -149,22 +148,14 @@ private fun PenSwatch(color: Color, selected: Boolean, glow: Color, onClick: () 
         Modifier.size(TOUCH_TARGET_DP.dp).clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Canvas(Modifier.size(TOUCH_TARGET_DP.dp)) {
-            val fillRadius = SWATCH_DIAMETER_DP.dp.toPx() / 2f
-            if (selected) {
-                // Soft luminous halo plus a crisp ring; the glow never touches ink.
-                drawCircle(
-                    brush = Brush.radialGradient(
-                        colors = listOf(glow.copy(alpha = 0.45f), Color.Transparent),
-                        center = center,
-                        radius = fillRadius * 2.4f,
-                    ),
-                    radius = fillRadius * 2.4f,
-                )
-                drawCircle(glow.copy(alpha = 0.9f), radius = fillRadius + 4.dp.toPx(), style = Stroke(2.dp.toPx()))
-            }
-            drawCircle(color, radius = fillRadius)
-        }
+        Box(
+            Modifier
+                .size(SWATCH_DIAMETER_DP.dp + 10.dp)
+                .then(if (selected) Modifier.border(2.dp, glow, CircleShape) else Modifier)
+                .padding(5.dp)
+                .clip(CircleShape)
+                .background(color),
+        )
     }
 }
 
@@ -176,12 +167,7 @@ private fun EraserButton(selected: Boolean, iconColor: Color, onClick: () -> Uni
         contentAlignment = Alignment.Center,
     ) {
         if (selected) {
-            Box(
-                Modifier
-                    .size(32.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(accent.copy(alpha = 0.25f)),
-            )
+            Box(Modifier.size(34.dp).border(2.dp, accent, CircleShape))
         }
         Canvas(Modifier.size(22.dp)) {
             val strokeWidth = 2.dp.toPx()
