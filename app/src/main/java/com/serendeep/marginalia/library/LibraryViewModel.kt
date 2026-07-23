@@ -92,9 +92,9 @@ class LibraryViewModel @Inject constructor(
     private val _celebration = MutableStateFlow(0)
     val celebration: StateFlow<Int> = _celebration.asStateFlow()
 
-    fun createCourse(name: String) {
+    fun createCourse(name: String, colorIndex: Int, emoji: String?) {
         if (name.isBlank()) return
-        viewModelScope.launch { repository.createCourse(name.trim()) }
+        viewModelScope.launch { repository.createCourse(name.trim(), colorIndex, emoji) }
     }
 
     fun importPdf(lectureId: String, uri: Uri) {
@@ -137,7 +137,7 @@ class LibraryViewModel @Inject constructor(
 
     private suspend fun unsortedCourse(): CourseEntity =
         repository.observeCourses().first().firstOrNull { it.name == UNSORTED_NAME }
-            ?: repository.createCourse(UNSORTED_NAME)
+            ?: repository.createCourse(UNSORTED_NAME, colorIndex = 0, emoji = null)
 
     fun dismissError() {
         _error.value = null

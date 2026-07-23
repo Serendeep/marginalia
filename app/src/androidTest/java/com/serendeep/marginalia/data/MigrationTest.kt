@@ -59,6 +59,23 @@ class MigrationTest {
         }
     }
 
+    @Test
+    fun migrate2To3_addsCourseCustomization() {
+        val db = helper.createDatabase(DB, 2)
+        db.execSQL(
+            "INSERT INTO courses (id, name, createdAt, orderIndex) VALUES ('c1', 'Systems', 0, 0)",
+        )
+        db.close()
+
+        val migrated = helper.runMigrationsAndValidate(DB, 3, true, MarginaliaDatabase.MIGRATION_2_3)
+
+        migrated.query("SELECT colorIndex, emoji FROM courses WHERE id = 'c1'").use { c ->
+            assertTrue(c.moveToFirst())
+            assertEquals(0, c.getInt(0))
+            assertTrue("emoji defaults to null", c.isNull(1))
+        }
+    }
+
     private companion object {
         const val DB = "migration-test.db"
     }
