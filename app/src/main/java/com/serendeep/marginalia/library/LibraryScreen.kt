@@ -192,13 +192,13 @@ fun LibraryScreen(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier
                     .clip(RoundedCornerShape(18.dp))
-                    .background(MaterialTheme.colorScheme.primaryContainer)
+                    .background(MaterialTheme.colorScheme.primary)
                     .padding(horizontal = 20.dp, vertical = 14.dp),
             ) {
-                Icon(Icons.Filled.Add, contentDescription = "Add", tint = MaterialTheme.colorScheme.onPrimaryContainer)
+                Icon(Icons.Filled.Add, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary)
                 Text(
                     "Add",
-                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    color = MaterialTheme.colorScheme.onPrimary,
                     style = MaterialTheme.typography.labelLarge,
                 )
             }
