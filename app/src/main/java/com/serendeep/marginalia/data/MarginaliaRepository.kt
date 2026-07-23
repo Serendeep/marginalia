@@ -1,6 +1,7 @@
 package com.serendeep.marginalia.data
 
 import kotlinx.coroutines.flow.Flow
+import java.io.File
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -76,6 +77,18 @@ class MarginaliaRepository @Inject constructor(
     }
 
     suspend fun deleteLecture(lecture: LectureEntity) = lectureDao.delete(lecture)
+
+    suspend fun renameLecture(lectureId: String, title: String) =
+        lectureDao.rename(lectureId, title)
+
+    suspend fun moveLecture(lectureId: String, courseId: String) =
+        lectureDao.move(lectureId, courseId)
+
+    suspend fun deleteLecture(lectureId: String) {
+        val files = documentDao.getByLecture(lectureId).map { File(it.localPath) }
+        lectureDao.deleteById(lectureId) // FK CASCADE removes documents/strokes/anchors
+        files.forEach { runCatching { it.delete() } } // best-effort; rows are gone already
+    }
 
     suspend fun saveStroke(stroke: InkStroke) = strokeDao.insert(stroke.toEntity())
 
