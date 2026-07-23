@@ -4,6 +4,8 @@ import android.net.Uri
 import android.text.format.DateUtils
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -26,6 +28,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -43,6 +46,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asComposePath
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -116,22 +120,14 @@ fun LibraryScreen(
                         modifier = Modifier.fillMaxWidth().padding(top = 24.dp, bottom = 12.dp),
                     ) {
                         Text("Library", style = MaterialTheme.typography.displaySmall)
-                        Column(horizontalAlignment = Alignment.End) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                GlassTextButton("New course", onClick = { showNewCourse = true })
-                                Spacer(Modifier.width(12.dp))
-                                GlassButton("Import PDFs", onClick = { launchImport("quick") })
-                            }
-                            Spacer(Modifier.height(8.dp))
-                            val notebooks = shelf.sections.sumOf { it.items.size }
-                            Text(
-                                "%03d NOTEBOOKS · %d COURSES".format(notebooks, shelf.sections.size),
-                                fontFamily = MonoFamily,
-                                fontSize = 12.sp,
-                                letterSpacing = 1.6.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
+                        val notebooks = shelf.sections.sumOf { it.items.size }
+                        Text(
+                            "%03d NOTEBOOKS · %d COURSES".format(notebooks, shelf.sections.size),
+                            fontFamily = MonoFamily,
+                            fontSize = 12.sp,
+                            letterSpacing = 1.6.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
                 }
                 shelf.hero?.let { hero ->
@@ -149,8 +145,9 @@ fun LibraryScreen(
                         CourseHeader(section)
                     }
                     val sectionColor = CoursePalette.color(section.course?.colorIndex ?: 0)
-                    itemsIndexed(section.items, key = { _, item -> item.lecture.id }) { _, item ->
+                    itemsIndexed(section.items, key = { _, item -> item.lecture.id }) { index, item ->
                         NotebookRow(
+                            index = index,
                             item = item,
                             courseColor = sectionColor,
                             viewModel = viewModel,
@@ -180,6 +177,30 @@ fun LibraryScreen(
                         )
                     }
                 }
+            }
+        }
+
+        GlassMenu(
+            entries = listOf(
+                GlassMenuEntry("Import PDFs") { launchImport("quick") },
+                GlassMenuEntry("New course") { showNewCourse = true },
+            ),
+            modifier = Modifier.align(Alignment.BottomEnd).padding(28.dp),
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(MaterialTheme.colorScheme.primaryContainer)
+                    .padding(horizontal = 20.dp, vertical = 14.dp),
+            ) {
+                Icon(Icons.Filled.Add, contentDescription = "Add", tint = MaterialTheme.colorScheme.onPrimaryContainer)
+                Text(
+                    "Add",
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    style = MaterialTheme.typography.labelLarge,
+                )
             }
         }
 
@@ -317,17 +338,24 @@ private fun CourseHeader(section: ShelfSection) {
 
 @Composable
 private fun NotebookRow(
+    index: Int,
     item: ShelfItem,
     courseColor: Color,
     viewModel: LibraryViewModel,
     onOpen: () -> Unit,
     menu: @Composable () -> Unit,
 ) {
+    val alpha = remember { Animatable(0f) }
+    LaunchedEffect(Unit) {
+        delay(index * 30L)
+        alpha.animateTo(1f, tween(220))
+    }
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(16.dp),
         modifier = Modifier
             .fillMaxWidth()
+            .graphicsLayer { this.alpha = alpha.value }
             .clip(RoundedCornerShape(12.dp))
             .clickable(onClick = onOpen)
             .padding(vertical = 12.dp, horizontal = 4.dp),
@@ -401,17 +429,18 @@ private fun EmptyShelf(onImport: () -> Unit) {
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
+        Text(
+            "NO LECTURES YET",
+            fontFamily = MonoFamily,
+            fontSize = 12.sp,
+            letterSpacing = 3.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(16.dp))
         Box(contentAlignment = Alignment.Center) {
             ScallopedGlyph(size = 148.dp, alpha = 0.16f)
             Text("+", style = MaterialTheme.typography.headlineLarge, color = MaterialTheme.colorScheme.primary)
         }
-        Spacer(Modifier.height(20.dp))
-        Text("Import a PDF to get started", style = MaterialTheme.typography.titleMedium)
-        Text(
-            "Each PDF becomes a notebook, named after the file",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
         Spacer(Modifier.height(20.dp))
         GlassButton("Import PDFs", onClick = onImport)
     }
