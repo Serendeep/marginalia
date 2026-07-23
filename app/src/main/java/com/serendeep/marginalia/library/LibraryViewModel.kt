@@ -139,6 +139,18 @@ class LibraryViewModel @Inject constructor(
         repository.observeCourses().first().firstOrNull { it.name == UNSORTED_NAME }
             ?: repository.createCourse(UNSORTED_NAME, colorIndex = 0, emoji = null)
 
+    fun renameLecture(lectureId: String, title: String) {
+        viewModelScope.launch { repository.renameLecture(lectureId, title) }
+    }
+
+    fun moveLecture(lectureId: String, courseId: String) {
+        viewModelScope.launch { repository.moveLecture(lectureId, courseId) }
+    }
+
+    fun deleteLecture(lectureId: String) {
+        viewModelScope.launch { repository.deleteLecture(lectureId) }
+    }
+
     fun dismissError() {
         _error.value = null
     }
