@@ -11,6 +11,8 @@ data class CourseEntity(
     val name: String,
     val createdAt: Long,
     val orderIndex: Long,
+    val colorIndex: Int = 0,
+    val emoji: String? = null,
 )
 
 @Entity(

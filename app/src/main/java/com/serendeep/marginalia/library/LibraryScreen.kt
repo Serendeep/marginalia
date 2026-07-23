@@ -245,7 +245,7 @@ fun LibraryScreen(
             title = "New course",
             onDismiss = { showNewCourse = false },
             onConfirm = {
-                viewModel.createCourse(it)
+                viewModel.createCourse(it, colorIndex = 0, emoji = null)
                 showNewCourse = false
             },
         )

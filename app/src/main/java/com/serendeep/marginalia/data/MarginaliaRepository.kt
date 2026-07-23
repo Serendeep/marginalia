@@ -30,8 +30,15 @@ class MarginaliaRepository @Inject constructor(
     fun observeStrokes(lectureId: String): Flow<List<StrokeEntity>> =
         strokeDao.observeByLecture(lectureId)
 
-    suspend fun createCourse(name: String): CourseEntity {
-        val course = CourseEntity(id = newId(), name = name, createdAt = now(), orderIndex = now())
+    suspend fun createCourse(name: String, colorIndex: Int, emoji: String?): CourseEntity {
+        val course = CourseEntity(
+            id = newId(),
+            name = name,
+            createdAt = now(),
+            orderIndex = now(),
+            colorIndex = colorIndex,
+            emoji = emoji,
+        )
         courseDao.insert(course)
         return course
     }

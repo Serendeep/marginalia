@@ -33,7 +33,7 @@ class MarginaliaRepositoryTest {
 
     @Test
     fun strokeSurvivesRoundTrip() = runBlocking {
-        val course = repo.createCourse("Thermodynamics")
+        val course = repo.createCourse("Thermodynamics", colorIndex = 0, emoji = null)
         val lecture = repo.createLecture(course.id, "Week 3: Entropy")
         val doc = repo.importDocument(lecture.id, "slides.pdf", "/data/slides.pdf", pageCount = 12)
 
@@ -66,7 +66,7 @@ class MarginaliaRepositoryTest {
 
     @Test
     fun deletingCourseCascadesToStrokes() = runBlocking {
-        val course = repo.createCourse("Algorithms")
+        val course = repo.createCourse("Algorithms", colorIndex = 0, emoji = null)
         val lecture = repo.createLecture(course.id, "Week 1")
         val doc = repo.importDocument(lecture.id, "l1.pdf", "/data/l1.pdf", pageCount = 3)
         repo.saveStroke(
@@ -94,7 +94,7 @@ class MarginaliaRepositoryTest {
 
     @Test
     fun removeAnchorUnbindsStrokes_andRestoreRebinds() = runBlocking {
-        val course = repo.createCourse("Systems")
+        val course = repo.createCourse("Systems", colorIndex = 0, emoji = null)
         val lecture = repo.createLecture(course.id, "Week 4")
         val doc = repo.importDocument(lecture.id, "s.pdf", "/data/s.pdf", pageCount = 5)
         val anchor = repo.createAnchor(lecture.id, doc.id, pdfPage = 2, pageXFraction = 0.4f, pageYFraction = 0.6f)
@@ -127,7 +127,7 @@ class MarginaliaRepositoryTest {
 
     @Test
     fun reimportGetsNextVersionIndex() = runBlocking {
-        val course = repo.createCourse("Networks")
+        val course = repo.createCourse("Networks", colorIndex = 0, emoji = null)
         val lecture = repo.createLecture(course.id, "Week 2")
         val v0 = repo.importDocument(lecture.id, "slides.pdf", "/data/v0.pdf", pageCount = 8)
         val v1 = repo.importDocument(lecture.id, "slides.pdf", "/data/v1.pdf", pageCount = 9)
