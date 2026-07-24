@@ -15,6 +15,7 @@ welcome, see [CONTRIBUTING.md](CONTRIBUTING.md).
 - [x] Editor chrome restyle, including the active-tool ring and page indicator
 - [x] Fix "1 pages" pluralization in the library
 - [x] Refresh README screenshots with seeded course, lecture, and margin ink
+- [x] Empty notebooks: create a titled, blank pen-only notebook without a PDF
 
 ## Now: notebooks and import flow
 

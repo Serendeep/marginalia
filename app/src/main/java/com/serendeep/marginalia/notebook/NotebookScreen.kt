@@ -123,6 +123,7 @@ fun NotebookScreen(
     LaunchedEffect(lectureId) { viewModel.openLecture(lectureId) }
 
     val document by viewModel.document.collectAsStateWithLifecycle()
+    val lectureTitle by viewModel.lectureTitle.collectAsStateWithLifecycle()
     LaunchedEffect(document) {
         source?.close()
         // Parsing a PDF is heavy native work; it must never block the frame
@@ -192,7 +193,7 @@ fun NotebookScreen(
                 }
             }
             DocumentBar(
-                title = document?.fileName?.removeSuffix(".pdf") ?: "Notebook",
+                title = document?.fileName?.removeSuffix(".pdf") ?: lectureTitle,
                 hasOutline = current?.outline().orEmpty().isNotEmpty(),
                 onBack = onBack,
                 onOutline = { outlineSheet.currentDetent = peekDetent },

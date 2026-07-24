@@ -97,6 +97,15 @@ class LibraryViewModel @Inject constructor(
         viewModelScope.launch { repository.createCourse(name.trim(), colorIndex, emoji) }
     }
 
+    /** Creates a blank notebook in the shared unsorted section. */
+    fun createNotebook(title: String, onCreated: (String) -> Unit = {}) {
+        if (title.isBlank()) return
+        viewModelScope.launch {
+            val lecture = repository.createLecture(unsortedCourse().id, title.trim())
+            onCreated(lecture.id)
+        }
+    }
+
     fun importPdf(lectureId: String, uri: Uri) {
         viewModelScope.launch {
             when (val result = importer.import(lectureId, uri)) {

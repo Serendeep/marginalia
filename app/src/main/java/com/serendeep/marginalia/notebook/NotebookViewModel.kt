@@ -74,6 +74,9 @@ class NotebookViewModel @Inject constructor(
     private val _document = MutableStateFlow<DocumentEntity?>(null)
     val document: StateFlow<DocumentEntity?> = _document.asStateFlow()
 
+    private val _lectureTitle = MutableStateFlow("Notebook")
+    val lectureTitle: StateFlow<String> = _lectureTitle.asStateFlow()
+
     private val ops = ArrayDeque<EditOp>()
     private val redos = ArrayDeque<EditOp>()
 
@@ -142,8 +145,14 @@ class NotebookViewModel @Inject constructor(
         _canvasOffset.value = 0f
         _pdfScrollTarget.value = null
         _document.value = null
+        _lectureTitle.value = "Notebook"
 
         lectureJob = viewModelScope.launch {
+            launch {
+                repository.observeLecture(id).collect { lecture ->
+                    _lectureTitle.value = lecture?.title ?: "Notebook"
+                }
+            }
             _strokes.value = repository.loadStrokes(id).map { RenderedStroke(it, it.toStroke()) }
             launch { repository.observeAnchors(id).collect { _anchors.value = it } }
             launch {

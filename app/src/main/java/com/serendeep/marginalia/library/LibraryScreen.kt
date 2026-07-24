@@ -78,6 +78,7 @@ fun LibraryScreen(
     val shelf by viewModel.shelf.collectAsStateWithLifecycle()
     val error by viewModel.error.collectAsStateWithLifecycle()
     var showNewCourse by remember { mutableStateOf(false) }
+    var showNewNotebook by remember { mutableStateOf(false) }
     var renaming by remember { mutableStateOf<ShelfItem?>(null) }
     var deleting by remember { mutableStateOf<ShelfItem?>(null) }
 
@@ -183,6 +184,7 @@ fun LibraryScreen(
         GlassMenu(
             entries = listOf(
                 GlassMenuEntry("Import PDFs") { launchImport("quick") },
+                GlassMenuEntry("New notebook") { showNewNotebook = true },
                 GlassMenuEntry("New course") { showNewCourse = true },
             ),
             modifier = Modifier.align(Alignment.BottomEnd).padding(28.dp),
@@ -237,6 +239,19 @@ fun LibraryScreen(
             onSave = { name, colorIndex, emoji ->
                 viewModel.createCourse(name, colorIndex, emoji)
                 showNewCourse = false
+            },
+        )
+    }
+
+    if (showNewNotebook) {
+        NamePromptDialog(
+            title = "New notebook",
+            onDismiss = { showNewNotebook = false },
+            onConfirm = { title ->
+                viewModel.createNotebook(title) { lectureId ->
+                    showNewNotebook = false
+                    onOpenLecture(lectureId)
+                }
             },
         )
     }
