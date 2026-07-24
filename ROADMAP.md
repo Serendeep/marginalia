@@ -4,18 +4,24 @@ Marginalia is a pen-first Android app for taking margin notes on lecture PDFs.
 This roadmap tracks planned work; items move up as they get scheduled. PRs
 welcome, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
-## Now: visual overhaul & core UX
+## Done
 
-- [ ] Library redesign ("Quiet Archive"): list rows with real PDF thumbnails,
-      monospaced metadata, hairline rules, single cyan accent
-- [ ] Course customization: user-picked color and emoji per course
+- [x] Library redesign ("Quiet Archive"): list rows with real PDF thumbnails,
+      monospaced metadata, hairline rules, and a single cyan accent
+- [x] Course customization: user-picked color and emoji per course
+- [x] Rename, move, and delete lectures, including cleanup of imported files
+      and related notes
+- [x] Quiet empty-library state and a single add menu for imports and courses
+- [x] Editor chrome restyle, including the active-tool ring and page indicator
+- [x] Fix "1 pages" pluralization in the library
+- [x] Refresh README screenshots with seeded course, lecture, and margin ink
+
+## Now: notebooks and import flow
+
 - [ ] Empty notebooks: blank pen-only notebooks without a backing PDF
-- [ ] Delete imported PDFs (confirmation + full cleanup of notes, thumbnails, files)
 - [ ] Register as a PDF handler: open PDFs from any app straight into Marginalia
 - [ ] Ink on the page: highlighter and pen strokes directly on PDF pages,
       not just the margin
-- [ ] Editor chrome restyle to match the new design language
-- [ ] Fix "1 pages" pluralization in the library
 
 ## Next
 

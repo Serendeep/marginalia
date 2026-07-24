@@ -16,7 +16,7 @@
 Your professor's slides already say most of it. Marginalia gives you the
 margin: each PDF page gets a writable strip beside it, so your notes live
 next to the slide they belong to and stay anchored there. The stylus draws;
-your finger scrolls and zooms. No mode toggle.
+your finger scrolls and zooms. There is no mode toggle to get in the way.
 
 Offline-first, no account, no cloud. Your notes stay on your tablet.
 
@@ -24,15 +24,15 @@ Offline-first, no account, no cloud. Your notes stay on your tablet.
 
 - ✍️ **Write beside the page, not on it.** Every PDF page gets its own margin canvas.
 - 📌 **Notes stay anchored.** Strokes are tied to the page you wrote them against.
-- 🖐️ **Stylus draws, finger navigates.** Palm-friendly. Nothing to switch.
-- 📚 **Course library.** Import lecture PDFs, organized by course, with page thumbnails.
+- 🖐️ **Stylus draws, finger navigates.** Palm-friendly, with no mode switch.
+- 📚 **Quiet course library.** Import PDFs, browse real page thumbnails, and group lectures by course.
+- 🏷️ **Make courses yours.** Pick a course color and emoji, then rename or move lectures from the row menu.
 - 🧭 **Outline sheet.** Jump around long decks from the PDF's table of contents.
-- ↩️ **Undo, redo, erase.** Haptic feedback, low-latency ink.
+- ↩️ **Undo, redo, erase.** Haptic feedback, low-latency ink, and a clear active-tool ring.
 - 📴 **Fully offline.** No account, and no Google Play Services needed.
 
-The [roadmap](ROADMAP.md) is where this is headed next: ink directly on the
-page, a highlighter, course colors and emoji, empty notebooks, and opening
-PDFs from any app.
+The [roadmap](ROADMAP.md) covers what comes next: empty notebooks, ink directly
+on the PDF page, a highlighter, and opening PDFs from other apps.
 
 ## Building
 
@@ -57,6 +57,9 @@ adb shell am start -n com.serendeep.marginalia/.MainActivity
 The connected suite (`./gradlew connectedDebugAndroidTest`) uninstalls the
 app when it finishes, **which deletes all app data. Run it on an emulator
 only**, never on a tablet you take notes on.
+
+The current emulator suite runs 28 tests, including database migration,
+lecture CRUD, PDF import, zoom, links, and ink behavior.
 
 ## Built with
 
