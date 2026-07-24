@@ -40,6 +40,19 @@ class LectureCrudTest {
     }
 
     @Test
+    fun newLecture_startsWithoutDocument() = runBlocking {
+        val db = db()
+        db.courseDao().insert(CourseEntity("c1", "Sys", 0, 0))
+        val lecture = MarginaliaRepository(
+            db.courseDao(), db.lectureDao(), db.documentDao(), db.strokeDao(), db.anchorDao()
+        ).createLecture("c1", "Scratch Notes")
+
+        assertTrue(db.documentDao().getByLecture(lecture.id).isEmpty())
+        assertEquals("Scratch Notes", db.lectureDao().observeAll().firstValue().single().title)
+        db.close()
+    }
+
+    @Test
     fun deleteLecture_cascades() = runBlocking {
         val db = db()
         db.courseDao().insert(CourseEntity("c1", "Sys", 0, 0))
