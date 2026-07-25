@@ -26,7 +26,7 @@ import androidx.ink.strokes.Stroke
 import androidx.ink.strokes.StrokeInput
 import androidx.input.motionprediction.MotionEventPredictor
 
-enum class InkTool { PEN, ERASER }
+enum class InkTool { PEN, HIGHLIGHTER, ERASER }
 
 /**
  * A note surface. The stylus draws or erases; a single-finger drag scrolls the
@@ -80,7 +80,13 @@ fun InkCanvas(
                     if (event.actionMasked == MotionEvent.ACTION_DOWN) container.hoverView.hide()
                     touch.onTouch(
                         event = event,
-                        brush = { Pens.pen(currentPenColor, currentPenSize) },
+                        brush = {
+                            if (currentTool == InkTool.HIGHLIGHTER) {
+                                Pens.highlighter(Pens.HIGHLIGHTER_COLOR)
+                            } else {
+                                Pens.pen(currentPenColor, currentPenSize)
+                            }
+                        },
                         erasing = currentTool == InkTool.ERASER,
                         // Erasing works on stored strokes, so hit-test in canvas space.
                         onErase = { x, y -> onEraseAt(x, y + container.canvasOffset) },

@@ -23,7 +23,11 @@ object DatabaseModule {
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): MarginaliaDatabase =
         Room.databaseBuilder(context, MarginaliaDatabase::class.java, "marginalia.db")
-            .addMigrations(MarginaliaDatabase.MIGRATION_1_2, MarginaliaDatabase.MIGRATION_2_3)
+            .addMigrations(
+                MarginaliaDatabase.MIGRATION_1_2,
+                MarginaliaDatabase.MIGRATION_2_3,
+                MarginaliaDatabase.MIGRATION_3_4,
+            )
             .build()
 
     @Provides

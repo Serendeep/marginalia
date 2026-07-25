@@ -13,7 +13,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         StrokeEntity::class,
         AnchorEntity::class,
     ],
-    version = 3,
+    version = 4,
     exportSchema = true,
 )
 abstract class MarginaliaDatabase : RoomDatabase() {
@@ -50,6 +50,12 @@ abstract class MarginaliaDatabase : RoomDatabase() {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE courses ADD COLUMN colorIndex INTEGER NOT NULL DEFAULT 0")
                 db.execSQL("ALTER TABLE courses ADD COLUMN emoji TEXT")
+            }
+        }
+
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE strokes ADD COLUMN surface TEXT NOT NULL DEFAULT 'MARGIN'")
             }
         }
     }

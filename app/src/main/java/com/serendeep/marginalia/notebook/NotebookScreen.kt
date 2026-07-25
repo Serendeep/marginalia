@@ -143,6 +143,7 @@ fun NotebookScreen(
     }
 
     val strokes by viewModel.strokes.collectAsStateWithLifecycle()
+    val pageStrokes by viewModel.pageStrokes.collectAsStateWithLifecycle()
     val tool by viewModel.tool.collectAsStateWithLifecycle()
     val selectedPen by viewModel.selectedPen.collectAsStateWithLifecycle()
     val penDown by viewModel.penDown.collectAsStateWithLifecycle()
@@ -153,6 +154,9 @@ fun NotebookScreen(
     val currentPage by viewModel.currentPage.collectAsStateWithLifecycle()
     val pageCount by viewModel.pageCount.collectAsStateWithLifecycle()
     val strokeList = remember(strokes) { strokes.map { it.stroke } }
+    val pageStrokeMap = remember(pageStrokes) {
+        pageStrokes.groupBy { it.record.pdfPage }.mapValues { (_, items) -> items.map { it.stroke } }
+    }
     val pageAnchors = remember(anchors) {
         anchors.map { PageAnchor(it.id, it.pdfPage, it.pageXFraction, it.pageYFraction, it.label) }
     }
@@ -190,6 +194,16 @@ fun NotebookScreen(
                     scrollToPos = pdfSyncTarget,
                     onScrollHandled = viewModel::onPdfScrollHandled,
                     onScrollPos = viewModel::onPdfScrollPos,
+                    pageStrokes = pageStrokeMap,
+                    inkTool = tool,
+                    inkColor = when (selectedPen) {
+                        Pen.GRAPHITE -> LocalPenPalette.current.graphite
+                        Pen.INDIGO -> LocalPenPalette.current.indigo
+                        Pen.RUST -> LocalPenPalette.current.rust
+                    }.toArgb(),
+                    inkSizePx = Pens.DEFAULT_SIZE_PX,
+                    onPageStrokeFinished = viewModel::onPageStrokeFinished,
+                    onPageErase = viewModel::erasePageAt,
                 )
             }
             DocumentBar(
@@ -364,6 +378,7 @@ fun NotebookScreen(
                 canUndo = canUndo,
                 canRedo = canRedo,
                 onSelectPen = viewModel::selectPen,
+                onHighlighter = viewModel::selectHighlighter,
                 onEraser = { viewModel.setTool(InkTool.ERASER) },
                 onUndo = viewModel::undo,
                 onRedo = viewModel::redo,

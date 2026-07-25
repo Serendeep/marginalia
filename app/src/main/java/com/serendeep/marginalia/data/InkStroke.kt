@@ -24,4 +24,7 @@ data class InkStroke(
     val brushColor: Long,
     val brushSizeDp: Float,
     val batch: StrokeInputBatch,
+    val surface: InkSurface = InkSurface.MARGIN,
 )
+
+enum class InkSurface { MARGIN, PAGE }
