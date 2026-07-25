@@ -6,11 +6,14 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.File
+import java.util.UUID
 
-// Brief's helper used a nested runBlocking whose implicit receiver shadowed the
-// Flow, so `first()` didn't resolve; this is a plain suspend extension instead.
+// Keep the Flow assertion in a suspend extension so callers can use firstValue()
+// without nesting another runBlocking block.
 private suspend fun <T> Flow<List<T>>.firstValue(): List<T> = first()
 
 class LectureCrudTest {
@@ -63,5 +66,28 @@ class LectureCrudTest {
         db.lectureDao().deleteById("l1")
         assertTrue(db.documentDao().getByLecture("l1").isEmpty())
         db.close()
+    }
+
+    @Test
+    fun deleteLecture_removesDocumentFile() = runBlocking {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val db = db()
+        val repo = MarginaliaRepository(
+            db.courseDao(), db.lectureDao(), db.documentDao(), db.strokeDao(), db.anchorDao()
+        )
+        val path = File(context.cacheDir, "delete-${UUID.randomUUID()}.pdf")
+        try {
+            val course = repo.createCourse("Sys", 0, null)
+            val lecture = repo.createLecture(course.id, "Disposable")
+            path.writeBytes(byteArrayOf(1, 2, 3))
+            repo.importDocument(lecture.id, path.name, path.absolutePath, pageCount = 1)
+
+            repo.deleteLecture(lecture.id)
+
+            assertFalse(path.exists())
+        } finally {
+            path.delete()
+            db.close()
+        }
     }
 }

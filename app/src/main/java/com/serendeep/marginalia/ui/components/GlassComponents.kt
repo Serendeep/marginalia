@@ -22,6 +22,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -83,12 +84,20 @@ fun GlassButton(
     enabled: Boolean = true,
     containerColor: Color? = null,
 ) {
+    val background = containerColor ?: MaterialTheme.colorScheme.primary
+    val foreground = if (containerColor == null) {
+        MaterialTheme.colorScheme.onPrimary
+    } else if (background.luminance() > 0.5f) {
+        Color.Black
+    } else {
+        Color.White
+    }
     Button(
         onClick = onClick,
         modifier = modifier,
         enabled = enabled,
         shape = RoundedCornerShape(22.dp),
-        colors = ButtonDefaults.buttonColors(containerColor = containerColor ?: MaterialTheme.colorScheme.primary),
+        colors = ButtonDefaults.buttonColors(containerColor = background, contentColor = foreground),
     ) { Text(text, fontWeight = FontWeight.Medium) }
 }
 
@@ -156,7 +165,7 @@ fun MarginLabel(
         )
         Spacer(Modifier.width(8.dp))
         Text(
-            text.uppercase(),
+            text.uppercase(java.util.Locale.ROOT),
             fontSize = 11.sp,
             fontWeight = FontWeight.SemiBold,
             letterSpacing = 1.2.sp,

@@ -1,3 +1,5 @@
+@file:Suppress("RestrictedApi")
+
 package com.serendeep.marginalia.ink
 
 import android.content.Context
