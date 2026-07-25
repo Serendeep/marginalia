@@ -31,6 +31,7 @@ import com.serendeep.marginalia.ui.components.GlassButton
 import com.serendeep.marginalia.ui.components.GlassDialog
 import com.serendeep.marginalia.ui.components.GlassTextButton
 import com.serendeep.marginalia.ui.components.MarginLabel
+import com.serendeep.marginalia.ui.components.glassTextFieldColors
 import com.serendeep.marginalia.ui.theme.CoursePalette
 
 @Composable
@@ -51,6 +52,7 @@ fun CourseEditorDialog(
                 onValueChange = { name = it },
                 placeholder = { Text("Course name") },
                 singleLine = true,
+                colors = glassTextFieldColors(),
                 modifier = Modifier.fillMaxWidth(),
             )
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
