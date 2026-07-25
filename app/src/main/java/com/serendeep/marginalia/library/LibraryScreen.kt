@@ -106,6 +106,18 @@ fun LibraryScreen(
         picker.launch(arrayOf("application/pdf"))
     }
 
+    fun menuEntries(item: ShelfItem) = buildList {
+        add(GlassMenuEntry("Rename") { renaming = item })
+        shelf.sections.mapNotNull { it.course }
+            .filter { it.id != item.lecture.courseId }
+            .forEach { course ->
+                add(GlassMenuEntry("Move to ${course.name}") {
+                    viewModel.moveLecture(item.lecture.id, course.id)
+                })
+            }
+        add(GlassMenuEntry("Delete notebook") { deleting = item })
+    }
+
     Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         if (shelf.isEmpty) {
             EmptyShelf(onImport = { launchImport("quick") })
@@ -138,6 +150,16 @@ fun LibraryScreen(
                             item = hero,
                             viewModel = viewModel,
                             onOpen = { onOpenLecture(hero.lecture.id) },
+                            menu = {
+                                GlassMenu(entries = menuEntries(hero)) {
+                                    Icon(
+                                        Icons.Filled.MoreHoriz,
+                                        contentDescription = "More",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(20.dp),
+                                    )
+                                }
+                            },
                             modifier = Modifier.padding(bottom = 8.dp),
                         )
                     }
@@ -155,19 +177,7 @@ fun LibraryScreen(
                             viewModel = viewModel,
                             onOpen = { onOpenLecture(item.lecture.id) },
                             menu = {
-                                GlassMenu(
-                                    entries = buildList {
-                                        add(GlassMenuEntry("Rename") { renaming = item })
-                                        shelf.sections.mapNotNull { it.course }
-                                            .filter { it.id != item.lecture.courseId }
-                                            .forEach { course ->
-                                                add(GlassMenuEntry("Move to ${course.name}") {
-                                                    viewModel.moveLecture(item.lecture.id, course.id)
-                                                })
-                                            }
-                                        add(GlassMenuEntry("Delete notebook") { deleting = item })
-                                    },
-                                ) {
+                                GlassMenu(entries = menuEntries(item)) {
                                     Icon(
                                         Icons.Filled.MoreHoriz,
                                         contentDescription = "More",
@@ -302,6 +312,7 @@ private fun ContinueBanner(
     item: ShelfItem,
     viewModel: LibraryViewModel,
     onOpen: () -> Unit,
+    menu: @Composable () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val accent = MaterialTheme.colorScheme.primary
@@ -329,6 +340,7 @@ private fun ContinueBanner(
             )
         }
         GlassButton("Resume", onClick = onOpen)
+        menu()
     }
 }
 
