@@ -69,6 +69,7 @@ import com.serendeep.marginalia.ui.theme.CoursePalette
 import com.serendeep.marginalia.ui.theme.Danger
 import com.serendeep.marginalia.ui.theme.MonoFamily
 import kotlinx.coroutines.delay
+import java.util.Locale
 
 @Composable
 fun LibraryScreen(
@@ -121,9 +122,9 @@ fun LibraryScreen(
                         modifier = Modifier.fillMaxWidth().padding(top = 24.dp, bottom = 12.dp),
                     ) {
                         Text("Library", style = MaterialTheme.typography.displaySmall)
-                        val notebooks = shelf.sections.sumOf { it.items.size }
+                        val notebooks = shelf.sections.sumOf { it.items.size } + if (shelf.hero != null) 1 else 0
                         Text(
-                            "%03d NOTEBOOKS · %d COURSES".format(notebooks, shelf.sections.size),
+                            "%03d NOTEBOOKS · %d COURSES".format(Locale.ROOT, notebooks, shelf.courseCount),
                             fontFamily = MonoFamily,
                             fontSize = 12.sp,
                             letterSpacing = 1.6.sp,
@@ -164,7 +165,7 @@ fun LibraryScreen(
                                                     viewModel.moveLecture(item.lecture.id, course.id)
                                                 })
                                             }
-                                        add(GlassMenuEntry("Delete PDF") { deleting = item })
+                                        add(GlassMenuEntry("Delete notebook") { deleting = item })
                                     },
                                 ) {
                                     Icon(
@@ -342,7 +343,7 @@ private fun CourseHeader(section: ShelfSection) {
         Box(Modifier.size(8.dp).clip(RoundedCornerShape(2.dp)).background(color))
         section.course?.emoji?.let { Text(it, fontSize = 14.sp) }
         Text(
-            (section.course?.name ?: "Notebooks").uppercase(),
+            (section.course?.name ?: "Notebooks").uppercase(Locale.ROOT),
             fontFamily = MonoFamily,
             fontSize = 11.sp,
             letterSpacing = 2.2.sp,
@@ -388,7 +389,7 @@ private fun NotebookRow(
             Text(
                 listOfNotNull(
                     pageCountLabel(item.document?.pageCount),
-                    item.lastWrittenAt?.let { relative(it).uppercase() },
+                    item.lastWrittenAt?.let { relative(it) },
                 ).joinToString(" · ").ifEmpty { "EMPTY NOTEBOOK" },
                 fontFamily = MonoFamily,
                 fontSize = 11.sp,

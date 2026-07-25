@@ -1,3 +1,5 @@
+@file:Suppress("RestrictedApi")
+
 package com.serendeep.marginalia
 
 import android.os.Bundle

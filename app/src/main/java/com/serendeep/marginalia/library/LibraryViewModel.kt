@@ -39,6 +39,7 @@ data class ShelfSection(
 data class Shelf(
     val hero: ShelfItem? = null,
     val sections: List<ShelfSection> = emptyList(),
+    val courseCount: Int = 0,
 ) {
     val isEmpty: Boolean get() = hero == null && sections.isEmpty()
 }
@@ -82,7 +83,17 @@ class LibraryViewModel @Inject constructor(
                 add(ShelfSection(course, items(course.id).filterNot { item -> item.lecture.id == hero?.lecture?.id }))
             }
         }
-        Shelf(hero, sections)
+        val namedCourseIds = sections
+            .mapNotNull { it.course }
+            .filterNot { it.name == UNSORTED_NAME }
+            .map { it.id }
+            .toMutableSet()
+        hero?.lecture?.courseId?.let { heroCourseId ->
+            if (courses.any { it.id == heroCourseId && it.name != UNSORTED_NAME }) {
+                namedCourseIds += heroCourseId
+            }
+        }
+        Shelf(hero, sections, namedCourseIds.size)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), Shelf())
 
     private val _error = MutableStateFlow<String?>(null)

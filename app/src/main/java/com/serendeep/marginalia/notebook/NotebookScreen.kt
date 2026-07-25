@@ -103,6 +103,7 @@ import dev.chrisbanes.haze.hazeSource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -409,7 +410,7 @@ private fun DocumentBar(
             )
         }
         Text(
-            title.uppercase(),
+            title.uppercase(Locale.ROOT),
             fontFamily = MonoFamily,
             fontSize = 13.sp,
             fontWeight = FontWeight.SemiBold,
@@ -444,7 +445,7 @@ private fun PageIndicator(page: Int, pageCount: Int, modifier: Modifier = Modifi
     val iconColor = if (dark) Color(0xFFE8EAEE) else InkLight
     val shape = RoundedCornerShape(14.dp)
     Text(
-        "PG %02d/%02d".format(page, pageCount),
+        "PG %02d/%02d".format(Locale.ROOT, page, pageCount),
         fontFamily = MonoFamily,
         fontSize = 11.sp,
         letterSpacing = 1.2.sp,
