@@ -31,6 +31,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material.icons.Icons
@@ -155,8 +156,10 @@ fun NotebookScreen(
         anchors.map { PageAnchor(it.id, it.pdfPage, it.pageXFraction, it.pageYFraction, it.label) }
     }
 
+    val current = source
+    val pdfHaze = remember { HazeState() }
     Row(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).statusBarsPadding()) {
-        val pdfHaze = remember { HazeState() }
+        if (current != null) {
         Box(
             Modifier
                 .weight(1f)
@@ -174,24 +177,19 @@ fun NotebookScreen(
                     }
                 },
         ) {
-            val current = source
             Box(Modifier.matchParentSize().hazeSource(pdfHaze)) {
-                if (current == null) {
-                    CenteredHint("Import a PDF from the library")
-                } else {
-                    PdfPane(
-                        source = current,
-                        modifier = Modifier.fillMaxSize(),
-                        anchors = pageAnchors,
-                        onPageLongPress = viewModel::placeAnchor,
-                        onAnchorTap = viewModel::flashAnchor,
-                        onAnchorRemove = viewModel::removeAnchor,
-                        onWebLink = { pendingWebLink = it },
-                        scrollToPos = pdfSyncTarget,
-                        onScrollHandled = viewModel::onPdfScrollHandled,
-                        onScrollPos = viewModel::onPdfScrollPos,
-                    )
-                }
+                PdfPane(
+                    source = current,
+                    modifier = Modifier.fillMaxSize(),
+                    anchors = pageAnchors,
+                    onPageLongPress = viewModel::placeAnchor,
+                    onAnchorTap = viewModel::flashAnchor,
+                    onAnchorRemove = viewModel::removeAnchor,
+                    onWebLink = { pendingWebLink = it },
+                    scrollToPos = pdfSyncTarget,
+                    onScrollHandled = viewModel::onPdfScrollHandled,
+                    onScrollPos = viewModel::onPdfScrollPos,
+                )
             }
             DocumentBar(
                 title = document?.fileName?.removeSuffix(".pdf") ?: lectureTitle,
@@ -283,12 +281,26 @@ fun NotebookScreen(
                 }
             }
         }
+        }
 
-        VerticalDivider()
+        if (current != null) VerticalDivider()
 
         val dotColor = if (LocalDarkTheme.current) DotGridDark else DotGridLight
         val hazeState = remember { HazeState() }
-        Box(Modifier.weight(1f).fillMaxHeight()) {
+        Box(
+            (if (current != null) Modifier.weight(1f) else Modifier.fillMaxWidth())
+                .fillMaxHeight(),
+        ) {
+            if (current == null) {
+                DocumentBar(
+                    title = lectureTitle,
+                    hasOutline = false,
+                    onBack = onBack,
+                    onOutline = {},
+                    hazeState = hazeState,
+                    modifier = Modifier.align(Alignment.TopStart).padding(12.dp),
+                )
+            }
             // The sheet is the rail's blur source, so it lives in its own node
             // beneath the rail rather than as the rail's parent.
             Box(

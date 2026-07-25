@@ -65,6 +65,7 @@ import com.serendeep.marginalia.ui.components.GlassDialog
 import com.serendeep.marginalia.ui.components.GlassMenu
 import com.serendeep.marginalia.ui.components.GlassMenuEntry
 import com.serendeep.marginalia.ui.components.GlassTextButton
+import com.serendeep.marginalia.ui.components.glassTextFieldColors
 import com.serendeep.marginalia.ui.theme.CoursePalette
 import com.serendeep.marginalia.ui.theme.Danger
 import com.serendeep.marginalia.ui.theme.MonoFamily
@@ -502,7 +503,13 @@ private fun NamePromptDialog(
     GlassDialog(onDismiss = onDismiss) {
         Text(title, style = MaterialTheme.typography.titleMedium)
         Spacer(Modifier.height(16.dp))
-        OutlinedTextField(value = text, onValueChange = { text = it }, singleLine = true)
+        OutlinedTextField(
+            value = text,
+            onValueChange = { text = it },
+            singleLine = true,
+            colors = glassTextFieldColors(),
+            modifier = Modifier.fillMaxWidth(),
+        )
         Spacer(Modifier.height(20.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
             GlassTextButton("Cancel", onDismiss)
