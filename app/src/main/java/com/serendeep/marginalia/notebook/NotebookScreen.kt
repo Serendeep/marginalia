@@ -71,6 +71,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.serendeep.marginalia.sharedCover
@@ -298,7 +299,11 @@ fun NotebookScreen(
                     onBack = onBack,
                     onOutline = {},
                     hazeState = hazeState,
-                    modifier = Modifier.align(Alignment.TopStart).padding(12.dp),
+                    // Keep the navigation bar above the full-size note canvas.
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(12.dp)
+                        .zIndex(1f),
                 )
             }
             // The sheet is the rail's blur source, so it lives in its own node
