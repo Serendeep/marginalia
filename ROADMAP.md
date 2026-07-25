@@ -19,7 +19,7 @@ welcome, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Now: notebooks and import flow
 
-- [ ] Register as a PDF handler: open PDFs from any app straight into Marginalia
+- [x] Register as a PDF handler: open PDFs from any app straight into Marginalia
 - [ ] Ink on the page: highlighter and pen strokes directly on PDF pages,
       not just the margin
 

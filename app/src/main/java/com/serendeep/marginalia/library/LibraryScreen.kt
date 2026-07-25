@@ -75,6 +75,8 @@ import java.util.Locale
 @Composable
 fun LibraryScreen(
     viewModel: LibraryViewModel = hiltViewModel(),
+    incomingPdfUri: Uri? = null,
+    onIncomingPdfHandled: () -> Unit = {},
     onOpenLecture: (String) -> Unit,
 ) {
     val shelf by viewModel.shelf.collectAsStateWithLifecycle()
@@ -83,6 +85,13 @@ fun LibraryScreen(
     var showNewNotebook by remember { mutableStateOf(false) }
     var renaming by remember { mutableStateOf<ShelfItem?>(null) }
     var deleting by remember { mutableStateOf<ShelfItem?>(null) }
+
+    LaunchedEffect(incomingPdfUri) {
+        incomingPdfUri?.let { uri ->
+            viewModel.quickImport(listOf(uri))
+            onIncomingPdfHandled()
+        }
+    }
 
     // One screen-level launcher for every import flow; a per-card launcher in a
     // lazy grid would unregister when its card is recycled while the system

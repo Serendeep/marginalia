@@ -5,6 +5,8 @@ package com.serendeep.marginalia
 import android.os.Bundle
 import android.os.SystemClock
 import android.view.KeyEvent
+import android.content.Intent
+import android.net.Uri
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
@@ -23,6 +25,7 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -59,13 +62,19 @@ class MainActivity : ComponentActivity() {
 
     private val notebookViewModel: NotebookViewModel by viewModels()
     private var lastPencilToggleAt = 0L
+    private var incomingPdfUri by mutableStateOf<Uri?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        incomingPdfUri = pdfUri(intent)
         enableEdgeToEdge()
         setContent {
             MarginaliaTheme {
                 var screen by remember { mutableStateOf<Screen>(Screen.Library) }
+                val pendingPdf = incomingPdfUri
+                LaunchedEffect(pendingPdf) {
+                    if (pendingPdf != null) screen = Screen.Library
+                }
                 SharedTransitionLayout(Modifier.fillMaxSize()) {
                     AnimatedContent(
                         targetState = screen,
@@ -88,6 +97,8 @@ class MainActivity : ComponentActivity() {
                         ) {
                             when (current) {
                                 is Screen.Library -> LibraryScreen(
+                                    incomingPdfUri = pendingPdf,
+                                    onIncomingPdfHandled = { incomingPdfUri = null },
                                     onOpenLecture = { screen = Screen.Notebook(it) },
                                 )
 
@@ -107,6 +118,12 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        incomingPdfUri = pdfUri(intent)
+    }
+
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         // Huawei M-Pencil double-tap arrives as undocumented keyCode 718,
         // fired as two down/up pairs per gesture; debounce to one toggle.
@@ -123,5 +140,9 @@ class MainActivity : ComponentActivity() {
 
     private companion object {
         const val MPENCIL_DOUBLE_TAP_KEYCODE = 718
+
+        fun pdfUri(intent: Intent?): Uri? = intent
+            ?.takeIf { it.action == Intent.ACTION_VIEW && it.type == "application/pdf" }
+            ?.data
     }
 }
