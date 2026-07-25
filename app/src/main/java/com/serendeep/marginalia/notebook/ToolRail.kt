@@ -35,6 +35,8 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.serendeep.marginalia.ink.InkTool
 import com.serendeep.marginalia.ink.Pen
@@ -63,6 +65,7 @@ fun ToolRail(
     canUndo: Boolean,
     canRedo: Boolean,
     onSelectPen: (Pen) -> Unit,
+    onHighlighter: () -> Unit,
     onEraser: () -> Unit,
     onUndo: () -> Unit,
     onRedo: () -> Unit,
@@ -123,6 +126,10 @@ fun ToolRail(
             selected = tool == InkTool.PEN && selectedPen == Pen.RUST,
             glow = accent,
         ) { selectPen(Pen.RUST) }
+        HighlighterButton(selected = tool == InkTool.HIGHLIGHTER, iconColor = iconColor) {
+            haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
+            onHighlighter()
+        }
         HorizontalDivider(
             Modifier.width(24.dp).padding(vertical = 4.dp),
             color = iconColor.copy(alpha = 0.16f),
@@ -138,6 +145,35 @@ fun ToolRail(
         HistoryButton(enabled = canRedo, glyph = Icons.AutoMirrored.Filled.Redo, tint = iconColor) {
             haptics.performHapticFeedback(HapticFeedbackType.Confirm)
             onRedo()
+        }
+    }
+}
+
+@Composable
+private fun HighlighterButton(selected: Boolean, iconColor: Color, onClick: () -> Unit) {
+    val accent = MaterialTheme.colorScheme.primary
+    Box(
+        Modifier
+            .size(TOUCH_TARGET_DP.dp)
+            .semantics { contentDescription = "Highlighter" }
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (selected) Box(Modifier.size(34.dp).border(2.dp, accent, CircleShape))
+        Canvas(Modifier.size(22.dp)) {
+            drawRoundRect(
+                color = Color(0xFFF2C84B),
+                topLeft = Offset(size.width * 0.18f, size.height * 0.28f),
+                size = Size(size.width * 0.64f, size.height * 0.28f),
+                cornerRadius = CornerRadius(3.dp.toPx()),
+            )
+            drawLine(
+                color = iconColor,
+                start = Offset(size.width * 0.2f, size.height * 0.78f),
+                end = Offset(size.width * 0.8f, size.height * 0.78f),
+                strokeWidth = 2.dp.toPx(),
+                cap = StrokeCap.Round,
+            )
         }
     }
 }

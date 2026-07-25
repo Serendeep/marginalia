@@ -11,6 +11,13 @@ object Pens {
 
     fun pen(colorArgb: Int, sizePx: Float): Brush =
         Brush(StockBrushes.pressurePen(), sizePx, EPSILON).copyWithColorIntArgb(colorArgb)
+
+    fun highlighter(colorArgb: Int): Brush =
+        Brush(StockBrushes.pressurePen(), HIGHLIGHTER_SIZE_PX, EPSILON)
+            .copyWithColorIntArgb(colorArgb)
+
+    const val HIGHLIGHTER_COLOR: Int = 0x99F2C84B.toInt()
+    const val HIGHLIGHTER_SIZE_PX: Float = 22f
 }
 
 enum class Pen { GRAPHITE, INDIGO, RUST }
