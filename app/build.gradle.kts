@@ -69,6 +69,7 @@ dependencies {
     implementation(libs.composables.core)
     implementation(libs.material.icons.extended)
     implementation(libs.pdfium)
+    implementation(libs.emoji2.emojipicker)
 
     implementation(libs.room.runtime)
     implementation(libs.room.ktx)

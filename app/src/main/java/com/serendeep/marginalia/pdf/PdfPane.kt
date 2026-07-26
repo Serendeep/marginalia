@@ -49,6 +49,11 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.ink.strokes.Stroke
+import com.serendeep.marginalia.ink.InkCanvas
+import com.serendeep.marginalia.ink.InkTool
+import com.serendeep.marginalia.ink.Pens
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.debounce
@@ -86,6 +91,12 @@ fun PdfPane(
     scrollToPos: Float? = null,
     onScrollHandled: (() -> Unit)? = null,
     onScrollPos: ((Float) -> Unit)? = null,
+    pageStrokes: Map<Int, List<Stroke>> = emptyMap(),
+    inkTool: InkTool = InkTool.PEN,
+    inkColor: Int = Pens.DEFAULT_COLOR,
+    inkSizePx: Float = Pens.DEFAULT_SIZE_PX,
+    onPageStrokeFinished: ((page: Int, width: Float, height: Float, stroke: Stroke) -> Unit)? = null,
+    onPageErase: ((page: Int, x: Float, y: Float) -> Unit)? = null,
 ) {
     BoxWithConstraints(modifier) {
         val density = LocalDensity.current
@@ -131,13 +142,15 @@ fun PdfPane(
 
             // Once the zoom settles, replace the scaled-up (soft) pixels with a
             // sharp render of just the slice on screen. Any movement drops it.
-            LaunchedEffect(source, widthPx, viewportHeightPx) {
+            LaunchedEffect(source, widthPx, viewportHeightPx, pageStrokes) {
                 snapshotFlow {
                     Triple(zoom, listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset)
                 }
                     .debounce(150)
                     .collect { (settledZoom, _, _) ->
-                        val slice = if (settledZoom.zoomed) {
+                        // Keep page ink above the PDF. The sharp bitmap is an
+                        // optimization layer and would otherwise cover strokes.
+                        val slice = if (settledZoom.zoomed && pageStrokes.isEmpty()) {
                             renderSharpSlice(
                                 source, listState, settledZoom, widthPx, viewportHeightPx, pagePadPx,
                             )
@@ -245,6 +258,17 @@ fun PdfPane(
                                         link.uri?.let { onWebLink?.invoke(it) }
                                     }
                                 },
+                                pageStrokes = pageStrokes[index].orEmpty(),
+                                inkTool = inkTool,
+                                inkColor = inkColor,
+                                inkSizePx = inkSizePx,
+                                onStrokeFinished = onPageStrokeFinished?.let { callback ->
+                                    { width, height, stroke -> callback(index, width, height, stroke) }
+                                },
+                                onErase = onPageErase?.let { callback ->
+                                    { x, y -> callback(index, x, y) }
+                                },
+                                onScrollBy = { delta -> scope.launch { listState.scrollBy(delta) } },
                             )
                         }
                     }
@@ -334,10 +358,18 @@ private fun PdfPageItem(
     onAnchorTap: ((id: String) -> Unit)? = null,
     onAnchorRemove: ((id: String) -> Unit)? = null,
     onLinkTap: ((PageLink) -> Unit)? = null,
+    pageStrokes: List<Stroke> = emptyList(),
+    inkTool: InkTool = InkTool.PEN,
+    inkColor: Int = Pens.DEFAULT_COLOR,
+    inkSizePx: Float = Pens.DEFAULT_SIZE_PX,
+    onStrokeFinished: ((width: Float, height: Float, stroke: Stroke) -> Unit)? = null,
+    onErase: ((x: Float, y: Float) -> Unit)? = null,
+    onScrollBy: (Float) -> Unit = {},
 ) {
     var bitmap by remember(source, index, widthPx) { mutableStateOf<Bitmap?>(null) }
     var aspect by remember(source, index) { mutableStateOf(0.7f) }
     var links by remember(source, index) { mutableStateOf<List<PageLink>>(emptyList()) }
+    var pageSize by remember(source, index) { mutableStateOf(IntSize.Zero) }
 
     LaunchedEffect(source, index, widthPx) {
         if (widthPx <= 0) return@LaunchedEffect
@@ -355,6 +387,7 @@ private fun PdfPageItem(
             .height(heightDp)
             .padding(vertical = 4.dp)
             .background(if (current == null) Color(0xFFEAEAEA) else Color.White)
+            .onSizeChanged { pageSize = it }
             .pointerInput(index, onLongPress) {
                 detectTapGestures(
                     onLongPress = { offset ->
@@ -371,6 +404,21 @@ private fun PdfPageItem(
                 contentDescription = "Page ${index + 1}",
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.FillWidth,
+            )
+        }
+        if (onStrokeFinished != null && onErase != null) {
+            InkCanvas(
+                strokes = pageStrokes,
+                tool = inkTool,
+                penColor = inkColor,
+                penSizePx = inkSizePx,
+                canvasOffset = 0f,
+                onStrokeFinished = { stroke ->
+                    onStrokeFinished(pageSize.width.toFloat(), pageSize.height.toFloat(), stroke)
+                },
+                onErase = onErase,
+                onScrollBy = onScrollBy,
+                modifier = Modifier.fillMaxSize(),
             )
         }
         val widthDp = with(LocalDensity.current) { widthPx.toDp() }

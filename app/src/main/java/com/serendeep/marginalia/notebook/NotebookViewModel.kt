@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.serendeep.marginalia.data.AnchorEntity
 import com.serendeep.marginalia.data.DocumentEntity
 import com.serendeep.marginalia.data.InkStroke
+import com.serendeep.marginalia.data.InkSurface
 import com.serendeep.marginalia.data.MarginaliaRepository
 import com.serendeep.marginalia.ink.InkTool
 import com.serendeep.marginalia.ink.Pen
@@ -47,6 +48,9 @@ class NotebookViewModel @Inject constructor(
     private val _strokes = MutableStateFlow<List<RenderedStroke>>(emptyList())
     val strokes: StateFlow<List<RenderedStroke>> = _strokes.asStateFlow()
 
+    private val _pageStrokes = MutableStateFlow<List<RenderedStroke>>(emptyList())
+    val pageStrokes: StateFlow<List<RenderedStroke>> = _pageStrokes.asStateFlow()
+
     private val _tool = MutableStateFlow(InkTool.PEN)
     val tool: StateFlow<InkTool> = _tool.asStateFlow()
 
@@ -74,6 +78,9 @@ class NotebookViewModel @Inject constructor(
     private val _document = MutableStateFlow<DocumentEntity?>(null)
     val document: StateFlow<DocumentEntity?> = _document.asStateFlow()
 
+    private val _lectureTitle = MutableStateFlow("Notebook")
+    val lectureTitle: StateFlow<String> = _lectureTitle.asStateFlow()
+
     private val ops = ArrayDeque<EditOp>()
     private val redos = ArrayDeque<EditOp>()
 
@@ -82,6 +89,17 @@ class NotebookViewModel @Inject constructor(
 
     private val _canRedo = MutableStateFlow(false)
     val canRedo: StateFlow<Boolean> = _canRedo.asStateFlow()
+
+    // Display-only mirrors of firstVisiblePage/pdfPageCount below, for the page
+    // indicator pill. StateFlow only notifies collectors on an actual value
+    // change, so despite onPdfScrollPos firing every scroll frame, this only
+    // triggers recomposition once per page crossed.
+    private val _currentPage = MutableStateFlow(0)
+    val currentPage: StateFlow<Int> = _currentPage.asStateFlow()
+
+    private val _pageCount = MutableStateFlow(0)
+    val pageCount: StateFlow<Int> = _pageCount.asStateFlow()
+
     private var lectureId: String? = null
     private var lectureJob: Job? = null
     private var documentId: String = ""
@@ -113,6 +131,8 @@ class NotebookViewModel @Inject constructor(
         _tool.value = InkTool.PEN
         firstVisiblePage = 0
         pdfPos = 0f
+        _currentPage.value = 0
+        _pageCount.value = 0
         ops.clear()
         redos.clear()
         syncUndoState()
@@ -124,14 +144,25 @@ class NotebookViewModel @Inject constructor(
         syncCanvasAfterRequest = false
 
         _strokes.value = emptyList()
+        _pageStrokes.value = emptyList()
         _anchors.value = emptyList()
         _activeAnchor.value = null
         _canvasOffset.value = 0f
         _pdfScrollTarget.value = null
         _document.value = null
+        _lectureTitle.value = "Notebook"
 
         lectureJob = viewModelScope.launch {
-            _strokes.value = repository.loadStrokes(id).map { RenderedStroke(it, it.toStroke()) }
+            launch {
+                repository.observeLecture(id).collect { lecture ->
+                    _lectureTitle.value = lecture?.title ?: "Notebook"
+                }
+            }
+            val loaded = repository.loadStrokes(id)
+            _strokes.value = loaded.filter { it.surface == InkSurface.MARGIN }
+                .map { RenderedStroke(it, it.toStroke()) }
+            _pageStrokes.value = loaded.filter { it.surface == InkSurface.PAGE }
+                .map { RenderedStroke(it, it.toStroke()) }
             launch { repository.observeAnchors(id).collect { _anchors.value = it } }
             launch {
                 repository.observeDocuments(id).collect { documents ->
@@ -141,6 +172,7 @@ class NotebookViewModel @Inject constructor(
                     _document.value = latest
                     documentId = latest?.id ?: ""
                     pdfPageCount = latest?.pageCount ?: 0
+                    _pageCount.value = pdfPageCount
                 }
             }
         }
@@ -157,6 +189,10 @@ class NotebookViewModel @Inject constructor(
     fun selectPen(pen: Pen) {
         _selectedPen.value = pen
         _tool.value = InkTool.PEN
+    }
+
+    fun selectHighlighter() {
+        _tool.value = InkTool.HIGHLIGHTER
     }
 
     fun onStrokeFinished(stroke: Stroke) {
@@ -177,20 +213,54 @@ class NotebookViewModel @Inject constructor(
             brushColor = stroke.brush.colorIntArgb.toLong() and 0xFFFFFFFFL,
             brushSizeDp = stroke.brush.size,
             batch = stroke.inputs,
+            surface = InkSurface.MARGIN,
         )
         _strokes.value = _strokes.value + RenderedStroke(record, stroke)
         pushOp(EditOp.Add(record))
         viewModelScope.launch { repository.saveStroke(record) }
     }
 
+    fun onPageStrokeFinished(page: Int, width: Float, height: Float, stroke: Stroke) {
+        val id = lectureId ?: return
+        val record = InkStroke(
+            id = newId(),
+            lectureId = id,
+            documentId = documentId,
+            pdfPage = page,
+            viewport = AnchorBox(0f, 0f, width, height),
+            bounds = strokeBounds(stroke.inputs),
+            startedAt = now(),
+            endedAt = now(),
+            brushColor = stroke.brush.colorIntArgb.toLong() and 0xFFFFFFFFL,
+            brushSizeDp = stroke.brush.size,
+            batch = stroke.inputs,
+            surface = InkSurface.PAGE,
+        )
+        _pageStrokes.value = _pageStrokes.value + RenderedStroke(record, stroke)
+        pushOp(EditOp.Add(record))
+        viewModelScope.launch { repository.saveStroke(record) }
+    }
+
     fun eraseAt(x: Float, y: Float) {
+        eraseSurface(InkSurface.MARGIN, null, x, y)
+    }
+
+    fun erasePageAt(page: Int, x: Float, y: Float) {
+        eraseSurface(InkSurface.PAGE, page, x, y)
+    }
+
+    private fun eraseSurface(surface: InkSurface, page: Int?, x: Float, y: Float) {
         val radius = Pens.DEFAULT_SIZE_PX * 3f
-        val current = _strokes.value
+        val current = if (surface == InkSurface.MARGIN) _strokes.value else _pageStrokes.value
         val removed = ArrayList<InkStroke>()
         val added = ArrayList<InkStroke>()
         val next = ArrayList<RenderedStroke>(current.size)
 
         for (item in current) {
+            if (page != null && item.record.pdfPage != page) {
+                next.add(item)
+                continue
+            }
             val result = StrokeEraser.erase(item.record.batch, x, y, radius)
             if (result.untouched) {
                 next.add(item)
@@ -205,7 +275,7 @@ class NotebookViewModel @Inject constructor(
         }
         if (removed.isEmpty()) return
 
-        _strokes.value = next
+        if (surface == InkSurface.MARGIN) _strokes.value = next else _pageStrokes.value = next
         pushOp(EditOp.Erase(removed, added))
         viewModelScope.launch {
             removed.forEach { repository.deleteStroke(it.id) }
@@ -217,14 +287,15 @@ class NotebookViewModel @Inject constructor(
         val op = ops.removeLastOrNull() ?: return
         when (op) {
             is EditOp.Add -> {
-                _strokes.value = _strokes.value.filterNot { it.record.id == op.record.id }
+                updateSurface(op.record.surface) { it.filterNot { stroke -> stroke.record.id == op.record.id } }
                 viewModelScope.launch { repository.deleteStroke(op.record.id) }
             }
 
             is EditOp.Erase -> {
                 val addedIds = op.added.map { it.id }.toSet()
                 val restored = op.removed.map { RenderedStroke(it, it.toStroke()) }
-                _strokes.value = _strokes.value.filterNot { it.record.id in addedIds } + restored
+                val surface = op.removed.firstOrNull()?.surface ?: InkSurface.MARGIN
+                updateSurface(surface) { it.filterNot { stroke -> stroke.record.id in addedIds } + restored }
                 viewModelScope.launch {
                     addedIds.forEach { repository.deleteStroke(it) }
                     repository.saveStrokes(op.removed)
@@ -248,14 +319,15 @@ class NotebookViewModel @Inject constructor(
         val op = redos.removeLastOrNull() ?: return
         when (op) {
             is EditOp.Add -> {
-                _strokes.value = _strokes.value + RenderedStroke(op.record, op.record.toStroke())
+                updateSurface(op.record.surface) { it + RenderedStroke(op.record, op.record.toStroke()) }
                 viewModelScope.launch { repository.saveStroke(op.record) }
             }
 
             is EditOp.Erase -> {
                 val removedIds = op.removed.map { it.id }.toSet()
                 val pieces = op.added.map { RenderedStroke(it, it.toStroke()) }
-                _strokes.value = _strokes.value.filterNot { it.record.id in removedIds } + pieces
+                val surface = op.removed.firstOrNull()?.surface ?: InkSurface.MARGIN
+                updateSurface(surface) { it.filterNot { stroke -> stroke.record.id in removedIds } + pieces }
                 viewModelScope.launch {
                     removedIds.forEach { repository.deleteStroke(it) }
                     repository.saveStrokes(op.added)
@@ -284,6 +356,17 @@ class NotebookViewModel @Inject constructor(
     private fun syncUndoState() {
         _canUndo.value = ops.isNotEmpty()
         _canRedo.value = redos.isNotEmpty()
+    }
+
+    private fun updateSurface(
+        surface: InkSurface,
+        transform: (List<RenderedStroke>) -> List<RenderedStroke>,
+    ) {
+        if (surface == InkSurface.MARGIN) {
+            _strokes.value = transform(_strokes.value)
+        } else {
+            _pageStrokes.value = transform(_pageStrokes.value)
+        }
     }
 
     /** Removes a link. The bound ink stays; only the connection goes. Undoable. */
@@ -389,6 +472,7 @@ class NotebookViewModel @Inject constructor(
     fun onPdfScrollPos(pos: Float) {
         pdfPos = pos
         firstVisiblePage = pos.toInt()
+        _currentPage.value = firstVisiblePage
         // While our own scroll request is in flight, every report is an echo.
         if (_pdfScrollTarget.value != null) return
         val expected = expectedPdfPos

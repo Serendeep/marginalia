@@ -13,7 +13,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         StrokeEntity::class,
         AnchorEntity::class,
     ],
-    version = 2,
+    version = 4,
     exportSchema = true,
 )
 abstract class MarginaliaDatabase : RoomDatabase() {
@@ -43,6 +43,19 @@ abstract class MarginaliaDatabase : RoomDatabase() {
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_anchors_documentId` ON `anchors` (`documentId`)")
                 db.execSQL("ALTER TABLE `strokes` ADD COLUMN `anchorId` TEXT")
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_strokes_anchorId` ON `strokes` (`anchorId`)")
+            }
+        }
+
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE courses ADD COLUMN colorIndex INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE courses ADD COLUMN emoji TEXT")
+            }
+        }
+
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE strokes ADD COLUMN surface TEXT NOT NULL DEFAULT 'MARGIN'")
             }
         }
     }

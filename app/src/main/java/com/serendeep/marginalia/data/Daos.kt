@@ -30,8 +30,20 @@ interface LectureDao {
     @Query("SELECT * FROM lectures ORDER BY createdAt DESC")
     fun observeAll(): Flow<List<LectureEntity>>
 
+    @Query("SELECT * FROM lectures WHERE id = :id LIMIT 1")
+    fun observeById(id: String): Flow<LectureEntity?>
+
     @Delete
     suspend fun delete(lecture: LectureEntity)
+
+    @Query("UPDATE lectures SET title = :title WHERE id = :id")
+    suspend fun rename(id: String, title: String)
+
+    @Query("UPDATE lectures SET courseId = :courseId WHERE id = :id")
+    suspend fun move(id: String, courseId: String)
+
+    @Query("DELETE FROM lectures WHERE id = :id")
+    suspend fun deleteById(id: String)
 }
 
 @Dao

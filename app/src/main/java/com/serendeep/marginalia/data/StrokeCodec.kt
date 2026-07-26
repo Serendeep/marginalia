@@ -37,6 +37,7 @@ fun InkStroke.toEntity(): StrokeEntity = StrokeEntity(
     brushColor = brushColor,
     brushSizeDp = brushSizeDp,
     inkBlob = StrokeCodec.encode(batch),
+    surface = surface.name,
 )
 
 fun StrokeEntity.toInkStroke(): InkStroke = InkStroke(
@@ -52,4 +53,5 @@ fun StrokeEntity.toInkStroke(): InkStroke = InkStroke(
     brushColor = brushColor,
     brushSizeDp = brushSizeDp,
     batch = StrokeCodec.decode(inkBlob),
+    surface = runCatching { InkSurface.valueOf(surface) }.getOrDefault(InkSurface.MARGIN),
 )

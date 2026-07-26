@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Slide page: a quiet, dark document with a bright writable margin. -->
+    <path
+        android:fillColor="#111318"
+        android:pathData="M25,17C21.7,17 19,19.7 19,23v62c0,3.3 2.7,6 6,6h58c3.3,0 6,-2.7 6,-6L89,36L70,17z" />
+    <path
+        android:fillColor="#20242B"
+        android:pathData="M70,17v14c0,2.8 2.2,5 5,5h14z" />
+    <!-- PDF slide content. -->
+    <path
+        android:fillColor="#F2F2F5"
+        android:pathData="M29,31h27v4L29,35zM29,40h22v3L29,43zM29,48h25v3L29,51z" />
+    <path
+        android:fillColor="#5C6470"
+        android:pathData="M29,58h24v17L29,75z" />
+    <path
+        android:fillColor="#747E8C"
+        android:pathData="M32,70l6,-7 4,4 5,-6 3,3v8z" />
+    <!-- Cyan rule marks the app's dedicated handwritten margin. -->
+    <path
+        android:fillColor="#43E0F8"
+        android:pathData="M61,29h2v50h-2z" />
+    <!-- Handwritten ink in the margin. -->
+    <path
+        android:strokeColor="#43E0F8"
+        android:strokeWidth="2.6"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="@android:color/transparent"
+        android:pathData="M69,43c2,-4 4,4 6,0s3,4 6,0M69,53c3,-4 5,4 8,0M69,63l5,-5 3,5 5,-8" />
+    <path
+        android:fillColor="#7C9BD9"
+        android:pathData="M69,72h12v3L69,75z" />
+</vector>

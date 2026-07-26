@@ -11,6 +11,8 @@ data class CourseEntity(
     val name: String,
     val createdAt: Long,
     val orderIndex: Long,
+    val colorIndex: Int = 0,
+    val emoji: String? = null,
 )
 
 @Entity(
@@ -116,6 +118,7 @@ data class StrokeEntity(
     val brushColor: Long,
     val brushSizeDp: Float,
     val inkBlob: ByteArray,
+    val surface: String = "MARGIN",
 ) {
     // ByteArray needs value-based equality for the data class to behave.
     override fun equals(other: Any?): Boolean {

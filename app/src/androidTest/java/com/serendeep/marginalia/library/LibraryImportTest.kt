@@ -48,7 +48,7 @@ class LibraryImportTest {
 
     @Test
     fun validPdfIsCopiedAndRegistered() = runBlocking {
-        val course = repo.createCourse("Course")
+        val course = repo.createCourse("Course", colorIndex = 0, emoji = null)
         val lecture = repo.createLecture(course.id, "Lecture")
         val src = writeValidPdf()
 
@@ -66,7 +66,7 @@ class LibraryImportTest {
 
     @Test
     fun garbageFileIsRejectedAndLeavesNoTrace() = runBlocking {
-        val course = repo.createCourse("Course")
+        val course = repo.createCourse("Course", colorIndex = 0, emoji = null)
         val lecture = repo.createLecture(course.id, "Lecture")
         val garbage = File(context.cacheDir, "garbage.pdf").apply {
             writeBytes(ByteArray(64) { it.toByte() })

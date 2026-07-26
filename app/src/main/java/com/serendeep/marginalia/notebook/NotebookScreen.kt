@@ -31,6 +31,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material.icons.Icons
@@ -70,6 +71,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.serendeep.marginalia.sharedCover
@@ -77,6 +79,7 @@ import com.serendeep.marginalia.ui.components.GlassButton
 import com.serendeep.marginalia.ui.components.GlassDialog
 import com.serendeep.marginalia.ui.components.GlassTextButton
 import com.serendeep.marginalia.ui.components.MarginLabel
+import com.serendeep.marginalia.ui.components.glassBorder
 import com.serendeep.marginalia.ink.InkCanvas
 import com.serendeep.marginalia.ink.InkTool
 import com.serendeep.marginalia.ink.Pen
@@ -86,14 +89,13 @@ import com.serendeep.marginalia.pdf.PdfDocumentSource
 import com.serendeep.marginalia.pdf.PdfPane
 import com.serendeep.marginalia.ui.theme.DotGridDark
 import com.serendeep.marginalia.ui.theme.DotGridLight
-import com.serendeep.marginalia.ui.theme.GlassBorderDark
-import com.serendeep.marginalia.ui.theme.GlassBorderLight
 import com.serendeep.marginalia.ui.theme.GlassSmokeDark
 import com.serendeep.marginalia.ui.theme.GlassTintDark
 import com.serendeep.marginalia.ui.theme.GlassTintLight
 import com.serendeep.marginalia.ui.theme.InkLight
 import com.serendeep.marginalia.ui.theme.LocalDarkTheme
 import com.serendeep.marginalia.ui.theme.LocalPenPalette
+import com.serendeep.marginalia.ui.theme.MonoFamily
 import dev.chrisbanes.haze.HazeInputScale
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.HazeStyle
@@ -103,6 +105,7 @@ import dev.chrisbanes.haze.hazeSource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -123,6 +126,7 @@ fun NotebookScreen(
     LaunchedEffect(lectureId) { viewModel.openLecture(lectureId) }
 
     val document by viewModel.document.collectAsStateWithLifecycle()
+    val lectureTitle by viewModel.lectureTitle.collectAsStateWithLifecycle()
     LaunchedEffect(document) {
         source?.close()
         // Parsing a PDF is heavy native work; it must never block the frame
@@ -139,6 +143,7 @@ fun NotebookScreen(
     }
 
     val strokes by viewModel.strokes.collectAsStateWithLifecycle()
+    val pageStrokes by viewModel.pageStrokes.collectAsStateWithLifecycle()
     val tool by viewModel.tool.collectAsStateWithLifecycle()
     val selectedPen by viewModel.selectedPen.collectAsStateWithLifecycle()
     val penDown by viewModel.penDown.collectAsStateWithLifecycle()
@@ -146,13 +151,20 @@ fun NotebookScreen(
     val activeAnchor by viewModel.activeAnchor.collectAsStateWithLifecycle()
     val canvasOffset by viewModel.canvasOffset.collectAsStateWithLifecycle()
     val pdfSyncTarget by viewModel.pdfScrollTarget.collectAsStateWithLifecycle()
+    val currentPage by viewModel.currentPage.collectAsStateWithLifecycle()
+    val pageCount by viewModel.pageCount.collectAsStateWithLifecycle()
     val strokeList = remember(strokes) { strokes.map { it.stroke } }
+    val pageStrokeMap = remember(pageStrokes) {
+        pageStrokes.groupBy { it.record.pdfPage }.mapValues { (_, items) -> items.map { it.stroke } }
+    }
     val pageAnchors = remember(anchors) {
         anchors.map { PageAnchor(it.id, it.pdfPage, it.pageXFraction, it.pageYFraction, it.label) }
     }
 
+    val current = source
+    val pdfHaze = remember { HazeState() }
     Row(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).statusBarsPadding()) {
-        val pdfHaze = remember { HazeState() }
+        if (current != null) {
         Box(
             Modifier
                 .weight(1f)
@@ -170,33 +182,45 @@ fun NotebookScreen(
                     }
                 },
         ) {
-            val current = source
             Box(Modifier.matchParentSize().hazeSource(pdfHaze)) {
-                if (current == null) {
-                    CenteredHint("Import a PDF from the library")
-                } else {
-                    PdfPane(
-                        source = current,
-                        modifier = Modifier.fillMaxSize(),
-                        anchors = pageAnchors,
-                        onPageLongPress = viewModel::placeAnchor,
-                        onAnchorTap = viewModel::flashAnchor,
-                        onAnchorRemove = viewModel::removeAnchor,
-                        onWebLink = { pendingWebLink = it },
-                        scrollToPos = pdfSyncTarget,
-                        onScrollHandled = viewModel::onPdfScrollHandled,
-                        onScrollPos = viewModel::onPdfScrollPos,
-                    )
-                }
+                PdfPane(
+                    source = current,
+                    modifier = Modifier.fillMaxSize(),
+                    anchors = pageAnchors,
+                    onPageLongPress = viewModel::placeAnchor,
+                    onAnchorTap = viewModel::flashAnchor,
+                    onAnchorRemove = viewModel::removeAnchor,
+                    onWebLink = { pendingWebLink = it },
+                    scrollToPos = pdfSyncTarget,
+                    onScrollHandled = viewModel::onPdfScrollHandled,
+                    onScrollPos = viewModel::onPdfScrollPos,
+                    pageStrokes = pageStrokeMap,
+                    inkTool = tool,
+                    inkColor = when (selectedPen) {
+                        Pen.GRAPHITE -> LocalPenPalette.current.graphite
+                        Pen.INDIGO -> LocalPenPalette.current.indigo
+                        Pen.RUST -> LocalPenPalette.current.rust
+                    }.toArgb(),
+                    inkSizePx = Pens.DEFAULT_SIZE_PX,
+                    onPageStrokeFinished = viewModel::onPageStrokeFinished,
+                    onPageErase = viewModel::erasePageAt,
+                )
             }
             DocumentBar(
-                title = document?.fileName?.removeSuffix(".pdf") ?: "Notebook",
+                title = document?.fileName?.removeSuffix(".pdf") ?: lectureTitle,
                 hasOutline = current?.outline().orEmpty().isNotEmpty(),
                 onBack = onBack,
                 onOutline = { outlineSheet.currentDetent = peekDetent },
                 hazeState = pdfHaze,
                 modifier = Modifier.align(Alignment.TopStart).padding(12.dp),
             )
+            if (pageCount > 0) {
+                PageIndicator(
+                    page = currentPage + 1,
+                    pageCount = pageCount,
+                    modifier = Modifier.align(Alignment.BottomCenter).padding(12.dp),
+                )
+            }
         }
 
         pendingWebLink?.let { url ->
@@ -272,12 +296,30 @@ fun NotebookScreen(
                 }
             }
         }
+        }
 
-        VerticalDivider()
+        if (current != null) VerticalDivider()
 
         val dotColor = if (LocalDarkTheme.current) DotGridDark else DotGridLight
         val hazeState = remember { HazeState() }
-        Box(Modifier.weight(1f).fillMaxHeight()) {
+        Box(
+            (if (current != null) Modifier.weight(1f) else Modifier.fillMaxWidth())
+                .fillMaxHeight(),
+        ) {
+            if (current == null) {
+                DocumentBar(
+                    title = lectureTitle,
+                    hasOutline = false,
+                    onBack = onBack,
+                    onOutline = {},
+                    hazeState = hazeState,
+                    // Keep the navigation bar above the full-size note canvas.
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(12.dp)
+                        .zIndex(1f),
+                )
+            }
             // The sheet is the rail's blur source, so it lives in its own node
             // beneath the rail rather than as the rail's parent.
             Box(
@@ -336,6 +378,7 @@ fun NotebookScreen(
                 canUndo = canUndo,
                 canRedo = canRedo,
                 onSelectPen = viewModel::selectPen,
+                onHighlighter = viewModel::selectHighlighter,
                 onEraser = { viewModel.setTool(InkTool.ERASER) },
                 onUndo = viewModel::undo,
                 onRedo = viewModel::redo,
@@ -383,7 +426,7 @@ private fun DocumentBar(
             ) {
                 inputScale = HazeInputScale.Fixed(0.5f)
             }
-            .border(1.dp, if (dark) GlassBorderDark else GlassBorderLight, shape)
+            .border(1.dp, glassBorder(), shape)
             .padding(horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -399,9 +442,11 @@ private fun DocumentBar(
             )
         }
         Text(
-            title,
-            fontSize = 14.sp,
+            title.uppercase(Locale.ROOT),
+            fontFamily = MonoFamily,
+            fontSize = 13.sp,
             fontWeight = FontWeight.SemiBold,
+            letterSpacing = 1.4.sp,
             color = iconColor,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
@@ -423,6 +468,26 @@ private fun DocumentBar(
             Spacer(Modifier.width(8.dp))
         }
     }
+}
+
+/** Small glass pill showing the PDF page under the viewport. */
+@Composable
+private fun PageIndicator(page: Int, pageCount: Int, modifier: Modifier = Modifier) {
+    val dark = LocalDarkTheme.current
+    val iconColor = if (dark) Color(0xFFE8EAEE) else InkLight
+    val shape = RoundedCornerShape(14.dp)
+    Text(
+        "PG %02d/%02d".format(Locale.ROOT, page, pageCount),
+        fontFamily = MonoFamily,
+        fontSize = 11.sp,
+        letterSpacing = 1.2.sp,
+        color = iconColor,
+        modifier = modifier
+            .clip(shape)
+            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.7f))
+            .border(1.dp, glassBorder(), shape)
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+    )
 }
 
 @Composable

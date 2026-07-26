@@ -39,6 +39,7 @@ data class ShelfSection(
 data class Shelf(
     val hero: ShelfItem? = null,
     val sections: List<ShelfSection> = emptyList(),
+    val courseCount: Int = 0,
 ) {
     val isEmpty: Boolean get() = hero == null && sections.isEmpty()
 }
@@ -82,7 +83,17 @@ class LibraryViewModel @Inject constructor(
                 add(ShelfSection(course, items(course.id).filterNot { item -> item.lecture.id == hero?.lecture?.id }))
             }
         }
-        Shelf(hero, sections)
+        val namedCourseIds = sections
+            .mapNotNull { it.course }
+            .filterNot { it.name == UNSORTED_NAME }
+            .map { it.id }
+            .toMutableSet()
+        hero?.lecture?.courseId?.let { heroCourseId ->
+            if (courses.any { it.id == heroCourseId && it.name != UNSORTED_NAME }) {
+                namedCourseIds += heroCourseId
+            }
+        }
+        Shelf(hero, sections, namedCourseIds.size)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), Shelf())
 
     private val _error = MutableStateFlow<String?>(null)
@@ -92,9 +103,18 @@ class LibraryViewModel @Inject constructor(
     private val _celebration = MutableStateFlow(0)
     val celebration: StateFlow<Int> = _celebration.asStateFlow()
 
-    fun createCourse(name: String) {
+    fun createCourse(name: String, colorIndex: Int, emoji: String?) {
         if (name.isBlank()) return
-        viewModelScope.launch { repository.createCourse(name.trim()) }
+        viewModelScope.launch { repository.createCourse(name.trim(), colorIndex, emoji) }
+    }
+
+    /** Creates a blank notebook in the shared unsorted section. */
+    fun createNotebook(title: String, onCreated: (String) -> Unit = {}) {
+        if (title.isBlank()) return
+        viewModelScope.launch {
+            val lecture = repository.createLecture(unsortedCourse().id, title.trim())
+            onCreated(lecture.id)
+        }
     }
 
     fun importPdf(lectureId: String, uri: Uri) {
@@ -137,7 +157,19 @@ class LibraryViewModel @Inject constructor(
 
     private suspend fun unsortedCourse(): CourseEntity =
         repository.observeCourses().first().firstOrNull { it.name == UNSORTED_NAME }
-            ?: repository.createCourse(UNSORTED_NAME)
+            ?: repository.createCourse(UNSORTED_NAME, colorIndex = 0, emoji = null)
+
+    fun renameLecture(lectureId: String, title: String) {
+        viewModelScope.launch { repository.renameLecture(lectureId, title) }
+    }
+
+    fun moveLecture(lectureId: String, courseId: String) {
+        viewModelScope.launch { repository.moveLecture(lectureId, courseId) }
+    }
+
+    fun deleteLecture(lectureId: String) {
+        viewModelScope.launch { repository.deleteLecture(lectureId) }
+    }
 
     fun dismissError() {
         _error.value = null
