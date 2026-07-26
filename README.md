@@ -61,6 +61,20 @@ only**, never on a tablet you take notes on.
 The current emulator suite runs 28 tests, including database migration,
 lecture CRUD, PDF import, zoom, links, and ink behavior.
 
+## Releases
+
+Release Please opens and maintains a release PR from conventional commits on
+`main`. Merge that PR to create the GitHub Release, build a signed APK, attach
+it to the release, and publish it to GitHub Packages as
+`com.serendeep.marginalia:marginalia`.
+
+Before the first release, add these repository Actions secrets:
+
+- `SIGNING_KEYSTORE_BASE64` — base64-encoded Android keystore
+- `SIGNING_STORE_PASSWORD`
+- `SIGNING_KEY_ALIAS`
+- `SIGNING_KEY_PASSWORD`
+
 ## Built with
 
 - [Kotlin](https://kotlinlang.org) + [Jetpack Compose](https://developer.android.com/compose) + Hilt

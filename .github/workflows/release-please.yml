@@ -1,0 +1,74 @@
+name: Release Please
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  issues: write
+  packages: write
+  pull-requests: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create release PR or release
+        id: release
+        uses: googleapis/release-please-action@v4
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+      - name: Verify release-signing configuration
+        if: ${{ steps.release.outputs.release_created }}
+        env:
+          SIGNING_KEYSTORE_BASE64: ${{ secrets.SIGNING_KEYSTORE_BASE64 }}
+          SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
+          SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
+          SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
+        run: |
+          test -n "$SIGNING_KEYSTORE_BASE64"
+          test -n "$SIGNING_KEY_ALIAS"
+          test -n "$SIGNING_KEY_PASSWORD"
+          test -n "$SIGNING_STORE_PASSWORD"
+
+      - name: Check out released source
+        if: ${{ steps.release.outputs.release_created }}
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.release.outputs.sha }}
+
+      - name: Set up JDK 17
+        if: ${{ steps.release.outputs.release_created }}
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Set up Gradle
+        if: ${{ steps.release.outputs.release_created }}
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Restore release keystore
+        if: ${{ steps.release.outputs.release_created }}
+        env:
+          SIGNING_KEYSTORE_BASE64: ${{ secrets.SIGNING_KEYSTORE_BASE64 }}
+        run: echo "$SIGNING_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release.keystore"
+
+      - name: Verify, build, and publish APK
+        if: ${{ steps.release.outputs.release_created }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SIGNING_KEYSTORE_PATH: ${{ runner.temp }}/release.keystore
+          SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
+          SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
+          SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
+        run: ./gradlew testDebugUnitTest lintDebug publishReleaseApkPublicationToGitHubPackagesRepository --stacktrace
+
+      - name: Attach APK to GitHub Release
+        if: ${{ steps.release.outputs.release_created }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "${{ steps.release.outputs.tag_name }}" app/build/outputs/apk/release/app-release.apk --clobber

@@ -4,7 +4,20 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt)
+    `maven-publish`
 }
+
+val appVersion = "0.1.0"
+val signingStorePath = providers.environmentVariable("SIGNING_KEYSTORE_PATH").orNull
+val signingStorePassword = providers.environmentVariable("SIGNING_STORE_PASSWORD").orNull
+val signingKeyAlias = providers.environmentVariable("SIGNING_KEY_ALIAS").orNull
+val signingKeyPassword = providers.environmentVariable("SIGNING_KEY_PASSWORD").orNull
+val hasReleaseSigning = listOf(
+    signingStorePath,
+    signingStorePassword,
+    signingKeyAlias,
+    signingKeyPassword,
+).all { !it.isNullOrBlank() }
 
 android {
     namespace = "com.serendeep.marginalia"
@@ -14,8 +27,10 @@ android {
         applicationId = "com.serendeep.marginalia"
         minSdk = 29
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0-spike"
+        // GitHub run numbers are monotonic, so each CI-built release can update
+        // an installed APK. Local builds retain the initial version code.
+        versionCode = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 1
+        versionName = appVersion
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -23,6 +38,14 @@ android {
         release {
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            if (hasReleaseSigning) {
+                signingConfig = signingConfigs.create("release") {
+                    storeFile = file(signingStorePath!!)
+                    storePassword = signingStorePassword
+                    keyAlias = signingKeyAlias
+                    keyPassword = signingKeyPassword
+                }
+            }
         }
     }
 
@@ -40,6 +63,42 @@ android {
 
     buildFeatures {
         compose = true
+    }
+}
+
+val prepareReleaseApkForPublication by tasks.registering {
+    dependsOn("assembleRelease")
+}
+
+publishing {
+    publications {
+        register<MavenPublication>("releaseApk") {
+            groupId = "com.serendeep.marginalia"
+            artifactId = "marginalia"
+            version = appVersion
+
+            artifact(layout.buildDirectory.file("outputs/apk/release/app-release.apk")) {
+                builtBy(prepareReleaseApkForPublication)
+                extension = "apk"
+            }
+
+            pom {
+                name.set("Marginalia")
+                description.set("Handwritten lecture notes next to PDF slides for Android tablets.")
+                url.set("https://github.com/Serendeep/marginalia")
+                packaging = "apk"
+            }
+        }
+    }
+    repositories {
+        maven {
+            name = "GitHubPackages"
+            url = uri("https://maven.pkg.github.com/${System.getenv("GITHUB_REPOSITORY") ?: "Serendeep/marginalia"}")
+            credentials {
+                username = System.getenv("GITHUB_ACTOR")
+                password = System.getenv("GITHUB_TOKEN")
+            }
+        }
     }
 }
 
