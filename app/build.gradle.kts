@@ -7,7 +7,7 @@ plugins {
     `maven-publish`
 }
 
-val appVersion = "0.1.0"
+val appVersion = "0.1.0" // x-release-please-version
 val signingStorePath = providers.environmentVariable("SIGNING_KEYSTORE_PATH").orNull
 val signingStorePassword = providers.environmentVariable("SIGNING_STORE_PASSWORD").orNull
 val signingKeyAlias = providers.environmentVariable("SIGNING_KEY_ALIAS").orNull
