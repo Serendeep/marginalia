@@ -34,6 +34,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -80,8 +81,6 @@ import com.serendeep.marginalia.ui.theme.MonoFamily
 import com.serendeep.marginalia.ui.theme.OnViolet
 import com.serendeep.marginalia.ui.theme.Violet
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import java.util.Locale
 
@@ -377,8 +376,8 @@ private fun FocusTile(viewModel: TodayViewModel, next: NextUp?, modifier: Modifi
 /** The only thing that recomposes each second. */
 @Composable
 private fun FocusTime(viewModel: TodayViewModel) {
-    val seconds by remember(viewModel) { viewModel.focus.map { it.remainingSec }.distinctUntilChanged() }
-        .collectAsStateWithLifecycle(initialValue = viewModel.focus.value.remainingSec)
+    val focus = viewModel.focus.collectAsStateWithLifecycle()
+    val seconds by remember(focus) { derivedStateOf { focus.value.remainingSec } }
     Text(
         "%02d:%02d".format(Locale.ROOT, seconds / 60, seconds % 60),
         fontFamily = DisplayFamily,
@@ -394,8 +393,8 @@ private fun FocusTime(viewModel: TodayViewModel) {
 
 @Composable
 private fun FocusChips(viewModel: TodayViewModel, modifier: Modifier) {
-    val round by remember(viewModel) { viewModel.focus.map { it.round }.distinctUntilChanged() }
-        .collectAsStateWithLifecycle(initialValue = viewModel.focus.value.round)
+    val focus = viewModel.focus.collectAsStateWithLifecycle()
+    val round by remember(focus) { derivedStateOf { focus.value.round } }
     Text(
         "ROUND $round/$POMODORO_ROUNDS",
         fontFamily = MonoFamily,
@@ -411,8 +410,8 @@ private fun FocusChips(viewModel: TodayViewModel, modifier: Modifier) {
 
 @Composable
 private fun FocusButton(viewModel: TodayViewModel, modifier: Modifier) {
-    val running by remember(viewModel) { viewModel.focus.map { it.running }.distinctUntilChanged() }
-        .collectAsStateWithLifecycle(initialValue = viewModel.focus.value.running)
+    val focus = viewModel.focus.collectAsStateWithLifecycle()
+    val running by remember(focus) { derivedStateOf { focus.value.running } }
     Box(
         modifier
             .size(50.dp)
