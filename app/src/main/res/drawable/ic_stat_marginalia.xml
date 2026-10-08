@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Status-bar icon: the handwritten M alone, white on transparent as the system requires. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="54"
+    android:viewportHeight="54">
+    <group android:translateX="-30.5" android:translateY="-29.5">
+        <path
+            android:strokeColor="#FFFFFFFF"
+            android:strokeWidth="6.5"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round"
+            android:fillColor="@android:color/transparent"
+            android:pathData="M35,72 C37,61 38,49 41,38 C44,47 48,56 53,63 C57,54 60,45 64,38 C66,49 67,61 70,71 C72,75 76,72 80,66" />
+    </group>
+</vector>

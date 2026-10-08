@@ -2,6 +2,8 @@ package com.serendeep.marginalia.notebook
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.AnimatedVisibility
+import com.serendeep.marginalia.ink.EraserSize
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -28,6 +30,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
@@ -67,6 +70,9 @@ fun ToolRail(
     onSelectPen: (Pen) -> Unit,
     onHighlighter: () -> Unit,
     onEraser: () -> Unit,
+    eraserSize: EraserSize,
+    onEraserSize: (EraserSize) -> Unit,
+    onLasso: () -> Unit,
     onUndo: () -> Unit,
     onRedo: () -> Unit,
     hazeState: HazeState,
@@ -138,11 +144,25 @@ fun ToolRail(
             haptics.performHapticFeedback(HapticFeedbackType.ToggleOn)
             onEraser()
         }
-        HistoryButton(enabled = canUndo, glyph = Icons.AutoMirrored.Filled.Undo, tint = iconColor) {
+        AnimatedVisibility(visible = tool == InkTool.ERASER) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                EraserSize.entries.forEach { size ->
+                    EraserSizeDot(size, selected = size == eraserSize, iconColor = iconColor) {
+                        haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                        onEraserSize(size)
+                    }
+                }
+            }
+        }
+        LassoButton(selected = tool == InkTool.LASSO, iconColor = iconColor) {
+            haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
+            onLasso()
+        }
+        HistoryButton(enabled = canUndo, glyph = Icons.AutoMirrored.Filled.Undo, label = "Undo", tint = iconColor) {
             haptics.performHapticFeedback(HapticFeedbackType.Reject)
             onUndo()
         }
-        HistoryButton(enabled = canRedo, glyph = Icons.AutoMirrored.Filled.Redo, tint = iconColor) {
+        HistoryButton(enabled = canRedo, glyph = Icons.AutoMirrored.Filled.Redo, label = "Redo", tint = iconColor) {
             haptics.performHapticFeedback(HapticFeedbackType.Confirm)
             onRedo()
         }
@@ -228,16 +248,64 @@ private fun EraserButton(selected: Boolean, iconColor: Color, onClick: () -> Uni
 }
 
 @Composable
-private fun HistoryButton(enabled: Boolean, glyph: ImageVector, tint: Color, onClick: () -> Unit) {
+private fun LassoButton(selected: Boolean, iconColor: Color, onClick: () -> Unit) {
+    val accent = MaterialTheme.colorScheme.primary
+    Box(
+        Modifier
+            .size(TOUCH_TARGET_DP.dp)
+            .semantics { contentDescription = "Lasso: make a card" }
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (selected) Box(Modifier.size(34.dp).border(2.dp, accent, CircleShape))
+        Canvas(Modifier.size(22.dp)) {
+            val dash = PathEffect.dashPathEffect(floatArrayOf(3.dp.toPx(), 2.5.dp.toPx()))
+            drawRoundRect(
+                color = iconColor,
+                topLeft = Offset(size.width * 0.14f, size.height * 0.2f),
+                size = Size(size.width * 0.72f, size.height * 0.6f),
+                cornerRadius = CornerRadius(2.dp.toPx()),
+                style = Stroke(1.75.dp.toPx(), pathEffect = dash),
+            )
+        }
+    }
+}
+
+@Composable
+private fun HistoryButton(enabled: Boolean, glyph: ImageVector, label: String, tint: Color, onClick: () -> Unit) {
     Box(
         Modifier.size(TOUCH_TARGET_DP.dp).clickable(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         Icon(
             glyph,
-            contentDescription = glyph.name,
+            contentDescription = label,
             tint = tint,
             modifier = Modifier.graphicsLayer { this.alpha = if (enabled) 1f else 0.35f },
+        )
+    }
+}
+
+@Composable
+private fun EraserSizeDot(size: EraserSize, selected: Boolean, iconColor: Color, onClick: () -> Unit) {
+    val accent = MaterialTheme.colorScheme.primary
+    val dot = when (size) {
+        EraserSize.SMALL -> 6.dp
+        EraserSize.MEDIUM -> 11.dp
+        EraserSize.LARGE -> 18.dp
+    }
+    Box(
+        Modifier
+            .size(width = TOUCH_TARGET_DP.dp, height = 36.dp)
+            .clickable(onClick = onClick)
+            .semantics { contentDescription = "Eraser size ${size.name.lowercase()}" },
+        contentAlignment = Alignment.Center,
+    ) {
+        Box(
+            Modifier
+                .size(dot)
+                .clip(CircleShape)
+                .background(if (selected) accent else iconColor.copy(alpha = 0.45f)),
         )
     }
 }

@@ -1,5 +1,13 @@
+@file:Suppress("RestrictedApi")
+
 package com.serendeep.marginalia.pdf
 
+import kotlinx.coroutines.delay
+import androidx.ink.rendering.android.canvas.CanvasStrokeRenderer
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.foundation.Canvas
+import android.graphics.Matrix
 import android.graphics.Bitmap
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -52,11 +60,16 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.ink.strokes.Stroke
 import com.serendeep.marginalia.ink.InkCanvas
+import com.serendeep.marginalia.ink.EraserSize
 import com.serendeep.marginalia.ink.InkTool
 import com.serendeep.marginalia.ink.Pens
+import com.serendeep.marginalia.notebook.LassoOverlay
+import com.serendeep.marginalia.notebook.cropScale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
@@ -68,6 +81,20 @@ data class PageAnchor(
     val xFraction: Float,
     val yFraction: Float,
     val label: Int,
+)
+
+/**
+ * A lassoed area of one page, as the arguments for [PdfDocumentSource.renderRegion]
+ * at twice its on-screen size.
+ */
+data class PdfLassoRegion(
+    val page: Int,
+    val scaledPageWidthPx: Int,
+    val scaledPageHeightPx: Int,
+    val srcLeftPx: Int,
+    val srcTopPx: Int,
+    val outWidthPx: Int,
+    val outHeightPx: Int,
 )
 
 /** A sharp re-render of the visible slice of one page, placed in screen space. */
@@ -95,8 +122,10 @@ fun PdfPane(
     inkTool: InkTool = InkTool.PEN,
     inkColor: Int = Pens.DEFAULT_COLOR,
     inkSizePx: Float = Pens.DEFAULT_SIZE_PX,
+    eraserRadiusPx: Float = EraserSize.MEDIUM.radiusPx,
     onPageStrokeFinished: ((page: Int, width: Float, height: Float, stroke: Stroke) -> Unit)? = null,
     onPageErase: ((page: Int, x: Float, y: Float) -> Unit)? = null,
+    onLasso: ((PdfLassoRegion) -> Unit)? = null,
 ) {
     BoxWithConstraints(modifier) {
         val density = LocalDensity.current
@@ -125,6 +154,35 @@ fun PdfPane(
                         }
                         listState.firstVisibleItemIndex + frac.coerceIn(0f, 0.999f)
                     }.collect { onScrollPos(it) }
+                }
+            }
+
+            // A live ink view costs several frames to create, so pages only get one once scrolling
+            // settles (visible pages plus a neighbour each side); pages passing by draw their ink
+            // with a plain canvas instead.
+            var inkPages by remember(source) { mutableStateOf(IntRange.EMPTY) }
+            LaunchedEffect(source) {
+                snapshotFlow {
+                    val visible = listState.layoutInfo.visibleItemsInfo
+                    listState.isScrollInProgress to ((visible.firstOrNull()?.index ?: 0)..(visible.lastOrNull()?.index ?: 0))
+                }.distinctUntilChanged().collectLatest { (scrolling, visible) ->
+                    if (scrolling) return@collectLatest
+                    delay(INK_SETTLE_MS)
+                    inkPages = (visible.first - 1)..(visible.last + 1)
+                }
+            }
+
+            // Render the pages just outside the viewport ahead of time, nearest first, so
+            // scrolling lands on finished bitmaps instead of grey placeholders.
+            LaunchedEffect(source, widthPx) {
+                if (widthPx <= 0) return@LaunchedEffect
+                snapshotFlow {
+                    val visible = listState.layoutInfo.visibleItemsInfo
+                    (visible.firstOrNull()?.index ?: 0) to (visible.lastOrNull()?.index ?: 0)
+                }.distinctUntilChanged().collectLatest { (first, last) ->
+                    for (index in intArrayOf(last + 1, first - 1, last + 2, first - 2)) {
+                        withContext(Dispatchers.Default) { runCatching { source.prefetch(index, widthPx) } }
+                    }
                 }
             }
 
@@ -259,18 +317,27 @@ fun PdfPane(
                                     }
                                 },
                                 pageStrokes = pageStrokes[index].orEmpty(),
+                                inkLive = index in inkPages,
                                 inkTool = inkTool,
                                 inkColor = inkColor,
                                 inkSizePx = inkSizePx,
+                                eraserRadiusPx = eraserRadiusPx,
                                 onStrokeFinished = onPageStrokeFinished?.let { callback ->
                                     { width, height, stroke -> callback(index, width, height, stroke) }
                                 },
                                 onErase = onPageErase?.let { callback ->
                                     { x, y -> callback(index, x, y) }
                                 },
-                                onScrollBy = { delta -> scope.launch { listState.scrollBy(delta) } },
+                                // Raw delta: no coroutine launched per touch event.
+                                onScrollBy = { delta -> listState.dispatchRawDelta(delta) },
                             )
                         }
+                    }
+                }
+
+                if (inkTool == InkTool.LASSO && onLasso != null) {
+                    LassoOverlay(Modifier.fillMaxSize()) { area ->
+                        lassoRegion(listState, zoom, widthPx, pagePadPx, area)?.let(onLasso)
                     }
                 }
 
@@ -290,6 +357,42 @@ fun PdfPane(
             }
         }
     }
+}
+
+/** Maps a pane-space rectangle onto the page beneath its centre; null when it misses every page. */
+private fun lassoRegion(
+    listState: LazyListState,
+    zoom: PdfZoomState,
+    widthPx: Int,
+    pagePadPx: Int,
+    area: androidx.compose.ui.geometry.Rect,
+): PdfLassoRegion? {
+    val s = zoom.scale
+    val left = (area.left - zoom.offsetX) / s
+    val right = (area.right - zoom.offsetX) / s
+    val top = (area.top - zoom.offsetY) / s
+    val bottom = (area.bottom - zoom.offsetY) / s
+    val centerY = (top + bottom) / 2f
+    val item = listState.layoutInfo.visibleItemsInfo.firstOrNull { centerY >= it.offset && centerY < it.offset + it.size }
+        ?: return null
+    val pageTop = (item.offset + pagePadPx).toFloat()
+    val pageHeight = (item.size - 2 * pagePadPx).toFloat()
+    if (pageHeight <= 0f || widthPx <= 0) return null
+    val l = left.coerceIn(0f, widthPx.toFloat())
+    val r = right.coerceIn(0f, widthPx.toFloat())
+    val t = top.coerceIn(pageTop, pageTop + pageHeight)
+    val b = bottom.coerceIn(pageTop, pageTop + pageHeight)
+    if (r - l < 4f || b - t < 4f) return null
+    val out = cropScale((r - l) * s, (b - t) * s) * s
+    return PdfLassoRegion(
+        page = item.index,
+        scaledPageWidthPx = (widthPx * out).roundToInt(),
+        scaledPageHeightPx = (pageHeight * out).roundToInt(),
+        srcLeftPx = (l * out).roundToInt(),
+        srcTopPx = ((t - pageTop) * out).roundToInt(),
+        outWidthPx = ((r - l) * out).roundToInt().coerceAtLeast(1),
+        outHeightPx = ((b - t) * out).roundToInt().coerceAtLeast(1),
+    )
 }
 
 /**
@@ -359,22 +462,27 @@ private fun PdfPageItem(
     onAnchorRemove: ((id: String) -> Unit)? = null,
     onLinkTap: ((PageLink) -> Unit)? = null,
     pageStrokes: List<Stroke> = emptyList(),
+    inkLive: Boolean = true,
     inkTool: InkTool = InkTool.PEN,
     inkColor: Int = Pens.DEFAULT_COLOR,
     inkSizePx: Float = Pens.DEFAULT_SIZE_PX,
+    eraserRadiusPx: Float = EraserSize.MEDIUM.radiusPx,
     onStrokeFinished: ((width: Float, height: Float, stroke: Stroke) -> Unit)? = null,
     onErase: ((x: Float, y: Float) -> Unit)? = null,
     onScrollBy: (Float) -> Unit = {},
 ) {
-    var bitmap by remember(source, index, widthPx) { mutableStateOf<Bitmap?>(null) }
-    var aspect by remember(source, index) { mutableStateOf(0.7f) }
+    // Seeded from the caches so a page scrolled back into view shows at once, at its final height.
+    var bitmap by remember(source, index, widthPx) { mutableStateOf(source.cachedPage(index, widthPx)) }
+    var aspect by remember(source, index) { mutableStateOf(source.cachedAspect(index) ?: 0.7f) }
     var links by remember(source, index) { mutableStateOf<List<PageLink>>(emptyList()) }
     var pageSize by remember(source, index) { mutableStateOf(IntSize.Zero) }
 
     LaunchedEffect(source, index, widthPx) {
         if (widthPx <= 0) return@LaunchedEffect
-        aspect = source.pageAspectRatio(index)
-        bitmap = withContext(Dispatchers.Default) { source.renderFullPage(index, widthPx) }
+        if (bitmap == null) {
+            aspect = source.pageAspectRatio(index)
+            bitmap = withContext(Dispatchers.Default) { source.renderFullPage(index, widthPx) }
+        }
         links = source.pageLinks(index)
     }
 
@@ -399,19 +507,25 @@ private fun PdfPageItem(
             },
     ) {
         if (current != null) {
+            val image = remember(current) { current.asImageBitmap() }
             Image(
-                bitmap = current.asImageBitmap(),
+                bitmap = image,
                 contentDescription = "Page ${index + 1}",
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.FillWidth,
             )
         }
-        if (onStrokeFinished != null && onErase != null) {
+        // ponytail: a stylus landing in the brief settle window scrolls instead of writing; mount on
+        // stylus hover if that ever shows up in practice.
+        if (onStrokeFinished != null && onErase != null && !inkLive) {
+            DryPageInk(pageStrokes, Modifier.fillMaxSize())
+        } else if (onStrokeFinished != null && onErase != null) {
             InkCanvas(
                 strokes = pageStrokes,
                 tool = inkTool,
                 penColor = inkColor,
                 penSizePx = inkSizePx,
+                eraserRadiusPx = eraserRadiusPx,
                 canvasOffset = 0f,
                 onStrokeFinished = { stroke ->
                     onStrokeFinished(pageSize.width.toFloat(), pageSize.height.toFloat(), stroke)
@@ -454,8 +568,6 @@ private fun PdfPageItem(
             )
         }
     }
-    // ponytail: bitmaps for scrolled-away pages are dropped by LazyColumn and left to GC.
-    // Add an LRU bitmap cache with safe recycling if very large PDFs cause memory pressure.
 }
 
 @Composable
@@ -484,3 +596,18 @@ private fun AnchorMarker(
         )
     }
 }
+
+/** Finished page ink without the cost of a live ink view, for pages scrolling past. */
+@Composable
+private fun DryPageInk(strokes: List<Stroke>, modifier: Modifier) {
+    if (strokes.isEmpty()) return
+    val renderer = remember { CanvasStrokeRenderer.create(false) }
+    // The renderer reads this as the canvas transform; page strokes are already in item space.
+    val identity = remember { Matrix() }
+    Canvas(modifier) {
+        drawIntoCanvas { canvas -> strokes.forEach { renderer.draw(canvas.nativeCanvas, it, identity) } }
+    }
+}
+
+private const val INK_SETTLE_MS = 120L
+

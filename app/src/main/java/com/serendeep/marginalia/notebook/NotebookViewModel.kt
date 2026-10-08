@@ -1,28 +1,49 @@
 package com.serendeep.marginalia.notebook
 
+import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.RectF
+import coil3.ImageLoader
+import com.serendeep.marginalia.data.CardSource
+import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
 import androidx.ink.strokes.Stroke
 import androidx.ink.strokes.StrokeInputBatch
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.serendeep.marginalia.data.AnchorEntity
 import com.serendeep.marginalia.data.DocumentEntity
+import com.serendeep.marginalia.data.HighlightEntity
 import com.serendeep.marginalia.data.InkStroke
 import com.serendeep.marginalia.data.InkSurface
 import com.serendeep.marginalia.data.MarginaliaRepository
+import com.serendeep.marginalia.data.ReadingStatus
+import com.serendeep.marginalia.ink.EraserSize
 import com.serendeep.marginalia.ink.InkTool
 import com.serendeep.marginalia.ink.Pen
 import com.serendeep.marginalia.ink.Pens
 import com.serendeep.marginalia.ink.StrokeEraser
 import com.serendeep.marginalia.ink.toStroke
+import com.serendeep.marginalia.search.TextIndexer
 import com.serendeep.marginalia.sync.ScrollSync
+import com.serendeep.marginalia.study.FocusState
+import com.serendeep.marginalia.study.FocusTimer
+import com.serendeep.marginalia.study.StudyTracker
 import com.serendeep.marginalia.sync.SyncPair
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.io.File
 import java.util.UUID
 import javax.inject.Inject
@@ -40,10 +61,92 @@ private sealed interface EditOp {
     data class RemoveAnchor(val anchor: AnchorEntity, val boundStrokeIds: List<String>) : EditOp
 }
 
+@OptIn(FlowPreview::class)
 @HiltViewModel
 class NotebookViewModel @Inject constructor(
     private val repository: MarginaliaRepository,
+    private val tracker: StudyTracker,
+    private val focusTimer: FocusTimer,
+    private val indexer: TextIndexer,
+    @ApplicationContext private val context: Context,
+    val imageLoader: ImageLoader,
 ) : ViewModel() {
+
+    /** A lasso capture waiting in the "Make card" sheet. */
+    data class LassoDraft(val id: String, val imagePath: String, val page: Int?)
+
+    private val _lassoDraft = MutableStateFlow<LassoDraft?>(null)
+    val lassoDraft: StateFlow<LassoDraft?> = _lassoDraft.asStateFlow()
+
+    /**
+     * Renders and saves a crop for a new card, then shows the sheet. The lasso is one-shot, so the
+     * pen comes back at once; everything heavy runs on IO.
+     */
+    fun stageLassoCard(page: Int?, render: suspend () -> Bitmap) {
+        _tool.value = InkTool.PEN
+        viewModelScope.launch(Dispatchers.IO) {
+            val bitmap = runCatching { render() }.getOrNull() ?: return@launch
+            val id = newId()
+            val file = File(File(context.filesDir, "cards").also { it.mkdirs() }, "$id.png")
+            val saved = runCatching { file.outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) } }
+            bitmap.recycle()
+            if (saved.isFailure) {
+                file.delete()
+                return@launch
+            }
+            _lassoDraft.value = LassoDraft(id, file.absolutePath, page ?: firstVisiblePage.takeIf { documentId.isNotEmpty() })
+        }
+    }
+
+    fun saveLassoCard(back: String) {
+        val draft = _lassoDraft.value ?: return
+        val lecture = lectureId ?: return
+        _lassoDraft.value = null
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.createCard(
+                source = CardSource.LASSO,
+                lectureId = lecture,
+                documentId = documentId.ifEmpty { null },
+                page = draft.page,
+                frontImagePath = draft.imagePath,
+                backText = back,
+                id = draft.id,
+            )
+        }
+    }
+
+    fun cancelLassoCard() {
+        val draft = _lassoDraft.value ?: return
+        _lassoDraft.value = null
+        viewModelScope.launch(Dispatchers.IO) { File(draft.imagePath).delete() }
+    }
+
+    val focus: StateFlow<FocusState> = focusTimer.state
+
+    private val prefs by lazy { context.getSharedPreferences(com.serendeep.marginalia.shell.PREFS, Context.MODE_PRIVATE) }
+    private val _eraserSize = MutableStateFlow(EraserSize.MEDIUM)
+    val eraserSize: StateFlow<EraserSize> = _eraserSize.asStateFlow()
+
+    init {
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            prefs.getString(ERASER_SIZE_KEY, null)
+                ?.let { runCatching { EraserSize.valueOf(it) }.getOrNull() }
+                ?.let { _eraserSize.value = it }
+        }
+    }
+
+    fun setEraserSize(size: EraserSize) {
+        _eraserSize.value = size
+        prefs.edit().putString(ERASER_SIZE_KEY, size.name).apply()
+    }
+
+    fun toggleFocus() = focusTimer.toggle()
+
+    fun onForeground() {
+        lectureId?.let(tracker::start)
+    }
+
+    fun onBackground() = tracker.stop()
 
     private val _strokes = MutableStateFlow<List<RenderedStroke>>(emptyList())
     val strokes: StateFlow<List<RenderedStroke>> = _strokes.asStateFlow()
@@ -100,7 +203,32 @@ class NotebookViewModel @Inject constructor(
     private val _pageCount = MutableStateFlow(0)
     val pageCount: StateFlow<Int> = _pageCount.asStateFlow()
 
+    private val _status = MutableStateFlow(ReadingStatus.TO_READ.name)
+    private val markDoneDismissed = MutableStateFlow(false)
+
+    /** True on the last page of a document that is not yet marked done. */
+    val showMarkDone: StateFlow<Boolean> = combine(
+        _currentPage, _pageCount, _status, markDoneDismissed,
+    ) { page, count, status, dismissed ->
+        count > 1 && page >= count - 1 && status != ReadingStatus.DONE.name && !dismissed
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    fun markDone() {
+        val id = lectureId ?: return
+        markDoneDismissed.value = true
+        viewModelScope.launch { repository.setReadingStatus(id, ReadingStatus.DONE) }
+    }
+
+    fun dismissMarkDone() {
+        markDoneDismissed.value = true
+    }
+
+    // True while a saved page is being scrolled back to; page reports then are echoes, not reading.
+    private var restoring = false
+    private var restoreChecked = false
+
     private var lectureId: String? = null
+    private var startPage: Int? = null
     private var lectureJob: Job? = null
     private var documentId: String = ""
     private var pdfPageCount = 0
@@ -120,12 +248,19 @@ class NotebookViewModel @Inject constructor(
     private var syncCanvasAfterRequest = false
 
     /** Switches the notebook to a different lecture, resetting all per-lecture state. */
-    fun openLecture(id: String) {
+    fun openLecture(id: String, startPage: Int? = null) {
         if (lectureId == id) return
+        this.startPage = startPage
+        parkedHighlights.clear()
         lectureJob?.cancel()
         canvasAnim?.cancel()
 
         lectureId = id
+        tracker.start(id)
+        restoring = false
+        restoreChecked = false
+        _status.value = ReadingStatus.TO_READ.name
+        markDoneDismissed.value = false
         documentId = ""
         pdfPageCount = 0
         _tool.value = InkTool.PEN
@@ -153,9 +288,16 @@ class NotebookViewModel @Inject constructor(
         _lectureTitle.value = "Notebook"
 
         lectureJob = viewModelScope.launch {
+            launch { repository.markOpened(id) }
+            launch {
+                _currentPage.debounce(PAGE_SAVE_DEBOUNCE_MS).collect { page ->
+                    if (!restoring && restoreChecked) repository.setLastPage(id, page)
+                }
+            }
             launch {
                 repository.observeLecture(id).collect { lecture ->
                     _lectureTitle.value = lecture?.title ?: "Notebook"
+                    _status.value = lecture?.readingStatus ?: ReadingStatus.TO_READ.name
                 }
             }
             val loaded = repository.loadStrokes(id)
@@ -173,9 +315,29 @@ class NotebookViewModel @Inject constructor(
                     documentId = latest?.id ?: ""
                     pdfPageCount = latest?.pageCount ?: 0
                     _pageCount.value = pdfPageCount
+                    if (!restoreChecked) {
+                        val saved = startPage ?: repository.getLecture(id)?.lastPage ?: 0
+                        val target = saved.coerceAtMost((pdfPageCount - 1).coerceAtLeast(0))
+                        if (latest != null && target > 0) {
+                            restoring = true
+                            requestPdfPage(target)
+                        }
+                        restoreChecked = true
+                    }
                 }
             }
         }
+    }
+
+    /** Persists the page now and forgets the lecture, so the next open starts fresh. */
+    fun closeLecture() {
+        val id = lectureId ?: return
+        tracker.stop()
+        if (!restoring && restoreChecked) {
+            val page = firstVisiblePage
+            viewModelScope.launch { repository.setLastPage(id, page) }
+        }
+        lectureId = null
     }
 
     fun setTool(tool: InkTool) {
@@ -189,6 +351,10 @@ class NotebookViewModel @Inject constructor(
     fun selectPen(pen: Pen) {
         _selectedPen.value = pen
         _tool.value = InkTool.PEN
+    }
+
+    fun selectLasso() {
+        _tool.value = InkTool.LASSO
     }
 
     fun selectHighlighter() {
@@ -215,6 +381,7 @@ class NotebookViewModel @Inject constructor(
             batch = stroke.inputs,
             surface = InkSurface.MARGIN,
         )
+        tracker.activity()
         _strokes.value = _strokes.value + RenderedStroke(record, stroke)
         pushOp(EditOp.Add(record))
         viewModelScope.launch { repository.saveStroke(record) }
@@ -236,9 +403,61 @@ class NotebookViewModel @Inject constructor(
             batch = stroke.inputs,
             surface = InkSurface.PAGE,
         )
+        tracker.activity()
         _pageStrokes.value = _pageStrokes.value + RenderedStroke(record, stroke)
         pushOp(EditOp.Add(record))
         viewModelScope.launch { repository.saveStroke(record) }
+        if (_tool.value == InkTool.HIGHLIGHTER) captureHighlight(record, width, height, stroke.brush.size)
+    }
+
+    // Highlights ride on their stroke: pulled out when it is erased or undone, put back on redo.
+    private val parkedHighlights = HashMap<String, HighlightEntity>()
+    private val highlightLock = Mutex()
+
+    /** Reads the page text under a finished highlighter stroke; runs entirely off the ink path. */
+    private fun captureHighlight(record: InkStroke, width: Float, height: Float, brushSize: Float) {
+        val path = _document.value?.localPath ?: return
+        if (width <= 0f || height <= 0f) return
+        val b = record.bounds
+        // The stroke's inputs trace its centre line; widen to the painted band.
+        val pad = brushSize / 2f
+        val area = RectF(
+            (b.left / width).coerceIn(0f, 1f),
+            ((b.top - pad) / height).coerceIn(0f, 1f),
+            (b.right / width).coerceIn(0f, 1f),
+            ((b.bottom + pad) / height).coerceIn(0f, 1f),
+        )
+        viewModelScope.launch {
+            val text = indexer.textIn(path, record.pdfPage, area).replace(Regex("\\s+"), " ").trim()
+            if (text.isEmpty()) return@launch
+            val highlight = HighlightEntity(
+                id = newId(),
+                lectureId = record.lectureId,
+                documentId = record.documentId,
+                page = record.pdfPage,
+                text = text,
+                color = record.brushColor,
+                strokeId = record.id,
+                createdAt = now(),
+            )
+            highlightLock.withLock {
+                if (_pageStrokes.value.any { it.record.id == record.id }) {
+                    repository.saveHighlight(highlight)
+                } else {
+                    parkedHighlights[record.id] = highlight
+                }
+            }
+        }
+    }
+
+    private suspend fun removeStrokes(ids: Collection<String>) = highlightLock.withLock {
+        repository.highlightsForStrokes(ids.toList()).forEach { parkedHighlights[it.strokeId] = it }
+        ids.forEach { repository.deleteStroke(it) }
+    }
+
+    private suspend fun restoreStrokes(records: List<InkStroke>) = highlightLock.withLock {
+        repository.saveStrokes(records)
+        repository.saveHighlights(records.mapNotNull { parkedHighlights.remove(it.id) })
     }
 
     fun eraseAt(x: Float, y: Float) {
@@ -250,7 +469,7 @@ class NotebookViewModel @Inject constructor(
     }
 
     private fun eraseSurface(surface: InkSurface, page: Int?, x: Float, y: Float) {
-        val radius = Pens.DEFAULT_SIZE_PX * 3f
+        val radius = _eraserSize.value.radiusPx
         val current = if (surface == InkSurface.MARGIN) _strokes.value else _pageStrokes.value
         val removed = ArrayList<InkStroke>()
         val added = ArrayList<InkStroke>()
@@ -278,7 +497,7 @@ class NotebookViewModel @Inject constructor(
         if (surface == InkSurface.MARGIN) _strokes.value = next else _pageStrokes.value = next
         pushOp(EditOp.Erase(removed, added))
         viewModelScope.launch {
-            removed.forEach { repository.deleteStroke(it.id) }
+            removeStrokes(removed.map { it.id })
             repository.saveStrokes(added)
         }
     }
@@ -288,7 +507,7 @@ class NotebookViewModel @Inject constructor(
         when (op) {
             is EditOp.Add -> {
                 updateSurface(op.record.surface) { it.filterNot { stroke -> stroke.record.id == op.record.id } }
-                viewModelScope.launch { repository.deleteStroke(op.record.id) }
+                viewModelScope.launch { removeStrokes(listOf(op.record.id)) }
             }
 
             is EditOp.Erase -> {
@@ -297,8 +516,8 @@ class NotebookViewModel @Inject constructor(
                 val surface = op.removed.firstOrNull()?.surface ?: InkSurface.MARGIN
                 updateSurface(surface) { it.filterNot { stroke -> stroke.record.id in addedIds } + restored }
                 viewModelScope.launch {
-                    addedIds.forEach { repository.deleteStroke(it) }
-                    repository.saveStrokes(op.removed)
+                    removeStrokes(addedIds)
+                    restoreStrokes(op.removed)
                 }
             }
 
@@ -320,7 +539,7 @@ class NotebookViewModel @Inject constructor(
         when (op) {
             is EditOp.Add -> {
                 updateSurface(op.record.surface) { it + RenderedStroke(op.record, op.record.toStroke()) }
-                viewModelScope.launch { repository.saveStroke(op.record) }
+                viewModelScope.launch { restoreStrokes(listOf(op.record)) }
             }
 
             is EditOp.Erase -> {
@@ -329,8 +548,8 @@ class NotebookViewModel @Inject constructor(
                 val surface = op.removed.firstOrNull()?.surface ?: InkSurface.MARGIN
                 updateSurface(surface) { it.filterNot { stroke -> stroke.record.id in removedIds } + pieces }
                 viewModelScope.launch {
-                    removedIds.forEach { repository.deleteStroke(it) }
-                    repository.saveStrokes(op.added)
+                    removeStrokes(removedIds)
+                    restoreStrokes(op.added)
                 }
             }
 
@@ -424,6 +643,7 @@ class NotebookViewModel @Inject constructor(
 
     /** Finger scroll on the note sheet. The canvas becomes the sync driver. */
     fun onCanvasScrolledBy(delta: Float) {
+        tracker.activity()
         canvasAnim?.cancel()
         _canvasOffset.value = (_canvasOffset.value + delta).coerceAtLeast(0f)
         driver = Driver.CANVAS
@@ -439,6 +659,8 @@ class NotebookViewModel @Inject constructor(
 
     /** A real touch landed on the PDF pane; only that makes the PDF the driver. */
     fun onPdfTouched() {
+        // A saved page the list cannot scroll to the top (the last page) never matches; touch ends the restore.
+        restoring = false
         driver = Driver.PDF
         drivenAt = now()
     }
@@ -470,6 +692,7 @@ class NotebookViewModel @Inject constructor(
      * ([onPdfTouched]) or as the tail of a deliberate navigation ([requestPdfPage]).
      */
     fun onPdfScrollPos(pos: Float) {
+        tracker.activity()
         pdfPos = pos
         firstVisiblePage = pos.toInt()
         _currentPage.value = firstVisiblePage
@@ -478,6 +701,7 @@ class NotebookViewModel @Inject constructor(
         val expected = expectedPdfPos
         if (expected != null && kotlin.math.abs(pos - expected) < POS_EPSILON) {
             expectedPdfPos = null
+            restoring = false
             if (syncCanvasAfterRequest) {
                 syncCanvasAfterRequest = false
                 syncCanvasToPos(pos)
@@ -567,5 +791,7 @@ class NotebookViewModel @Inject constructor(
         const val PDF_DRIVE_WINDOW_MS = 2000L
         const val POS_EPSILON = 0.05f
         const val CANVAS_ANIM_MS = 250f
+        const val PAGE_SAVE_DEBOUNCE_MS = 1000L
+        const val ERASER_SIZE_KEY = "eraser_size"
     }
 }

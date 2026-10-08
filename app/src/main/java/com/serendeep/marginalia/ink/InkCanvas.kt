@@ -26,7 +26,7 @@ import androidx.ink.strokes.Stroke
 import androidx.ink.strokes.StrokeInput
 import androidx.input.motionprediction.MotionEventPredictor
 
-enum class InkTool { PEN, HIGHLIGHTER, ERASER }
+enum class InkTool { PEN, HIGHLIGHTER, ERASER, LASSO }
 
 /**
  * A note surface. The stylus draws or erases; a single-finger drag scrolls the
@@ -49,6 +49,7 @@ fun InkCanvas(
     onScrollBy: (deltaPx: Float) -> Unit,
     modifier: Modifier = Modifier,
     onPenActive: (Boolean) -> Unit = {},
+    eraserRadiusPx: Float = EraserSize.MEDIUM.radiusPx,
 ) {
     val onFinished by rememberUpdatedState(onStrokeFinished)
     val onEraseAt by rememberUpdatedState(onErase)
@@ -57,6 +58,7 @@ fun InkCanvas(
     val currentTool by rememberUpdatedState(tool)
     val currentPenColor by rememberUpdatedState(penColor)
     val currentPenSize by rememberUpdatedState(penSizePx)
+    val currentEraserRadius by rememberUpdatedState(eraserRadiusPx)
 
     AndroidView(
         modifier = modifier,
@@ -76,8 +78,17 @@ fun InkCanvas(
                     }
                 })
                 val touch = InkTouchHandler(inkView, MotionEventPredictor.newInstance(inkView))
-                inkView.setOnTouchListener { _, event ->
-                    if (event.actionMasked == MotionEvent.ACTION_DOWN) container.hoverView.hide()
+                inkView.setOnTouchListener { view, event ->
+                    if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+                        container.hoverView.hide()
+                        // Inside a scrolling list (pages of a PDF), Compose only hands moves to this
+                        // view after the list has scrolled with them. Claiming the pen, and a palm
+                        // resting while the pen is near, keeps the page still under the nib.
+                        val stylus = event.getToolType(0) == MotionEvent.TOOL_TYPE_STYLUS
+                        if (stylus || SystemClock.uptimeMillis() < touch.stylusNearUntil) {
+                            view.parent?.requestDisallowInterceptTouchEvent(true)
+                        }
+                    }
                     touch.onTouch(
                         event = event,
                         brush = {
@@ -105,7 +116,11 @@ fun InkCanvas(
                             ) -> {
                             touch.stylusNearUntil =
                                 SystemClock.uptimeMillis() + InkTouchHandler.STYLUS_NEAR_MS
-                            container.hoverView.show(e.x, e.y, currentPenColor, currentPenSize)
+                            if (currentTool == InkTool.ERASER) {
+                                container.hoverView.showRing(e.x, e.y, android.graphics.Color.WHITE, currentEraserRadius)
+                            } else {
+                                container.hoverView.show(e.x, e.y, currentPenColor, currentPenSize)
+                            }
                         }
 
                         e.actionMasked == MotionEvent.ACTION_HOVER_EXIT ->
@@ -181,10 +196,13 @@ private class HoverPreviewView(context: Context) : View(context) {
     private var hoverY = -1f
     private var radius = 0f
 
-    fun show(x: Float, y: Float, colorArgb: Int, penSizePx: Float) {
+    fun show(x: Float, y: Float, colorArgb: Int, penSizePx: Float) =
+        showRing(x, y, colorArgb, (penSizePx / 2f).coerceAtLeast(3f) + 2f * resources.displayMetrics.density)
+
+    fun showRing(x: Float, y: Float, colorArgb: Int, radiusPx: Float) {
         hoverX = x
         hoverY = y
-        radius = (penSizePx / 2f).coerceAtLeast(3f) + 2f * resources.displayMetrics.density
+        radius = radiusPx
         ring.color = colorArgb
         ring.alpha = 160
         invalidate()

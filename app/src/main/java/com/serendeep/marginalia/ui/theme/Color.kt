@@ -5,12 +5,15 @@ import androidx.compose.ui.graphics.Color
 // Liquid Glass. Dark is the primary mode; light is its frosted-porcelain twin.
 
 // Dark mode
-val BgDark = Color(0xFF0B0C0E)
-val SheetDark = Color(0xFF111318)
-val InkDark = Color(0xFFF2F2F5)
-val AccentDark = Color(0xFF43E0F8)
-val SoftInkDark = Color(0xFF5C6470)
-val RuleDark = Color(0xFF16181D)
+val BgDark = Color(0xFF0C0C0E)
+val SheetDark = Color(0xFF141417)
+val Surface2Dark = Color(0xFF1B1B1F)
+val InkDark = Color(0xFFECECF0)
+val Violet = Color(0xFF8B7CF6)
+val OnViolet = Color(0xFF0E0B1F)
+val SoftInkDark = Color(0xFF8A8A94)
+val DimInkDark = Color(0xFF55555E)
+val RuleDark = Color(0xFF222227)
 val DividerDark = Color(0x1FFFFFFF)
 val GlassTintDark = Color(0x14FFFFFF)
 val GlassBorderDark = Color(0x24FFFFFF)
@@ -42,6 +45,9 @@ val PenIndigoLight = Color(0xFF4A6FB5)
 val PenIndigoDark = Color(0xFF7C9BD9)
 val PenRustLight = Color(0xFFA9663A)
 val PenRustDark = Color(0xFFC98A5E)
+
+// Time and habit UI only: focus tile, streak heatmap, daily-goal ring, brand dot.
+val Lime = Color(0xFFC6F432)
 
 val Danger = Color(0xFFFF6B6B)
 

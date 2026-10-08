@@ -13,6 +13,15 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
+import com.serendeep.marginalia.data.TagEntity
+import com.serendeep.marginalia.ui.theme.OnViolet
+import com.serendeep.marginalia.ui.theme.Violet
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -25,7 +34,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -74,17 +83,38 @@ import java.util.Locale
 
 @Composable
 fun LibraryScreen(
+    filter: LibraryFilter = LibraryFilter.All,
     viewModel: LibraryViewModel = hiltViewModel(),
     incomingPdfUri: Uri? = null,
     onIncomingPdfHandled: () -> Unit = {},
     onOpenLecture: (String) -> Unit,
 ) {
     val shelf by viewModel.shelf.collectAsStateWithLifecycle()
+    val data = shelf
+    val sections = remember(data, filter) { data?.sections(filter).orEmpty() }
+    val moveTargets = remember(data) {
+        data?.courses.orEmpty().filter { it.name != LibraryViewModel.UNSORTED_NAME }
+    }
     val error by viewModel.error.collectAsStateWithLifecycle()
     var showNewCourse by remember { mutableStateOf(false) }
     var showNewNotebook by remember { mutableStateOf(false) }
-    var renaming by remember { mutableStateOf<ShelfItem?>(null) }
-    var deleting by remember { mutableStateOf<ShelfItem?>(null) }
+    var renaming by remember { mutableStateOf<RowModel?>(null) }
+    var deleting by remember { mutableStateOf<RowModel?>(null) }
+    var taggingId by remember { mutableStateOf<String?>(null) }
+    val snackbar = remember { SnackbarHostState() }
+    val clipboard = LocalClipboardManager.current
+    LaunchedEffect(Unit) {
+        viewModel.citation.collect { citation ->
+            clipboard.setText(AnnotatedString(citation.text))
+            snackbar.showSnackbar(
+                when {
+                    citation.fetched -> "Citation copied"
+                    citation.hasIdentifier -> "Offline — copied title only"
+                    else -> "No DOI or arXiv ID — copied title only"
+                },
+            )
+        }
+    }
 
     LaunchedEffect(incomingPdfUri) {
         incomingPdfUri?.let { uri ->
@@ -116,9 +146,11 @@ fun LibraryScreen(
         picker.launch(arrayOf("application/pdf"))
     }
 
-    fun menuEntries(item: ShelfItem) = buildList {
+    fun menuEntries(item: RowModel) = buildList {
         add(GlassMenuEntry("Rename") { renaming = item })
-        shelf.sections.mapNotNull { it.course }
+        add(GlassMenuEntry("Tags…") { taggingId = item.lecture.id })
+        add(GlassMenuEntry("Copy citation") { viewModel.copyCitation(item.lecture.id) })
+        moveTargets
             .filter { it.id != item.lecture.courseId }
             .forEach { course ->
                 add(GlassMenuEntry("Move to ${course.name}") {
@@ -129,63 +161,40 @@ fun LibraryScreen(
     }
 
     Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        if (shelf.isEmpty) {
+        if (data != null && data.rows.isEmpty()) {
             EmptyShelf(onImport = { launchImport("quick") })
-        } else {
+        } else if (data != null) {
             LazyColumn(
-                modifier = Modifier.fillMaxSize().statusBarsPadding(),
-                contentPadding = PaddingValues(start = 32.dp, end = 32.dp, bottom = 120.dp),
-                verticalArrangement = Arrangement.spacedBy(0.dp),
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(start = 22.dp, end = 22.dp, bottom = 120.dp),
             ) {
-                item {
-                    Row(
-                        verticalAlignment = Alignment.Bottom,
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        modifier = Modifier.fillMaxWidth().padding(top = 24.dp, bottom = 12.dp),
-                    ) {
-                        Text("Library", style = MaterialTheme.typography.displaySmall)
-                        val notebooks = shelf.sections.sumOf { it.items.size } + if (shelf.hero != null) 1 else 0
+                if (sections.all { it.items.isEmpty() } && filter !is LibraryFilter.All) {
+                    item(key = "none", contentType = "none") {
                         Text(
-                            "%03d NOTEBOOKS · %d COURSES".format(Locale.ROOT, notebooks, shelf.courseCount),
-                            fontFamily = MonoFamily,
-                            fontSize = 12.sp,
-                            letterSpacing = 1.6.sp,
+                            "Nothing here yet.",
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.padding(top = 24.dp),
                         )
                     }
                 }
-                shelf.hero?.let { hero ->
-                    item(key = "hero") {
-                        ContinueBanner(
-                            item = hero,
-                            viewModel = viewModel,
-                            onOpen = { onOpenLecture(hero.lecture.id) },
-                            menu = {
-                                GlassMenu(entries = menuEntries(hero)) {
-                                    Icon(
-                                        Icons.Filled.MoreHoriz,
-                                        contentDescription = "More",
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(20.dp),
-                                    )
-                                }
-                            },
-                            modifier = Modifier.padding(bottom = 8.dp),
-                        )
-                    }
-                }
-                shelf.sections.forEach { section ->
-                    item(key = "hdr:${section.course?.id ?: "unsorted"}") {
+                sections.forEach { section ->
+                    item(key = "hdr:${section.course?.id ?: "unsorted"}", contentType = "header") {
                         CourseHeader(section)
                     }
-                    val sectionColor = CoursePalette.color(section.course?.colorIndex ?: 0)
-                    itemsIndexed(section.items, key = { _, item -> item.lecture.id }) { index, item ->
-                        NotebookRow(
-                            index = index,
-                            item = item,
-                            courseColor = sectionColor,
-                            viewModel = viewModel,
-                            onOpen = { onOpenLecture(item.lecture.id) },
+                    items(section.items, key = { it.lecture.id }, contentType = { "row" }) { item ->
+                        LectureRow(
+                            row = item,
+                            imageLoader = viewModel.imageLoader,
+                            meta = remember(item.lecture.id, item.document?.pageCount, item.touchedAt, item.lecture.arxivId, item.lecture.doi) {
+                                listOfNotNull(
+                                    item.document?.pageCount?.let { if (it == 1) "1 PAGE" else "$it PAGES" },
+                                    relativeTime(item.touchedAt),
+                                    item.lecture.arxivId?.let { "ARXIV $it" } ?: item.lecture.doi?.let { "DOI $it" },
+                                ).joinToString(" · ")
+                            },
+                            onClick = { onOpenLecture(item.lecture.id) },
+                            chip = ChipKind.Status,
                             menu = {
                                 GlassMenu(entries = menuEntries(item)) {
                                     Icon(
@@ -236,6 +245,8 @@ fun LibraryScreen(
             }
         }
 
+        SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).padding(24.dp))
+
         error?.let { message ->
             LaunchedEffect(message) {
                 delay(4_000)
@@ -250,6 +261,21 @@ fun LibraryScreen(
                     .padding(24.dp)
                     .background(MaterialTheme.colorScheme.error, RoundedCornerShape(12.dp))
                     .padding(horizontal = 16.dp, vertical = 10.dp),
+            )
+        }
+    }
+
+    taggingId?.let { id ->
+        val row = data?.rows?.firstOrNull { it.lecture.id == id }
+        if (row == null) {
+            taggingId = null
+        } else {
+            TagsDialog(
+                allTags = data?.tags.orEmpty(),
+                selected = row.tags.map { it.id }.toSet(),
+                onToggle = { tagId, on -> viewModel.setTagged(id, tagId, on) },
+                onCreate = { viewModel.addTag(id, it) },
+                onDismiss = { taggingId = null },
             )
         }
     }
@@ -316,44 +342,6 @@ fun LibraryScreen(
     }
 }
 
-/** Wide resume banner: the one thing the screen is for. */
-@Composable
-private fun ContinueBanner(
-    item: ShelfItem,
-    viewModel: LibraryViewModel,
-    onOpen: () -> Unit,
-    menu: @Composable () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val accent = MaterialTheme.colorScheme.primary
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(20.dp),
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(MaterialTheme.colorScheme.surface)
-            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(16.dp))
-            .clickable(onClick = onOpen)
-            .padding(16.dp),
-    ) {
-        CoverThumb(item, viewModel, width = 52.dp)
-        Column(Modifier.weight(1f)) {
-            Text(item.lecture.title, style = MaterialTheme.typography.titleMedium)
-            Text(
-                "CONTINUE · ${pageCountLabel(item.document?.pageCount)}",
-                fontFamily = MonoFamily,
-                fontSize = 11.sp,
-                letterSpacing = 1.4.sp,
-                color = accent,
-                modifier = Modifier.padding(top = 4.dp),
-            )
-        }
-        GlassButton("Resume", onClick = onOpen)
-        menu()
-    }
-}
-
 @Composable
 private fun CourseHeader(section: ShelfSection) {
     val color = CoursePalette.color(section.course?.colorIndex ?: 0)
@@ -373,92 +361,6 @@ private fun CourseHeader(section: ShelfSection) {
         )
     }
 }
-
-@Composable
-private fun NotebookRow(
-    index: Int,
-    item: ShelfItem,
-    courseColor: Color,
-    viewModel: LibraryViewModel,
-    onOpen: () -> Unit,
-    menu: @Composable () -> Unit,
-) {
-    val alpha = remember { Animatable(0f) }
-    LaunchedEffect(Unit) {
-        delay(index * 30L)
-        alpha.animateTo(1f, tween(220))
-    }
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
-        modifier = Modifier
-            .fillMaxWidth()
-            .graphicsLayer { this.alpha = alpha.value }
-            .clip(RoundedCornerShape(12.dp))
-            .clickable(onClick = onOpen)
-            .padding(vertical = 12.dp, horizontal = 4.dp),
-    ) {
-        Box(
-            Modifier
-                .width(3.dp)
-                .height(44.dp)
-                .clip(RoundedCornerShape(2.dp))
-                .background(courseColor),
-        )
-        CoverThumb(item, viewModel, width = 40.dp)
-        Column(Modifier.weight(1f)) {
-            Text(item.lecture.title, style = MaterialTheme.typography.titleSmall)
-            Text(
-                listOfNotNull(
-                    pageCountLabel(item.document?.pageCount),
-                    item.lastWrittenAt?.let { relative(it) },
-                ).joinToString(" · ").ifEmpty { "EMPTY NOTEBOOK" },
-                fontFamily = MonoFamily,
-                fontSize = 11.sp,
-                letterSpacing = 1.2.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 3.dp),
-            )
-        }
-        menu()
-    }
-}
-
-/** Cover art shared between the banner and the rows; also the reader's shared-element source. */
-@Composable
-private fun CoverThumb(item: ShelfItem, viewModel: LibraryViewModel, width: androidx.compose.ui.unit.Dp) {
-    Box(
-        Modifier
-            .width(width)
-            .aspectRatio(0.72f)
-            .sharedCover("pdf-${item.lecture.id}")
-            .clip(RoundedCornerShape(4.dp))
-            .background(MaterialTheme.colorScheme.surface)
-            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(4.dp)),
-    ) {
-        item.document?.let { doc ->
-            AsyncImage(
-                model = PdfCover(doc.localPath),
-                imageLoader = viewModel.imageLoader,
-                contentDescription = item.lecture.title,
-                contentScale = ContentScale.Fit,
-                modifier = Modifier.fillMaxSize(),
-            )
-        }
-    }
-}
-
-private fun pageCountLabel(count: Int?): String? = count?.let {
-    if (it == 1) "1 PAGE" else "$it PAGES"
-}
-
-private fun relative(at: Long): String =
-    DateUtils.getRelativeTimeSpanString(
-        at,
-        System.currentTimeMillis(),
-        DateUtils.MINUTE_IN_MILLIS,
-        DateUtils.FORMAT_ABBREV_RELATIVE,
-    ).toString()
 
 @Composable
 private fun EmptyShelf(onImport: () -> Unit) {
@@ -524,6 +426,58 @@ private fun NamePromptDialog(
             GlassTextButton("Cancel", onDismiss)
             Spacer(Modifier.width(8.dp))
             GlassButton("Create", { onConfirm(text) }, enabled = text.isNotBlank())
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun TagsDialog(
+    allTags: List<TagEntity>,
+    selected: Set<String>,
+    onToggle: (tagId: String, on: Boolean) -> Unit,
+    onCreate: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var text by remember { mutableStateOf("") }
+    GlassDialog(onDismiss = onDismiss) {
+        Text("Tags", style = MaterialTheme.typography.titleMedium)
+        Spacer(Modifier.height(16.dp))
+        if (allTags.isNotEmpty()) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                allTags.forEach { tag ->
+                    val on = tag.id in selected
+                    Text(
+                        tag.name,
+                        fontSize = 12.sp,
+                        color = if (on) OnViolet else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(if (on) Violet else Color.Transparent)
+                            .border(1.dp, if (on) Violet else MaterialTheme.colorScheme.outline, RoundedCornerShape(6.dp))
+                            .clickable { onToggle(tag.id, !on) }
+                            .padding(horizontal = 10.dp, vertical = 5.dp),
+                    )
+                }
+            }
+            Spacer(Modifier.height(16.dp))
+        }
+        OutlinedTextField(
+            value = text,
+            onValueChange = { text = it },
+            singleLine = true,
+            placeholder = { Text("New tag") },
+            colors = glassTextFieldColors(),
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(Modifier.height(20.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+            GlassTextButton("Done", onDismiss)
+            Spacer(Modifier.width(8.dp))
+            GlassButton("Add", {
+                onCreate(text)
+                text = ""
+            }, enabled = text.isNotBlank())
         }
     }
 }

@@ -47,7 +47,7 @@ class LectureCrudTest {
         val db = db()
         db.courseDao().insert(CourseEntity("c1", "Sys", 0, 0))
         val lecture = MarginaliaRepository(
-            db.courseDao(), db.lectureDao(), db.documentDao(), db.strokeDao(), db.anchorDao()
+            db.courseDao(), db.lectureDao(), db.documentDao(), db.strokeDao(), db.anchorDao(), db.studySessionDao(), db.searchDao(), db.highlightDao(), db.cardDao(), db.tagDao()
         ).createLecture("c1", "Scratch Notes")
 
         assertTrue(db.documentDao().getByLecture(lecture.id).isEmpty())
@@ -73,7 +73,7 @@ class LectureCrudTest {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val db = db()
         val repo = MarginaliaRepository(
-            db.courseDao(), db.lectureDao(), db.documentDao(), db.strokeDao(), db.anchorDao()
+            db.courseDao(), db.lectureDao(), db.documentDao(), db.strokeDao(), db.anchorDao(), db.studySessionDao(), db.searchDao(), db.highlightDao(), db.cardDao(), db.tagDao()
         )
         val path = File(context.cacheDir, "delete-${UUID.randomUUID()}.pdf")
         try {

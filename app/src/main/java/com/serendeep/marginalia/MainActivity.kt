@@ -32,16 +32,18 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import com.serendeep.marginalia.highlights.HighlightsScreen
 import com.serendeep.marginalia.library.LibraryScreen
+import com.serendeep.marginalia.review.ReviewScreen
+import com.serendeep.marginalia.search.SearchScreen
+import com.serendeep.marginalia.shell.AppShell
+import com.serendeep.marginalia.stats.StatsScreen
+import com.serendeep.marginalia.shell.Screen
+import com.serendeep.marginalia.today.TodayScreen
 import com.serendeep.marginalia.notebook.NotebookScreen
 import com.serendeep.marginalia.notebook.NotebookViewModel
 import com.serendeep.marginalia.ui.theme.MarginaliaTheme
 import dagger.hilt.android.AndroidEntryPoint
-
-private sealed class Screen {
-    data object Library : Screen()
-    data class Notebook(val lectureId: String) : Screen()
-}
 
 /** Scopes for cover-to-notebook shared-element flight; null outside navigation. */
 val LocalSharedTransition = compositionLocalOf<SharedTransitionScope?> { null }
@@ -63,26 +65,39 @@ class MainActivity : ComponentActivity() {
     private val notebookViewModel: NotebookViewModel by viewModels()
     private var lastPencilToggleAt = 0L
     private var incomingPdfUri by mutableStateOf<Uri?>(null)
+    private var incomingReview by mutableStateOf(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         incomingPdfUri = pdfUri(intent)
+        incomingReview = intent.getBooleanExtra(EXTRA_OPEN_REVIEW, false)
         enableEdgeToEdge()
         setContent {
             MarginaliaTheme {
-                var screen by remember { mutableStateOf<Screen>(Screen.Library) }
+                var screen by remember { mutableStateOf<Screen>(Screen.Today) }
                 val pendingPdf = incomingPdfUri
                 LaunchedEffect(pendingPdf) {
-                    if (pendingPdf != null) screen = Screen.Library
+                    if (pendingPdf != null) screen = Screen.Library()
                 }
+                val pendingReview = incomingReview
+                LaunchedEffect(pendingReview) {
+                    if (pendingReview) {
+                        screen = Screen.Review
+                        incomingReview = false
+                    }
+                }
+                // The shell destination stays put while a notebook is open, so
+                // returning (and the shared-cover flight) lands where it left.
+                val shellScreen = (screen as? Screen.Notebook)?.returnTo ?: screen
+                val notebookId = (screen as? Screen.Notebook)?.lectureId
                 SharedTransitionLayout(Modifier.fillMaxSize()) {
                     AnimatedContent(
-                        targetState = screen,
+                        targetState = notebookId,
                         modifier = Modifier.fillMaxSize(),
                         transitionSpec = {
                             // Opening a notebook slides content in from the right;
-                            // returning to the library slides back the other way.
-                            val forward = targetState is Screen.Notebook
+                            // returning slides back the other way.
+                            val forward = targetState != null
                             val dir = if (forward) 1 else -1
                             (slideInHorizontally(tween(260)) { dir * it / 10 } + fadeIn(tween(260)))
                                 .togetherWith(
@@ -90,25 +105,36 @@ class MainActivity : ComponentActivity() {
                                 )
                         },
                         label = "screen",
-                    ) { current ->
+                    ) { openId ->
                         CompositionLocalProvider(
                             LocalSharedTransition provides this@SharedTransitionLayout,
                             LocalNavAnimation provides this@AnimatedContent,
                         ) {
-                            when (current) {
-                                is Screen.Library -> LibraryScreen(
-                                    incomingPdfUri = pendingPdf,
-                                    onIncomingPdfHandled = { incomingPdfUri = null },
-                                    onOpenLecture = { screen = Screen.Notebook(it) },
+                            if (openId != null) {
+                                BackHandler { screen = shellScreen }
+                                NotebookScreen(
+                                    viewModel = notebookViewModel,
+                                    lectureId = openId,
+                                    onBack = { screen = shellScreen },
+                                    startPage = (screen as? Screen.Notebook)?.page,
                                 )
-
-                                is Screen.Notebook -> {
-                                    BackHandler { screen = Screen.Library }
-                                    NotebookScreen(
-                                        viewModel = notebookViewModel,
-                                        lectureId = current.lectureId,
-                                        onBack = { screen = Screen.Library },
-                                    )
+                            } else {
+                                val open: (String, Int?) -> Unit = { id, page -> screen = Screen.Notebook(id, shellScreen, page) }
+                                AppShell(screen = shellScreen, onNavigate = { screen = it }) {
+                                    when (val s = shellScreen) {
+                                        Screen.Today -> TodayScreen(onOpenLecture = { open(it, null) }, onOpenAt = { id, page -> open(id, page) }, onNavigate = { screen = it })
+                                        is Screen.Library -> LibraryScreen(
+                                            filter = s.filter,
+                                            incomingPdfUri = pendingPdf,
+                                            onIncomingPdfHandled = { incomingPdfUri = null },
+                                            onOpenLecture = { open(it, null) },
+                                        )
+                                        Screen.Review -> ReviewScreen(onOpen = { id, page -> open(id, page) }, onDone = { screen = Screen.Today })
+                                        Screen.Search -> SearchScreen(onOpen = open)
+                                        Screen.Highlights -> HighlightsScreen(onOpen = { id, page -> open(id, page) })
+                                        Screen.Stats -> StatsScreen()
+                                        is Screen.Notebook -> Unit
+                                    }
                                 }
                             }
                         }
@@ -122,6 +148,7 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         incomingPdfUri = pdfUri(intent)
+        if (intent.getBooleanExtra(EXTRA_OPEN_REVIEW, false)) incomingReview = true
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
@@ -138,8 +165,9 @@ class MainActivity : ComponentActivity() {
         return super.dispatchKeyEvent(event)
     }
 
-    private companion object {
-        const val MPENCIL_DOUBLE_TAP_KEYCODE = 718
+    companion object {
+        const val EXTRA_OPEN_REVIEW = "open_review"
+        private const val MPENCIL_DOUBLE_TAP_KEYCODE = 718
 
         fun pdfUri(intent: Intent?): Uri? = intent
             ?.takeIf { it.action == Intent.ACTION_VIEW && it.type == "application/pdf" }

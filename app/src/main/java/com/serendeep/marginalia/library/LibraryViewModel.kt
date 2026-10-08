@@ -6,95 +6,38 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import coil3.ImageLoader
 import com.serendeep.marginalia.data.CourseEntity
-import com.serendeep.marginalia.data.DocumentEntity
-import com.serendeep.marginalia.data.LectureEntity
 import com.serendeep.marginalia.data.MarginaliaRepository
+import com.serendeep.marginalia.research.Citation
+import com.serendeep.marginalia.research.CitationService
+import com.serendeep.marginalia.search.TextIndexer
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import java.io.File
 import javax.inject.Inject
-
-/** One notebook on the shelf: a lecture plus its newest readable document. */
-data class ShelfItem(
-    val lecture: LectureEntity,
-    val document: DocumentEntity?,
-    val lastWrittenAt: Long? = null,
-)
-
-/** A shelf section; [course] is null for quick-imported, ungrouped notebooks. */
-data class ShelfSection(
-    val course: CourseEntity?,
-    val items: List<ShelfItem>,
-)
-
-/** The library: the notebook to continue in, plus everything else. */
-data class Shelf(
-    val hero: ShelfItem? = null,
-    val sections: List<ShelfSection> = emptyList(),
-    val courseCount: Int = 0,
-) {
-    val isEmpty: Boolean get() = hero == null && sections.isEmpty()
-}
 
 @HiltViewModel
 class LibraryViewModel @Inject constructor(
     private val repository: MarginaliaRepository,
     val imageLoader: ImageLoader,
+    private val indexer: TextIndexer,
+    private val citations: CitationService,
     @ApplicationContext context: Context,
 ) : ViewModel() {
 
     private val importer = PdfImporter(context, repository)
 
-    val shelf: StateFlow<Shelf> = combine(
-        repository.observeCourses(),
-        repository.observeAllLectures(),
-        repository.observeAllDocuments(),
-        repository.observeLastWritten(),
-    ) { courses, lectures, documents, touches ->
-        val latestByLecture = documents
-            .filter { it.localPath.isNotEmpty() && File(it.localPath).exists() }
-            .groupBy { it.lectureId }
-            .mapValues { (_, versions) -> versions.maxBy { it.versionIndex } }
-        val touchByLecture = touches.associate { it.lectureId to it.lastAt }
-        val byCourse = lectures.groupBy { it.courseId }
-        fun items(courseId: String) = byCourse[courseId].orEmpty()
-            .map { ShelfItem(it, latestByLecture[it.id], touchByLecture[it.id]) }
-
-        val all = lectures.map { ShelfItem(it, latestByLecture[it.id], touchByLecture[it.id]) }
-        val hero = all
-            .filter { it.document != null }
-            .maxByOrNull { it.lastWrittenAt ?: it.document!!.importedAt }
-
-        val unsorted = courses.firstOrNull { it.name == UNSORTED_NAME }
-        val sections = buildList {
-            unsorted?.let {
-                val rest = items(it.id).filterNot { item -> item.lecture.id == hero?.lecture?.id }
-                if (rest.isNotEmpty()) add(ShelfSection(null, rest))
-            }
-            courses.filterNot { it.id == unsorted?.id }.forEach { course ->
-                add(ShelfSection(course, items(course.id).filterNot { item -> item.lecture.id == hero?.lecture?.id }))
-            }
-        }
-        val namedCourseIds = sections
-            .mapNotNull { it.course }
-            .filterNot { it.name == UNSORTED_NAME }
-            .map { it.id }
-            .toMutableSet()
-        hero?.lecture?.courseId?.let { heroCourseId ->
-            if (courses.any { it.id == heroCourseId && it.name != UNSORTED_NAME }) {
-                namedCourseIds += heroCourseId
-            }
-        }
-        Shelf(hero, sections, namedCourseIds.size)
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), Shelf())
+    /** Null until the first load, so the screen never flashes its empty state. */
+    val shelf: StateFlow<ShelfData?> = repository.observeShelf()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
@@ -102,6 +45,23 @@ class LibraryViewModel @Inject constructor(
     /** Bumps once per successful import batch; the screen celebrates it. */
     private val _celebration = MutableStateFlow(0)
     val celebration: StateFlow<Int> = _celebration.asStateFlow()
+
+    private val _citation = Channel<Citation>(Channel.BUFFERED)
+
+    /** One event per "Copy citation" request, once the text is ready to put on the clipboard. */
+    val citation: Flow<Citation> = _citation.receiveAsFlow()
+
+    fun copyCitation(lectureId: String) {
+        viewModelScope.launch { _citation.send(citations.citationFor(lectureId)) }
+    }
+
+    fun addTag(lectureId: String, name: String) {
+        viewModelScope.launch { repository.addTag(lectureId, name) }
+    }
+
+    fun setTagged(lectureId: String, tagId: String, tagged: Boolean) {
+        viewModelScope.launch { repository.setTagged(lectureId, tagId, tagged) }
+    }
 
     fun createCourse(name: String, colorIndex: Int, emoji: String?) {
         if (name.isBlank()) return
@@ -120,7 +80,10 @@ class LibraryViewModel @Inject constructor(
     fun importPdf(lectureId: String, uri: Uri) {
         viewModelScope.launch {
             when (val result = importer.import(lectureId, uri)) {
-                is PdfImporter.Result.Success -> _error.value = null
+                is PdfImporter.Result.Success -> {
+                    _error.value = null
+                    indexer.schedule()
+                }
                 is PdfImporter.Result.Failure -> _error.value = result.message
             }
         }
@@ -151,7 +114,10 @@ class LibraryViewModel @Inject constructor(
                     }
                 }
             }
-            if (imported > 0) _celebration.value += 1
+            if (imported > 0) {
+                _celebration.value += 1
+                indexer.schedule()
+            }
         }
     }
 

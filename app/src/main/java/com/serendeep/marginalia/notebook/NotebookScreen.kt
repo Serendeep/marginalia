@@ -72,14 +72,21 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import com.serendeep.marginalia.study.WORK_SECONDS
+import com.serendeep.marginalia.ui.theme.Lime
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.serendeep.marginalia.sharedCover
 import com.serendeep.marginalia.ui.components.GlassButton
 import com.serendeep.marginalia.ui.components.GlassDialog
+import com.serendeep.marginalia.ui.components.WebPopup
 import com.serendeep.marginalia.ui.components.GlassTextButton
 import com.serendeep.marginalia.ui.components.MarginLabel
 import com.serendeep.marginalia.ui.components.glassBorder
+import com.serendeep.marginalia.cards.CardEditorSheet
 import com.serendeep.marginalia.ink.InkCanvas
 import com.serendeep.marginalia.ink.InkTool
 import com.serendeep.marginalia.ink.Pen
@@ -113,6 +120,7 @@ fun NotebookScreen(
     viewModel: NotebookViewModel = hiltViewModel(),
     lectureId: String,
     onBack: () -> Unit,
+    startPage: Int? = null,
 ) {
     val context = LocalContext.current
     var source by remember { mutableStateOf<PdfDocumentSource?>(null) }
@@ -123,9 +131,25 @@ fun NotebookScreen(
         detents = listOf(Hidden, peekDetent, FullyExpanded),
     )
 
-    LaunchedEffect(lectureId) { viewModel.openLecture(lectureId) }
+    LaunchedEffect(lectureId) { viewModel.openLecture(lectureId, startPage) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_START -> viewModel.onForeground()
+                Lifecycle.Event.ON_STOP -> viewModel.onBackground()
+                else -> Unit
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            viewModel.closeLecture()
+        }
+    }
 
     val document by viewModel.document.collectAsStateWithLifecycle()
+    val eraserSize by viewModel.eraserSize.collectAsStateWithLifecycle()
     val lectureTitle by viewModel.lectureTitle.collectAsStateWithLifecycle()
     LaunchedEffect(document) {
         source?.close()
@@ -162,6 +186,16 @@ fun NotebookScreen(
     }
 
     val current = source
+    val sheetColor = MaterialTheme.colorScheme.surface.toArgb()
+    val lassoDraft by viewModel.lassoDraft.collectAsStateWithLifecycle()
+    lassoDraft?.let { draft ->
+        CardEditorSheet(
+            imageLoader = viewModel.imageLoader,
+            frontImagePath = draft.imagePath,
+            onDismiss = viewModel::cancelLassoCard,
+            onSave = { _, back, _ -> viewModel.saveLassoCard(back) },
+        )
+    }
     val pdfHaze = remember { HazeState() }
     Row(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).statusBarsPadding()) {
         if (current != null) {
@@ -202,8 +236,22 @@ fun NotebookScreen(
                         Pen.RUST -> LocalPenPalette.current.rust
                     }.toArgb(),
                     inkSizePx = Pens.DEFAULT_SIZE_PX,
+                    eraserRadiusPx = eraserSize.radiusPx,
                     onPageStrokeFinished = viewModel::onPageStrokeFinished,
                     onPageErase = viewModel::erasePageAt,
+                    onLasso = { region ->
+                        viewModel.stageLassoCard(region.page) {
+                            current.renderRegion(
+                                region.page,
+                                region.scaledPageWidthPx,
+                                region.scaledPageHeightPx,
+                                region.srcLeftPx,
+                                region.srcTopPx,
+                                region.outWidthPx,
+                                region.outHeightPx,
+                            )
+                        }
+                    },
                 )
             }
             DocumentBar(
@@ -214,34 +262,23 @@ fun NotebookScreen(
                 hazeState = pdfHaze,
                 modifier = Modifier.align(Alignment.TopStart).padding(12.dp),
             )
-            if (pageCount > 0) {
-                PageIndicator(
-                    page = currentPage + 1,
-                    pageCount = pageCount,
-                    modifier = Modifier.align(Alignment.BottomCenter).padding(12.dp),
-                )
+            Column(
+                Modifier.align(Alignment.BottomCenter).padding(12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                MarkDoneChip(viewModel)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    if (pageCount > 0) {
+                        PageIndicator(page = currentPage + 1, pageCount = pageCount)
+                    }
+                    FocusPill(viewModel)
+                }
             }
         }
 
         pendingWebLink?.let { url ->
-            GlassDialog(onDismiss = { pendingWebLink = null }) {
-                Text("Open link?", style = MaterialTheme.typography.titleMedium)
-                Spacer(Modifier.height(8.dp))
-                Text(Uri.parse(url).host ?: url, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Spacer(Modifier.height(20.dp))
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    GlassTextButton("Cancel", onClick = { pendingWebLink = null })
-                    Spacer(Modifier.width(8.dp))
-                    GlassButton("Open", onClick = {
-                        pendingWebLink = null
-                        val parsed = Uri.parse(url)
-                        // Only ever hand http(s) to the system; PDFs can carry hostile schemes.
-                        if (parsed.scheme == "http" || parsed.scheme == "https") {
-                            runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, parsed)) }
-                        }
-                    })
-                }
-            }
+            WebPopup(url = url, onDismiss = { pendingWebLink = null })
         }
 
         // Outline sheet: opens at half height for a glance, drags to full for
@@ -360,6 +397,7 @@ fun NotebookScreen(
                     tool = tool,
                     penColor = penColor.toArgb(),
                     penSizePx = Pens.DEFAULT_SIZE_PX,
+                    eraserRadiusPx = eraserSize.radiusPx,
                     canvasOffset = canvasOffset,
                     onStrokeFinished = viewModel::onStrokeFinished,
                     onErase = viewModel::eraseAt,
@@ -367,6 +405,13 @@ fun NotebookScreen(
                     modifier = Modifier.fillMaxSize(),
                     onPenActive = viewModel::setPenActive,
                 )
+                if (tool == InkTool.LASSO) {
+                    LassoOverlay(Modifier.fillMaxSize()) { area ->
+                        // The sheet scrolls; the crop is taken in note-canvas space.
+                        val canvasArea = area.translate(0f, canvasOffset)
+                        viewModel.stageLassoCard(null) { renderMarginCrop(strokes, canvasArea, sheetColor) }
+                    }
+                }
             }
 
             val canUndo by viewModel.canUndo.collectAsStateWithLifecycle()
@@ -380,11 +425,18 @@ fun NotebookScreen(
                 onSelectPen = viewModel::selectPen,
                 onHighlighter = viewModel::selectHighlighter,
                 onEraser = { viewModel.setTool(InkTool.ERASER) },
+                eraserSize = eraserSize,
+                onEraserSize = viewModel::setEraserSize,
+                onLasso = viewModel::selectLasso,
                 onUndo = viewModel::undo,
                 onRedo = viewModel::redo,
                 hazeState = hazeState,
                 modifier = Modifier.align(Alignment.TopEnd).padding(12.dp),
             )
+
+            if (current == null) {
+                FocusPill(viewModel, Modifier.align(Alignment.BottomStart).padding(12.dp))
+            }
 
             activeAnchor?.let { anchor ->
                 AssistChip(
@@ -486,6 +538,39 @@ private fun PageIndicator(page: Int, pageCount: Int, modifier: Modifier = Modifi
             .clip(shape)
             .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.7f))
             .border(1.dp, glassBorder(), shape)
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+    )
+}
+
+/** Offers to finish a document once its last page is reached. */
+@Composable
+private fun MarkDoneChip(viewModel: NotebookViewModel) {
+    val show by viewModel.showMarkDone.collectAsStateWithLifecycle()
+    if (!show) return
+    AssistChip(
+        onClick = viewModel::markDone,
+        label = { Text("Mark as done?") },
+    )
+}
+
+/** Running focus timer; tap to pause or resume. Reads its own state so only it recomposes each second. */
+@Composable
+private fun FocusPill(viewModel: NotebookViewModel, modifier: Modifier = Modifier) {
+    val state by viewModel.focus.collectAsStateWithLifecycle()
+    if (!state.running && state.remainingSec == WORK_SECONDS && !state.onBreak) return
+    val shape = RoundedCornerShape(14.dp)
+    val tint = if (state.running) Lime else MaterialTheme.colorScheme.onSurfaceVariant
+    Text(
+        "%02d:%02d".format(Locale.ROOT, state.remainingSec / 60, state.remainingSec % 60),
+        fontFamily = MonoFamily,
+        fontSize = 11.sp,
+        letterSpacing = 1.2.sp,
+        color = tint,
+        modifier = modifier
+            .clip(shape)
+            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.7f))
+            .border(1.dp, glassBorder(), shape)
+            .clickable(onClick = viewModel::toggleFocus)
             .padding(horizontal = 12.dp, vertical = 6.dp),
     )
 }
