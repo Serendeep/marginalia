@@ -78,8 +78,17 @@ fun InkCanvas(
                     }
                 })
                 val touch = InkTouchHandler(inkView, MotionEventPredictor.newInstance(inkView))
-                inkView.setOnTouchListener { _, event ->
-                    if (event.actionMasked == MotionEvent.ACTION_DOWN) container.hoverView.hide()
+                inkView.setOnTouchListener { view, event ->
+                    if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+                        container.hoverView.hide()
+                        // Inside a scrolling list (pages of a PDF), Compose only hands moves to this
+                        // view after the list has scrolled with them. Claiming the pen, and a palm
+                        // resting while the pen is near, keeps the page still under the nib.
+                        val stylus = event.getToolType(0) == MotionEvent.TOOL_TYPE_STYLUS
+                        if (stylus || SystemClock.uptimeMillis() < touch.stylusNearUntil) {
+                            view.parent?.requestDisallowInterceptTouchEvent(true)
+                        }
+                    }
                     touch.onTouch(
                         event = event,
                         brush = {
