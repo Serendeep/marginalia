@@ -173,6 +173,7 @@ fun TodayScreen(
                     }
                 }
             }
+            com.serendeep.marginalia.ai.ui.AskChatGptCard(onOpenAt, Modifier.padding(top = 16.dp))
         }
     }
     }

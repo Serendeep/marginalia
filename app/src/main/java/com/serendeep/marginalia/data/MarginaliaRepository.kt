@@ -276,6 +276,8 @@ class MarginaliaRepository @Inject constructor(
         searchDao.clearIndexed(documentId)
     }
 
+    suspend fun indexedPageText(lectureId: String, page: Int): String? = searchDao.pageText(lectureId, page)
+
     suspend fun search(query: String, includeInk: Boolean = true): SearchResults {
         val like = likePattern(query)
         val match = ftsQuery(query)

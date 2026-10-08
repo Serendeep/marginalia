@@ -304,6 +304,14 @@ fun NotebookScreen(
                         PageIndicator(page = currentPage + 1, pageCount = pageCount)
                     }
                     FocusPill(viewModel)
+                    com.serendeep.marginalia.ai.ui.NotebookAskPill(
+                        lectureId = lectureId,
+                        documentId = document?.id,
+                        title = lectureTitle,
+                        page = currentPage,
+                        pageCount = pageCount,
+                        source = source,
+                    )
                 }
             }
         }
@@ -487,7 +495,14 @@ fun NotebookScreen(
             )
 
             if (current == null) {
-                FocusPill(viewModel, Modifier.align(Alignment.BottomStart).padding(12.dp))
+                Row(
+                    Modifier.align(Alignment.BottomStart).padding(12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    FocusPill(viewModel)
+                    com.serendeep.marginalia.ai.ui.NotebookAskPill(lectureId, null, lectureTitle, currentPage, pageCount, null)
+                }
             }
 
             activeAnchor?.let { anchor ->

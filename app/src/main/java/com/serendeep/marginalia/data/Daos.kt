@@ -264,6 +264,13 @@ interface SearchDao {
             "ORDER BY l.title, page_text.page LIMIT :limit",
     )
     suspend fun searchPages(match: String, limit: Int): List<PageHit>
+
+    @Query(
+        "SELECT page_text.text FROM page_text JOIN documents d ON d.id = page_text.documentId " +
+            "WHERE d.lectureId = :lectureId AND page_text.page = :page " +
+            "AND d.versionIndex = (SELECT MAX(versionIndex) FROM documents WHERE lectureId = d.lectureId) LIMIT 1",
+    )
+    suspend fun pageText(lectureId: String, page: Int): String?
 }
 
 @Dao
