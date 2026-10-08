@@ -60,6 +60,8 @@ import androidx.ink.strokes.Stroke
 import com.serendeep.marginalia.ink.InkCanvas
 import com.serendeep.marginalia.ink.InkTool
 import com.serendeep.marginalia.ink.Pens
+import com.serendeep.marginalia.notebook.LassoOverlay
+import com.serendeep.marginalia.notebook.cropScale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.collectLatest
@@ -76,6 +78,20 @@ data class PageAnchor(
     val xFraction: Float,
     val yFraction: Float,
     val label: Int,
+)
+
+/**
+ * A lassoed area of one page, as the arguments for [PdfDocumentSource.renderRegion]
+ * at twice its on-screen size.
+ */
+data class PdfLassoRegion(
+    val page: Int,
+    val scaledPageWidthPx: Int,
+    val scaledPageHeightPx: Int,
+    val srcLeftPx: Int,
+    val srcTopPx: Int,
+    val outWidthPx: Int,
+    val outHeightPx: Int,
 )
 
 /** A sharp re-render of the visible slice of one page, placed in screen space. */
@@ -105,6 +121,7 @@ fun PdfPane(
     inkSizePx: Float = Pens.DEFAULT_SIZE_PX,
     onPageStrokeFinished: ((page: Int, width: Float, height: Float, stroke: Stroke) -> Unit)? = null,
     onPageErase: ((page: Int, x: Float, y: Float) -> Unit)? = null,
+    onLasso: ((PdfLassoRegion) -> Unit)? = null,
 ) {
     BoxWithConstraints(modifier) {
         val density = LocalDensity.current
@@ -313,6 +330,12 @@ fun PdfPane(
                     }
                 }
 
+                if (inkTool == InkTool.LASSO && onLasso != null) {
+                    LassoOverlay(Modifier.fillMaxSize()) { area ->
+                        lassoRegion(listState, zoom, widthPx, pagePadPx, area)?.let(onLasso)
+                    }
+                }
+
                 sharp?.let { slice ->
                     Image(
                         bitmap = slice.bitmap.asImageBitmap(),
@@ -329,6 +352,42 @@ fun PdfPane(
             }
         }
     }
+}
+
+/** Maps a pane-space rectangle onto the page beneath its centre; null when it misses every page. */
+private fun lassoRegion(
+    listState: LazyListState,
+    zoom: PdfZoomState,
+    widthPx: Int,
+    pagePadPx: Int,
+    area: androidx.compose.ui.geometry.Rect,
+): PdfLassoRegion? {
+    val s = zoom.scale
+    val left = (area.left - zoom.offsetX) / s
+    val right = (area.right - zoom.offsetX) / s
+    val top = (area.top - zoom.offsetY) / s
+    val bottom = (area.bottom - zoom.offsetY) / s
+    val centerY = (top + bottom) / 2f
+    val item = listState.layoutInfo.visibleItemsInfo.firstOrNull { centerY >= it.offset && centerY < it.offset + it.size }
+        ?: return null
+    val pageTop = (item.offset + pagePadPx).toFloat()
+    val pageHeight = (item.size - 2 * pagePadPx).toFloat()
+    if (pageHeight <= 0f || widthPx <= 0) return null
+    val l = left.coerceIn(0f, widthPx.toFloat())
+    val r = right.coerceIn(0f, widthPx.toFloat())
+    val t = top.coerceIn(pageTop, pageTop + pageHeight)
+    val b = bottom.coerceIn(pageTop, pageTop + pageHeight)
+    if (r - l < 4f || b - t < 4f) return null
+    val out = cropScale((r - l) * s, (b - t) * s) * s
+    return PdfLassoRegion(
+        page = item.index,
+        scaledPageWidthPx = (widthPx * out).roundToInt(),
+        scaledPageHeightPx = (pageHeight * out).roundToInt(),
+        srcLeftPx = (l * out).roundToInt(),
+        srcTopPx = ((t - pageTop) * out).roundToInt(),
+        outWidthPx = ((r - l) * out).roundToInt().coerceAtLeast(1),
+        outHeightPx = ((b - t) * out).roundToInt().coerceAtLeast(1),
+    )
 }
 
 /**

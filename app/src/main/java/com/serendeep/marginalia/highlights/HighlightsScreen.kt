@@ -34,6 +34,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.serendeep.marginalia.cards.HighlightCardSheet
+import com.serendeep.marginalia.data.HighlightRow
 import com.serendeep.marginalia.ui.theme.BodyFamily
 import com.serendeep.marginalia.ui.theme.DimInkDark
 import com.serendeep.marginalia.ui.theme.DisplayFamily
@@ -46,6 +48,7 @@ fun HighlightsScreen(
     viewModel: HighlightsViewModel = hiltViewModel(),
 ) {
     val groups by viewModel.groups.collectAsStateWithLifecycle()
+    var cardFor by remember { mutableStateOf<HighlightRow?>(null) }
     val loaded = groups ?: return
     if (loaded.isEmpty()) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -63,6 +66,7 @@ fun HighlightsScreen(
     }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    cardFor?.let { HighlightCardSheet(it, onDismiss = { cardFor = null }) }
     LazyColumn(
         Modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 22.dp, vertical = 12.dp),
@@ -83,7 +87,11 @@ fun HighlightsScreen(
                 })
             }
             items(group.items, key = { it.highlight.id }, contentType = { "highlight" }) { row ->
-                HighlightItem(row, onClick = { onOpen(row.highlight.lectureId, row.highlight.page) })
+                HighlightItem(
+                    row,
+                    onClick = { onOpen(row.highlight.lectureId, row.highlight.page) },
+                    onMakeCard = { cardFor = row },
+                )
             }
         }
     }

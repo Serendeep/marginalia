@@ -5,7 +5,9 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -39,7 +41,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -253,11 +257,19 @@ private fun NavItem(
 }
 
 /** Minutes today against the daily goal. Reads its own state, so a ticking counter never recomposes the sidebar. */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun GoalCard(viewModel: ShellViewModel) {
     val minutes by viewModel.minutesToday.collectAsStateWithLifecycle()
     val goal by viewModel.goalMin.collectAsStateWithLifecycle()
-    val bg = MaterialTheme.colorScheme.background
+    val reminder by viewModel.reminder.collectAsStateWithLifecycle()
+    var settingsOpen by remember { mutableStateOf(false) }
+    if (settingsOpen) {
+        SettingsDialog(goal, reminder, onDismiss = { settingsOpen = false }, onSave = { g, r ->
+            settingsOpen = false
+            viewModel.saveSettings(g, r)
+        })
+    }
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -265,7 +277,10 @@ private fun GoalCard(viewModel: ShellViewModel) {
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
             .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(12.dp))
-            .clickable { viewModel.setGoal(nextGoal(goal)) }
+            .combinedClickable(
+                onClick = { viewModel.setGoal(nextGoal(goal)) },
+                onLongClick = { settingsOpen = true },
+            )
             .padding(12.dp),
     ) {
         Canvas(Modifier.size(40.dp)) {

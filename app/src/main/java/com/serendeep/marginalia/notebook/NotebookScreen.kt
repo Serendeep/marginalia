@@ -86,6 +86,7 @@ import com.serendeep.marginalia.ui.components.WebPopup
 import com.serendeep.marginalia.ui.components.GlassTextButton
 import com.serendeep.marginalia.ui.components.MarginLabel
 import com.serendeep.marginalia.ui.components.glassBorder
+import com.serendeep.marginalia.cards.CardEditorSheet
 import com.serendeep.marginalia.ink.InkCanvas
 import com.serendeep.marginalia.ink.InkTool
 import com.serendeep.marginalia.ink.Pen
@@ -184,6 +185,16 @@ fun NotebookScreen(
     }
 
     val current = source
+    val sheetColor = MaterialTheme.colorScheme.surface.toArgb()
+    val lassoDraft by viewModel.lassoDraft.collectAsStateWithLifecycle()
+    lassoDraft?.let { draft ->
+        CardEditorSheet(
+            imageLoader = viewModel.imageLoader,
+            frontImagePath = draft.imagePath,
+            onDismiss = viewModel::cancelLassoCard,
+            onSave = { _, back, _ -> viewModel.saveLassoCard(back) },
+        )
+    }
     val pdfHaze = remember { HazeState() }
     Row(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).statusBarsPadding()) {
         if (current != null) {
@@ -226,6 +237,19 @@ fun NotebookScreen(
                     inkSizePx = Pens.DEFAULT_SIZE_PX,
                     onPageStrokeFinished = viewModel::onPageStrokeFinished,
                     onPageErase = viewModel::erasePageAt,
+                    onLasso = { region ->
+                        viewModel.stageLassoCard(region.page) {
+                            current.renderRegion(
+                                region.page,
+                                region.scaledPageWidthPx,
+                                region.scaledPageHeightPx,
+                                region.srcLeftPx,
+                                region.srcTopPx,
+                                region.outWidthPx,
+                                region.outHeightPx,
+                            )
+                        }
+                    },
                 )
             }
             DocumentBar(
@@ -378,6 +402,13 @@ fun NotebookScreen(
                     modifier = Modifier.fillMaxSize(),
                     onPenActive = viewModel::setPenActive,
                 )
+                if (tool == InkTool.LASSO) {
+                    LassoOverlay(Modifier.fillMaxSize()) { area ->
+                        // The sheet scrolls; the crop is taken in note-canvas space.
+                        val canvasArea = area.translate(0f, canvasOffset)
+                        viewModel.stageLassoCard(null) { renderMarginCrop(strokes, canvasArea, sheetColor) }
+                    }
+                }
             }
 
             val canUndo by viewModel.canUndo.collectAsStateWithLifecycle()
@@ -391,6 +422,7 @@ fun NotebookScreen(
                 onSelectPen = viewModel::selectPen,
                 onHighlighter = viewModel::selectHighlighter,
                 onEraser = { viewModel.setTool(InkTool.ERASER) },
+                onLasso = viewModel::selectLasso,
                 onUndo = viewModel::undo,
                 onRedo = viewModel::redo,
                 hazeState = hazeState,

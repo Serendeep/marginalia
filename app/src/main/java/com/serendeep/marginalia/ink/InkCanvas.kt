@@ -26,7 +26,7 @@ import androidx.ink.strokes.Stroke
 import androidx.ink.strokes.StrokeInput
 import androidx.input.motionprediction.MotionEventPredictor
 
-enum class InkTool { PEN, HIGHLIGHTER, ERASER }
+enum class InkTool { PEN, HIGHLIGHTER, ERASER, LASSO }
 
 /**
  * A note surface. The stylus draws or erases; a single-finger drag scrolls the

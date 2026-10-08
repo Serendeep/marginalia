@@ -190,3 +190,78 @@ data class HighlightEntity(
     val strokeId: String,
     val createdAt: Long,
 )
+
+enum class CardSource { LASSO, HIGHLIGHT, TYPED, AI }
+
+enum class CardState { NEW, LEARNING, REVIEW, RELEARNING }
+
+// A flashcard. The lecture link is optional: typed cards can float free.
+@Entity(
+    tableName = "cards",
+    foreignKeys = [
+        ForeignKey(
+            entity = LectureEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["lectureId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
+    indices = [Index("dueAt"), Index("lectureId")],
+)
+data class CardEntity(
+    @PrimaryKey val id: String,
+    val lectureId: String? = null,
+    val documentId: String? = null,
+    val page: Int? = null,
+    val frontText: String? = null,
+    val frontImagePath: String? = null,
+    val backText: String? = null,
+    val backInk: ByteArray? = null,
+    val source: String,
+    val highlightId: String? = null,
+    val state: String = CardState.NEW.name,
+    val dueAt: Long,
+    val intervalDays: Double = 0.0,
+    val ease: Double = 2.5,
+    val reps: Int = 0,
+    val lapses: Int = 0,
+    val step: Int = 0,
+    val createdAt: Long,
+) {
+    val cardState: CardState
+        get() = runCatching { CardState.valueOf(state) }.getOrDefault(CardState.NEW)
+
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is CardEntity) return false
+        return id == other.id && state == other.state && dueAt == other.dueAt &&
+            intervalDays == other.intervalDays && ease == other.ease && reps == other.reps &&
+            lapses == other.lapses && step == other.step && frontText == other.frontText &&
+            backText == other.backText && frontImagePath == other.frontImagePath
+    }
+
+    override fun hashCode(): Int = 31 * id.hashCode() + dueAt.hashCode()
+}
+
+// One graded answer. prevIntervalDays is null unless the card was already in REVIEW state,
+// which is what separates mature reviews from learning steps in retention stats.
+@Entity(
+    tableName = "review_log",
+    foreignKeys = [
+        ForeignKey(
+            entity = CardEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["cardId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
+    indices = [Index("reviewedAt"), Index("cardId")],
+)
+data class ReviewLogEntity(
+    @PrimaryKey val id: String,
+    val cardId: String,
+    val grade: Int,
+    val reviewedAt: Long,
+    val prevIntervalDays: Double?,
+    val newIntervalDays: Double?,
+)

@@ -5,6 +5,8 @@ import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
+import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -227,4 +229,58 @@ interface HighlightDao {
             "WHERE h.text LIKE :pattern ESCAPE '\\' ORDER BY h.createdAt DESC LIMIT :limit",
     )
     suspend fun search(pattern: String, limit: Int): List<HighlightRow>
+}
+
+data class RetentionRow(val total: Int, val good: Int)
+
+@Dao
+interface CardDao {
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insert(card: CardEntity)
+
+    @Update
+    suspend fun update(card: CardEntity)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertLog(log: ReviewLogEntity)
+
+    @Transaction
+    suspend fun applyGrade(card: CardEntity, log: ReviewLogEntity) {
+        update(card)
+        insertLog(log)
+    }
+
+    @Query("SELECT * FROM cards WHERE id = :id LIMIT 1")
+    suspend fun getById(id: String): CardEntity?
+
+    @Query("SELECT * FROM cards")
+    suspend fun getAll(): List<CardEntity>
+
+    @Query("SELECT * FROM cards")
+    fun observeAll(): Flow<List<CardEntity>>
+
+    @Query("SELECT frontImagePath FROM cards WHERE lectureId = :lectureId AND frontImagePath IS NOT NULL")
+    suspend fun imagePathsForLecture(lectureId: String): List<String>
+
+    @Query("SELECT reviewedAt FROM review_log ORDER BY reviewedAt")
+    fun observeReviewTimes(): Flow<List<Long>>
+
+    @Query(
+        "SELECT COUNT(*) AS total, COALESCE(SUM(CASE WHEN grade >= 2 THEN 1 ELSE 0 END), 0) AS good " +
+            "FROM review_log WHERE prevIntervalDays IS NOT NULL AND reviewedAt >= :since",
+    )
+    fun observeRetention(since: Long): Flow<RetentionRow>
+
+    // Cards whose very first answer landed since [start].
+    @Query(
+        "SELECT COUNT(DISTINCT r.cardId) FROM review_log r WHERE r.reviewedAt >= :start " +
+            "AND NOT EXISTS (SELECT 1 FROM review_log p WHERE p.cardId = r.cardId AND p.reviewedAt < :start)",
+    )
+    suspend fun newIntroducedSince(start: Long): Int
+
+    @Query(
+        "SELECT COUNT(DISTINCT r.cardId) FROM review_log r WHERE r.reviewedAt >= :start " +
+            "AND NOT EXISTS (SELECT 1 FROM review_log p WHERE p.cardId = r.cardId AND p.reviewedAt < :start)",
+    )
+    fun observeNewIntroducedSince(start: Long): Flow<Int>
 }

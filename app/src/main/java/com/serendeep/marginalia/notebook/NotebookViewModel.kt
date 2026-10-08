@@ -1,6 +1,12 @@
 package com.serendeep.marginalia.notebook
 
+import android.content.Context
+import android.graphics.Bitmap
 import android.graphics.RectF
+import coil3.ImageLoader
+import com.serendeep.marginalia.data.CardSource
+import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
 import androidx.ink.strokes.Stroke
 import androidx.ink.strokes.StrokeInputBatch
 import androidx.lifecycle.ViewModel
@@ -61,7 +67,58 @@ class NotebookViewModel @Inject constructor(
     private val tracker: StudyTracker,
     private val focusTimer: FocusTimer,
     private val indexer: TextIndexer,
+    @ApplicationContext private val context: Context,
+    val imageLoader: ImageLoader,
 ) : ViewModel() {
+
+    /** A lasso capture waiting in the "Make card" sheet. */
+    data class LassoDraft(val id: String, val imagePath: String, val page: Int?)
+
+    private val _lassoDraft = MutableStateFlow<LassoDraft?>(null)
+    val lassoDraft: StateFlow<LassoDraft?> = _lassoDraft.asStateFlow()
+
+    /**
+     * Renders and saves a crop for a new card, then shows the sheet. The lasso is one-shot, so the
+     * pen comes back at once; everything heavy runs on IO.
+     */
+    fun stageLassoCard(page: Int?, render: suspend () -> Bitmap) {
+        _tool.value = InkTool.PEN
+        viewModelScope.launch(Dispatchers.IO) {
+            val bitmap = runCatching { render() }.getOrNull() ?: return@launch
+            val id = newId()
+            val file = File(File(context.filesDir, "cards").also { it.mkdirs() }, "$id.png")
+            val saved = runCatching { file.outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) } }
+            bitmap.recycle()
+            if (saved.isFailure) {
+                file.delete()
+                return@launch
+            }
+            _lassoDraft.value = LassoDraft(id, file.absolutePath, page ?: firstVisiblePage.takeIf { documentId.isNotEmpty() })
+        }
+    }
+
+    fun saveLassoCard(back: String) {
+        val draft = _lassoDraft.value ?: return
+        val lecture = lectureId ?: return
+        _lassoDraft.value = null
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.createCard(
+                source = CardSource.LASSO,
+                lectureId = lecture,
+                documentId = documentId.ifEmpty { null },
+                page = draft.page,
+                frontImagePath = draft.imagePath,
+                backText = back,
+                id = draft.id,
+            )
+        }
+    }
+
+    fun cancelLassoCard() {
+        val draft = _lassoDraft.value ?: return
+        _lassoDraft.value = null
+        viewModelScope.launch(Dispatchers.IO) { File(draft.imagePath).delete() }
+    }
 
     val focus: StateFlow<FocusState> = focusTimer.state
 
@@ -276,6 +333,10 @@ class NotebookViewModel @Inject constructor(
     fun selectPen(pen: Pen) {
         _selectedPen.value = pen
         _tool.value = InkTool.PEN
+    }
+
+    fun selectLasso() {
+        _tool.value = InkTool.LASSO
     }
 
     fun selectHighlighter() {

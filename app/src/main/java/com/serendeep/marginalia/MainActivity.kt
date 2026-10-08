@@ -34,6 +34,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import com.serendeep.marginalia.highlights.HighlightsScreen
 import com.serendeep.marginalia.library.LibraryScreen
+import com.serendeep.marginalia.review.ReviewScreen
 import com.serendeep.marginalia.search.SearchScreen
 import com.serendeep.marginalia.shell.AppShell
 import com.serendeep.marginalia.shell.ComingSoon
@@ -64,10 +65,12 @@ class MainActivity : ComponentActivity() {
     private val notebookViewModel: NotebookViewModel by viewModels()
     private var lastPencilToggleAt = 0L
     private var incomingPdfUri by mutableStateOf<Uri?>(null)
+    private var incomingReview by mutableStateOf(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         incomingPdfUri = pdfUri(intent)
+        incomingReview = intent.getBooleanExtra(EXTRA_OPEN_REVIEW, false)
         enableEdgeToEdge()
         setContent {
             MarginaliaTheme {
@@ -75,6 +78,13 @@ class MainActivity : ComponentActivity() {
                 val pendingPdf = incomingPdfUri
                 LaunchedEffect(pendingPdf) {
                     if (pendingPdf != null) screen = Screen.Library()
+                }
+                val pendingReview = incomingReview
+                LaunchedEffect(pendingReview) {
+                    if (pendingReview) {
+                        screen = Screen.Review
+                        incomingReview = false
+                    }
                 }
                 // The shell destination stays put while a notebook is open, so
                 // returning (and the shared-cover flight) lands where it left.
@@ -119,7 +129,7 @@ class MainActivity : ComponentActivity() {
                                             onIncomingPdfHandled = { incomingPdfUri = null },
                                             onOpenLecture = { open(it, null) },
                                         )
-                                        Screen.Review -> ComingSoon("Review")
+                                        Screen.Review -> ReviewScreen(onOpen = { id, page -> open(id, page) }, onDone = { screen = Screen.Today })
                                         Screen.Search -> SearchScreen(onOpen = open)
                                         Screen.Highlights -> HighlightsScreen(onOpen = { id, page -> open(id, page) })
                                         Screen.Stats -> ComingSoon("Stats")
@@ -138,6 +148,7 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         incomingPdfUri = pdfUri(intent)
+        if (intent.getBooleanExtra(EXTRA_OPEN_REVIEW, false)) incomingReview = true
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
@@ -154,8 +165,9 @@ class MainActivity : ComponentActivity() {
         return super.dispatchKeyEvent(event)
     }
 
-    private companion object {
-        const val MPENCIL_DOUBLE_TAP_KEYCODE = 718
+    companion object {
+        const val EXTRA_OPEN_REVIEW = "open_review"
+        private const val MPENCIL_DOUBLE_TAP_KEYCODE = 718
 
         fun pdfUri(intent: Intent?): Uri? = intent
             ?.takeIf { it.action == Intent.ACTION_VIEW && it.type == "application/pdf" }

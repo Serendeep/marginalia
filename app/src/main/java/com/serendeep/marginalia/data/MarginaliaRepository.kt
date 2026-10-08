@@ -16,6 +16,7 @@ class MarginaliaRepository @Inject constructor(
     private val sessionDao: StudySessionDao,
     private val searchDao: SearchDao,
     private val highlightDao: HighlightDao,
+    private val cardDao: CardDao,
 ) {
     fun observeCourses(): Flow<List<CourseEntity>> = courseDao.observeAll()
 
@@ -105,11 +106,68 @@ class MarginaliaRepository @Inject constructor(
 
     suspend fun deleteLecture(lectureId: String) {
         val documents = documentDao.getByLecture(lectureId)
-        val files = documents.map { File(it.localPath) }
+        val files = documents.map { File(it.localPath) } +
+            cardDao.imagePathsForLecture(lectureId).map { File(it) }
         // The text index is virtual, so the cascade below cannot reach it.
         documents.forEach { dropIndex(it.id) }
         lectureDao.deleteById(lectureId) // FK CASCADE removes documents/strokes/anchors
         files.forEach { runCatching { it.delete() } } // best-effort; rows are gone already
+    }
+
+    fun observeCards(): Flow<List<CardEntity>> = cardDao.observeAll()
+
+    suspend fun allCards(): List<CardEntity> = cardDao.getAll()
+
+    fun observeReviewTimes(): Flow<List<Long>> = cardDao.observeReviewTimes()
+
+    fun observeRetention(since: Long): Flow<RetentionRow> = cardDao.observeRetention(since)
+
+    fun observeNewIntroducedSince(start: Long): Flow<Int> = cardDao.observeNewIntroducedSince(start)
+
+    suspend fun newIntroducedSince(start: Long): Int = cardDao.newIntroducedSince(start)
+
+    suspend fun createCard(
+        source: CardSource,
+        lectureId: String? = null,
+        documentId: String? = null,
+        page: Int? = null,
+        frontText: String? = null,
+        frontImagePath: String? = null,
+        backText: String? = null,
+        highlightId: String? = null,
+        id: String = newId(),
+    ): CardEntity {
+        val card = CardEntity(
+            id = id,
+            lectureId = lectureId,
+            documentId = documentId,
+            page = page,
+            frontText = frontText,
+            frontImagePath = frontImagePath,
+            backText = backText,
+            source = source.name,
+            highlightId = highlightId,
+            dueAt = now(),
+            createdAt = now(),
+        )
+        cardDao.insert(card)
+        return card
+    }
+
+    /** Stores the rescheduled card and its log row together. */
+    suspend fun saveGrade(updated: CardEntity, previous: CardEntity, grade: Int, at: Long) {
+        val wasReview = previous.cardState == CardState.REVIEW
+        cardDao.applyGrade(
+            updated,
+            ReviewLogEntity(
+                id = newId(),
+                cardId = updated.id,
+                grade = grade,
+                reviewedAt = at,
+                prevIntervalDays = if (wasReview) previous.intervalDays else null,
+                newIntervalDays = updated.intervalDays,
+            ),
+        )
     }
 
     suspend fun saveStroke(stroke: InkStroke) = strokeDao.insert(stroke.toEntity())

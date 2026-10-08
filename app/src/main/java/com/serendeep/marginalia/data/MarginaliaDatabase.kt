@@ -16,8 +16,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         PageTextEntity::class,
         IndexedDocumentEntity::class,
         HighlightEntity::class,
+        CardEntity::class,
+        ReviewLogEntity::class,
     ],
-    version = 6,
+    version = 7,
     exportSchema = true,
 )
 abstract class MarginaliaDatabase : RoomDatabase() {
@@ -29,6 +31,7 @@ abstract class MarginaliaDatabase : RoomDatabase() {
     abstract fun studySessionDao(): StudySessionDao
     abstract fun searchDao(): SearchDao
     abstract fun highlightDao(): HighlightDao
+    abstract fun cardDao(): CardDao
 
     companion object {
         val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -113,6 +116,42 @@ abstract class MarginaliaDatabase : RoomDatabase() {
                 )
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_highlights_lectureId` ON `highlights` (`lectureId`)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_highlights_strokeId` ON `highlights` (`strokeId`)")
+            }
+        }
+
+        val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `cards` (
+                        `id` TEXT NOT NULL, `lectureId` TEXT, `documentId` TEXT, `page` INTEGER,
+                        `frontText` TEXT, `frontImagePath` TEXT, `backText` TEXT, `backInk` BLOB,
+                        `source` TEXT NOT NULL, `highlightId` TEXT,
+                        `state` TEXT NOT NULL DEFAULT 'NEW', `dueAt` INTEGER NOT NULL,
+                        `intervalDays` REAL NOT NULL DEFAULT 0, `ease` REAL NOT NULL DEFAULT 2.5,
+                        `reps` INTEGER NOT NULL DEFAULT 0, `lapses` INTEGER NOT NULL DEFAULT 0,
+                        `step` INTEGER NOT NULL DEFAULT 0, `createdAt` INTEGER NOT NULL,
+                        PRIMARY KEY(`id`),
+                        FOREIGN KEY(`lectureId`) REFERENCES `lectures`(`id`)
+                            ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_cards_dueAt` ON `cards` (`dueAt`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_cards_lectureId` ON `cards` (`lectureId`)")
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `review_log` (
+                        `id` TEXT NOT NULL, `cardId` TEXT NOT NULL, `grade` INTEGER NOT NULL,
+                        `reviewedAt` INTEGER NOT NULL, `prevIntervalDays` REAL, `newIntervalDays` REAL,
+                        PRIMARY KEY(`id`),
+                        FOREIGN KEY(`cardId`) REFERENCES `cards`(`id`)
+                            ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_review_log_reviewedAt` ON `review_log` (`reviewedAt`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_review_log_cardId` ON `review_log` (`cardId`)")
             }
         }
     }

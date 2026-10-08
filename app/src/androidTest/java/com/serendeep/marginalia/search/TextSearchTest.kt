@@ -37,7 +37,7 @@ class TextSearchTest {
         db = Room.inMemoryDatabaseBuilder(context, MarginaliaDatabase::class.java).build()
         repo = MarginaliaRepository(
             db.courseDao(), db.lectureDao(), db.documentDao(), db.strokeDao(),
-            db.anchorDao(), db.studySessionDao(), db.searchDao(), db.highlightDao(),
+            db.anchorDao(), db.studySessionDao(), db.searchDao(), db.highlightDao(), db.cardDao(),
         )
         pdfsDir = File(context.filesDir, "pdfs")
         preExisting = pdfsDir.list()?.toSet() ?: emptySet()

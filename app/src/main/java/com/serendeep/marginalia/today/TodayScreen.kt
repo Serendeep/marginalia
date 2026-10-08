@@ -1,5 +1,11 @@
 package com.serendeep.marginalia.today
 
+import android.Manifest
+import android.content.Context
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -27,8 +33,11 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -39,32 +48,41 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.serendeep.marginalia.cards.HighlightCardSheet
+import com.serendeep.marginalia.data.HighlightRow
 import com.serendeep.marginalia.highlights.HighlightItem
 import com.serendeep.marginalia.library.ChipKind
 import com.serendeep.marginalia.library.LectureRow
 import com.serendeep.marginalia.library.LibraryFilter
 import com.serendeep.marginalia.library.RowModel
 import com.serendeep.marginalia.library.relativeTime
+import com.serendeep.marginalia.shell.PREFS
 import com.serendeep.marginalia.shell.Screen
 import com.serendeep.marginalia.study.POMODORO_ROUNDS
 import com.serendeep.marginalia.ui.components.GlassButton
 import com.serendeep.marginalia.ui.theme.BodyFamily
+import com.serendeep.marginalia.ui.theme.CoursePalette
 import com.serendeep.marginalia.ui.theme.DimInkDark
 import com.serendeep.marginalia.ui.theme.DisplayFamily
 import com.serendeep.marginalia.ui.theme.Lime
 import com.serendeep.marginalia.ui.theme.MonoFamily
 import com.serendeep.marginalia.ui.theme.OnViolet
 import com.serendeep.marginalia.ui.theme.Violet
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.withContext
 import java.util.Locale
 
 private val TileShape = RoundedCornerShape(20.dp)
@@ -82,13 +100,16 @@ fun TodayScreen(
     viewModel: TodayViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    var cardFor by remember { mutableStateOf<HighlightRow?>(null) }
+    AskNotificationPermissionOnce()
+    cardFor?.let { HighlightCardSheet(it, onDismiss = { cardFor = null }) }
     // The bento spans the full width: beside the highlights column it gets too narrow on 1120dp tablets.
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         Row(
             Modifier.fillMaxWidth().padding(start = 22.dp, end = 22.dp, top = 18.dp).height(232.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            ReviewTile(Modifier.weight(1.6f))
+            ReviewTile(state.review, onStart = { onNavigate(Screen.Review) }, modifier = Modifier.weight(1.6f))
             FocusTile(viewModel, state.next, Modifier.weight(1f))
             StreakTile(state, Modifier.weight(1f))
         }
@@ -147,6 +168,7 @@ fun TodayScreen(
                                 row = row,
                                 showTitle = true,
                                 onClick = { onOpenAt(row.highlight.lectureId, row.highlight.page) },
+                                onMakeCard = { cardFor = row },
                             )
                         }
                     }
@@ -243,7 +265,7 @@ private fun TileLabel(text: String, color: Color, modifier: Modifier = Modifier)
 }
 
 @Composable
-private fun ReviewTile(modifier: Modifier) {
+private fun ReviewTile(review: ReviewTileState, onStart: () -> Unit, modifier: Modifier) {
     val brush = remember {
         Brush.linearGradient(
             0f to Color(0xFF251F49),
@@ -252,6 +274,7 @@ private fun ReviewTile(modifier: Modifier) {
             end = Offset(900f, 700f),
         )
     }
+    val progress = review.progress
     Tile(modifier, Modifier.background(brush), Color(0xFF2D2756)) {
         Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(
@@ -259,28 +282,70 @@ private fun ReviewTile(modifier: Modifier) {
                     .size(128.dp)
                     .drawBehind {
                         val w = 12.dp.toPx()
-                        drawArc(
-                            RingTrack, 0f, 360f, false,
-                            Offset(w / 2, w / 2), Size(size.width - w, size.height - w), style = Stroke(w),
-                        )
+                        val inset = Offset(w / 2, w / 2)
+                        val arc = Size(size.width - w, size.height - w)
+                        drawArc(RingTrack, 0f, 360f, false, inset, arc, style = Stroke(w))
+                        if (progress > 0f) {
+                            drawArc(Violet, -90f, 360f * progress, false, inset, arc, style = Stroke(w, cap = StrokeCap.Round))
+                        }
                     },
                 contentAlignment = Alignment.Center,
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("0", fontFamily = DisplayFamily, fontWeight = FontWeight.SemiBold, fontSize = 40.sp, color = Color.White)
+                    Text("${review.due}", fontFamily = DisplayFamily, fontWeight = FontWeight.SemiBold, fontSize = 40.sp, color = Color.White)
                     Text("due", fontFamily = BodyFamily, fontSize = 12.sp, color = ReviewMuted)
                 }
             }
-            Column(Modifier.weight(1f)) {
+            Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.Center) {
                 TileLabel("Review queue", ReviewMuted)
-                Text(
-                    "Lasso anything in a notebook to make your first card",
-                    fontFamily = BodyFamily,
-                    fontSize = 12.5.sp,
-                    lineHeight = 20.sp,
-                    color = ReviewMuted,
-                    modifier = Modifier.padding(top = 10.dp),
-                )
+                if (review.due > 0) {
+                    val split = review.split
+                    Text(
+                        "${split.newCards} new · ${split.learning} learning · ${split.lapsed} lapsed",
+                        fontFamily = BodyFamily,
+                        fontSize = 12.5.sp,
+                        color = ReviewMuted,
+                        maxLines = 1,
+                        modifier = Modifier.padding(top = 8.dp),
+                    )
+                    review.courses.forEach { c ->
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 5.dp)) {
+                            Box(Modifier.size(7.dp).clip(RoundedCornerShape(2.dp)).background(CoursePalette.color(c.colorIndex)))
+                            Text(
+                                c.name,
+                                fontFamily = BodyFamily,
+                                fontSize = 12.sp,
+                                color = Color.White.copy(alpha = 0.85f),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.padding(start = 8.dp).weight(1f),
+                            )
+                            Text("${c.due}", fontFamily = MonoFamily, fontSize = 11.sp, color = ReviewMuted)
+                        }
+                    }
+                    Text(
+                        "Start · ${review.minutes} min",
+                        fontFamily = BodyFamily,
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 13.sp,
+                        color = OnViolet,
+                        modifier = Modifier
+                            .padding(top = 12.dp)
+                            .clip(RoundedCornerShape(18.dp))
+                            .background(Violet)
+                            .clickable(onClick = onStart)
+                            .padding(horizontal = 18.dp, vertical = 8.dp),
+                    )
+                } else {
+                    Text(
+                        if (review.hasCards) "All caught up. Nothing is due right now." else "Lasso anything in a notebook to make your first card",
+                        fontFamily = BodyFamily,
+                        fontSize = 12.5.sp,
+                        lineHeight = 20.sp,
+                        color = ReviewMuted,
+                        modifier = Modifier.padding(top = 10.dp),
+                    )
+                }
             }
         }
     }
@@ -380,7 +445,12 @@ private fun StreakTile(state: TodayState, modifier: Modifier) {
                     modifier = Modifier.padding(bottom = 6.dp),
                 )
             }
-            Text("Best ${state.best}", fontFamily = BodyFamily, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                if (state.retention != null) "Best ${state.best} · ${state.retention}% retention" else "Best ${state.best}",
+                fontFamily = BodyFamily,
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             Heatmap(state.heat, Modifier.padding(top = 14.dp).fillMaxWidth().aspectRatio(14f / 3.3f))
         }
     }
@@ -403,5 +473,26 @@ private fun Heatmap(levels: List<Int>, modifier: Modifier) {
                 cornerRadius = radius,
             )
         }
+    }
+}
+
+private const val NOTIF_ASKED_KEY = "notification_permission_asked"
+
+/** Asks for notification permission the first time Today opens (Android 13+); older versions need nothing. */
+@Composable
+private fun AskNotificationPermissionOnce() {
+    if (Build.VERSION.SDK_INT < 33) return
+    val context = LocalContext.current
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
+    LaunchedEffect(Unit) {
+        val ask = withContext(Dispatchers.IO) {
+            val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) ==
+                PackageManager.PERMISSION_GRANTED
+            (!granted && !prefs.getBoolean(NOTIF_ASKED_KEY, false)).also {
+                if (it) prefs.edit().putBoolean(NOTIF_ASKED_KEY, true).apply()
+            }
+        }
+        if (ask) launcher.launch(Manifest.permission.POST_NOTIFICATIONS)
     }
 }
