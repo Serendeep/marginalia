@@ -1,5 +1,11 @@
 package com.serendeep.marginalia.pdf
 
+import kotlinx.coroutines.delay
+import androidx.ink.rendering.android.canvas.CanvasStrokeRenderer
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.foundation.Canvas
+import android.graphics.Matrix
 import android.graphics.Bitmap
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -127,6 +133,21 @@ fun PdfPane(
                         }
                         listState.firstVisibleItemIndex + frac.coerceIn(0f, 0.999f)
                     }.collect { onScrollPos(it) }
+                }
+            }
+
+            // A live ink view costs several frames to create, so pages only get one once scrolling
+            // settles (visible pages plus a neighbour each side); pages passing by draw their ink
+            // with a plain canvas instead.
+            var inkPages by remember(source) { mutableStateOf(IntRange.EMPTY) }
+            LaunchedEffect(source) {
+                snapshotFlow {
+                    val visible = listState.layoutInfo.visibleItemsInfo
+                    listState.isScrollInProgress to ((visible.firstOrNull()?.index ?: 0)..(visible.lastOrNull()?.index ?: 0))
+                }.distinctUntilChanged().collectLatest { (scrolling, visible) ->
+                    if (scrolling) return@collectLatest
+                    delay(INK_SETTLE_MS)
+                    inkPages = (visible.first - 1)..(visible.last + 1)
                 }
             }
 
@@ -275,6 +296,7 @@ fun PdfPane(
                                     }
                                 },
                                 pageStrokes = pageStrokes[index].orEmpty(),
+                                inkLive = index in inkPages,
                                 inkTool = inkTool,
                                 inkColor = inkColor,
                                 inkSizePx = inkSizePx,
@@ -376,6 +398,7 @@ private fun PdfPageItem(
     onAnchorRemove: ((id: String) -> Unit)? = null,
     onLinkTap: ((PageLink) -> Unit)? = null,
     pageStrokes: List<Stroke> = emptyList(),
+    inkLive: Boolean = true,
     inkTool: InkTool = InkTool.PEN,
     inkColor: Int = Pens.DEFAULT_COLOR,
     inkSizePx: Float = Pens.DEFAULT_SIZE_PX,
@@ -427,7 +450,11 @@ private fun PdfPageItem(
                 contentScale = ContentScale.FillWidth,
             )
         }
-        if (onStrokeFinished != null && onErase != null) {
+        // ponytail: a stylus landing in the brief settle window scrolls instead of writing; mount on
+        // stylus hover if that ever shows up in practice.
+        if (onStrokeFinished != null && onErase != null && !inkLive) {
+            DryPageInk(pageStrokes, Modifier.fillMaxSize())
+        } else if (onStrokeFinished != null && onErase != null) {
             InkCanvas(
                 strokes = pageStrokes,
                 tool = inkTool,
@@ -503,3 +530,18 @@ private fun AnchorMarker(
         )
     }
 }
+
+/** Finished page ink without the cost of a live ink view, for pages scrolling past. */
+@Composable
+private fun DryPageInk(strokes: List<Stroke>, modifier: Modifier) {
+    if (strokes.isEmpty()) return
+    val renderer = remember { CanvasStrokeRenderer.create(false) }
+    // The renderer reads this as the canvas transform; page strokes are already in item space.
+    val identity = remember { Matrix() }
+    Canvas(modifier) {
+        drawIntoCanvas { canvas -> strokes.forEach { renderer.draw(canvas.nativeCanvas, it, identity) } }
+    }
+}
+
+private const val INK_SETTLE_MS = 120L
+
