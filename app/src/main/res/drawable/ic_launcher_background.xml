@@ -5,6 +5,10 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
     <path
-        android:fillColor="#0B0C0E"
+        android:fillColor="#121118"
         android:pathData="M0,0h108v108h-108z" />
+    <!-- The margin rule: the line every note in the app is written beside. -->
+    <path
+        android:fillColor="#8B7CF6"
+        android:pathData="M60,0h3.2v108h-3.2z" />
 </vector>
