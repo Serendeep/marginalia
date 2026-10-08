@@ -47,6 +47,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.serendeep.marginalia.highlights.HighlightItem
 import com.serendeep.marginalia.library.ChipKind
 import com.serendeep.marginalia.library.LectureRow
 import com.serendeep.marginalia.library.LibraryFilter
@@ -76,6 +77,7 @@ private val ReviewMuted = Color(0xFFA9A3D6)
 @Composable
 fun TodayScreen(
     onOpenLecture: (String) -> Unit,
+    onOpenAt: (lectureId: String, page: Int) -> Unit,
     onNavigate: (Screen) -> Unit,
     viewModel: TodayViewModel = hiltViewModel(),
 ) {
@@ -128,14 +130,28 @@ fun TodayScreen(
                 .padding(18.dp),
         ) {
             SectionHeader("Recent highlights", "ALL →", topPadding = 0.dp) { onNavigate(Screen.Highlights) }
-            Text(
-                "Highlights you make on PDF text show up here.",
-                fontFamily = BodyFamily,
-                fontSize = 12.5.sp,
-                lineHeight = 18.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 8.dp),
-            )
+            if (state.highlights.isEmpty()) {
+                Text(
+                    "Highlights you make on PDF text show up here.",
+                    fontFamily = BodyFamily,
+                    fontSize = 12.5.sp,
+                    lineHeight = 18.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    state.highlights.forEach { row ->
+                        key(row.highlight.id) {
+                            HighlightItem(
+                                row = row,
+                                showTitle = true,
+                                onClick = { onOpenAt(row.highlight.lectureId, row.highlight.page) },
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
     }

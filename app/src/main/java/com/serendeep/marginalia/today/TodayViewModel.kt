@@ -4,6 +4,7 @@ import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import coil3.ImageLoader
+import com.serendeep.marginalia.data.HighlightRow
 import com.serendeep.marginalia.data.MarginaliaRepository
 import com.serendeep.marginalia.data.ReadingStatus
 import com.serendeep.marginalia.library.RowModel
@@ -25,6 +26,7 @@ import java.time.ZoneId
 import javax.inject.Inject
 
 const val HEAT_DAYS = 42
+private const val RECENT_HIGHLIGHTS = 4
 
 @Immutable
 data class NextUp(val title: String, val page: Int)
@@ -41,6 +43,7 @@ data class TodayState(
     val best: Int = 0,
     // Oldest first, the last cell is today; 0 none, 1 >= 10 min, 2 >= 30, 3 >= 60.
     val heat: List<Int> = emptyList(),
+    val highlights: List<HighlightRow> = emptyList(),
 )
 
 @HiltViewModel
@@ -53,7 +56,8 @@ class TodayViewModel @Inject constructor(
     val state: StateFlow<TodayState> = combine(
         repository.observeShelf(),
         repository.observeSessions(),
-    ) { shelf, sessions ->
+        repository.observeRecentHighlights(RECENT_HIGHLIGHTS),
+    ) { shelf, sessions, highlights ->
         val zone = ZoneId.systemDefault()
         val today = LocalDate.now(zone)
         val minutes = minutesByDay(sessions, zone)
@@ -68,6 +72,7 @@ class TodayViewModel @Inject constructor(
             toRead = toRead.take(3),
             toReadCount = toRead.size,
             next = last?.let { NextUp(it.lecture.title, it.lecture.lastPage + 1) },
+            highlights = highlights,
             streak = streakDays(minutes, emptyMap(), today),
             best = bestStreak(minutes, emptyMap()),
             heat = List(HEAT_DAYS) { i ->

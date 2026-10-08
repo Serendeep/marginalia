@@ -81,7 +81,7 @@ sealed interface Screen {
     data object Search : Screen
     data object Highlights : Screen
     data object Stats : Screen
-    data class Notebook(val lectureId: String, val returnTo: Screen) : Screen
+    data class Notebook(val lectureId: String, val returnTo: Screen, val page: Int? = null) : Screen
 }
 
 private val SidebarWidth = 220.dp
@@ -148,7 +148,10 @@ private fun Sidebar(screen: Screen, onNavigate: (Screen) -> Unit, viewModel: She
                 badge = state.reviewDue.takeIf { it > 0 }?.toString(),
             ) { onNavigate(Screen.Review) }
             NavItem("Search", Icons.Outlined.Search, screen == Screen.Search) { onNavigate(Screen.Search) }
-            NavItem("Highlights", Icons.Outlined.AutoAwesome, screen == Screen.Highlights) { onNavigate(Screen.Highlights) }
+            NavItem(
+                "Highlights", Icons.Outlined.AutoAwesome, screen == Screen.Highlights,
+                count = state.highlights.toString(),
+            ) { onNavigate(Screen.Highlights) }
             NavItem("Stats", Icons.Outlined.BarChart, screen == Screen.Stats) { onNavigate(Screen.Stats) }
 
             SectionLabel("COURSES")
@@ -315,7 +318,7 @@ private fun TopBar(screen: Screen, viewModel: ShellViewModel, onSearch: () -> Un
         Text(title, fontFamily = DisplayFamily, fontWeight = FontWeight.SemiBold, fontSize = 20.sp, letterSpacing = (-0.4).sp, maxLines = 1)
         Text(crumb, fontFamily = MonoFamily, fontSize = 12.sp, letterSpacing = 0.72.sp, color = DimInkDark, maxLines = 1)
         Spacer(Modifier.weight(1f))
-        Row(
+        if (screen != Screen.Search) Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             modifier = Modifier

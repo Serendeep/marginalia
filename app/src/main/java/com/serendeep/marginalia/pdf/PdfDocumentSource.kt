@@ -2,8 +2,10 @@ package com.serendeep.marginalia.pdf
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.Rect
 import android.graphics.RectF
 import android.os.ParcelFileDescriptor
+import com.serendeep.marginalia.data.cleanPdfText
 import io.legere.pdfiumandroid.PdfDocument
 import io.legere.pdfiumandroid.PdfiumCore
 import kotlinx.coroutines.CoroutineScope
@@ -12,6 +14,10 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.io.File
+import kotlin.math.ceil
+import kotlin.math.floor
+import kotlin.math.max
+import kotlin.math.min
 
 // Closing must wait for any in-flight render holding the document lock, but
 // callers close from non-suspend contexts; releases run here instead.
@@ -44,11 +50,14 @@ class PdfDocumentSource private constructor(
 ) {
     private val lock = Mutex()
     private var closed = false
+    // Guards the maps below so the main thread can peek at finished work without
+    // queueing behind a render that holds the document lock.
+    private val cacheGuard = Any()
     private val aspectRatios = HashMap<Int, Float>()
     private val pageLinks = HashMap<Int, List<PageLink>>()
 
-    // Scrolling back to a page must not pay a full native re-render; a few
-    // recent full-page bitmaps cover the visible neighbourhood.
+    // Scrolling back to a page must not pay a full native re-render; recent
+    // full-page bitmaps cover the visible pages plus the prefetched neighbours.
     private val pageCache = object : LinkedHashMap<Long, Bitmap>(8, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Long, Bitmap>): Boolean =
             size > PAGE_CACHE_SIZE
@@ -112,27 +121,44 @@ class PdfDocumentSource private constructor(
     /** Page width divided by height, in PDF points. */
     suspend fun pageAspectRatio(index: Int): Float = lock.withLock {
         if (closed) return@withLock 1f
-        aspectRatios.getOrPut(index) {
-            document.openPage(index).use { page ->
-                val w = page.getPageWidthPoint().coerceAtLeast(1)
-                val h = page.getPageHeightPoint().coerceAtLeast(1)
-                w.toFloat() / h.toFloat()
-            }
+        cachedAspect(index) ?: document.openPage(index).use { page ->
+            val w = page.getPageWidthPoint().coerceAtLeast(1)
+            val h = page.getPageHeightPoint().coerceAtLeast(1)
+            (w.toFloat() / h.toFloat()).also { synchronized(cacheGuard) { aspectRatios[index] = it } }
         }
     }
+
+    /** Aspect ratio if already known; never blocks on pdfium. */
+    fun cachedAspect(index: Int): Float? = synchronized(cacheGuard) { aspectRatios[index] }
+
+    /** A finished render for this page and width, or null; never blocks on pdfium. */
+    fun cachedPage(index: Int, widthPx: Int): Bitmap? =
+        synchronized(cacheGuard) { pageCache[pageKey(index, widthPx)] }
+
+    /** Warms the aspect and bitmap caches for a page that is about to scroll into view. */
+    suspend fun prefetch(index: Int, widthPx: Int) {
+        if (index !in 0 until pageCount || widthPx <= 0) return
+        if (cachedAspect(index) == null) pageAspectRatio(index)
+        if (cachedPage(index, widthPx) == null) renderFullPage(index, widthPx)
+    }
+
+    private fun pageKey(index: Int, widthPx: Int): Long = index.toLong() shl 32 or widthPx.toLong()
 
     /** Render a whole page at [widthPx] wide, height following the page aspect. */
     suspend fun renderFullPage(index: Int, widthPx: Int): Bitmap = lock.withLock {
         if (closed) return@withLock blank()
-        val key = index.toLong() shl 32 or widthPx.toLong()
-        pageCache[key]?.let { return@withLock it }
+        val key = pageKey(index, widthPx)
+        cachedPage(index, widthPx)?.let { return@withLock it }
         document.openPage(index).use { page ->
             val w = page.getPageWidthPoint().coerceAtLeast(1)
             val h = page.getPageHeightPoint().coerceAtLeast(1)
             val heightPx = (widthPx.toLong() * h / w).toInt().coerceAtLeast(1)
+            synchronized(cacheGuard) { aspectRatios[index] = w.toFloat() / h.toFloat() }
             val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
             page.renderPageBitmap(bitmap, 0, 0, widthPx, heightPx)
-            pageCache[key] = bitmap
+            // Uploads the texture on the render thread now, not inside the first frame that shows it.
+            bitmap.prepareToDraw()
+            synchronized(cacheGuard) { pageCache[key] = bitmap }
             bitmap
         }
     }
@@ -164,12 +190,53 @@ class PdfDocumentSource private constructor(
         }
     }
 
+    /** All text on a page in reading order; empty when the page has no text layer. */
+    suspend fun pageText(index: Int): String = lock.withLock {
+        if (closed) return@withLock ""
+        runCatching {
+            document.openPage(index).use { page ->
+                page.openTextPage().use { text ->
+                    val count = text.textPageCountChars()
+                    if (count > 0) cleanPdfText(text.textPageGetText(0, count).orEmpty()) else ""
+                }
+            }
+        }.getOrDefault("")
+    }
+
+    /**
+     * Text under [area], given as top-left-origin fractions of the page. pdfium works in
+     * bottom-left-origin PDF points, so the area is mapped through the page transform
+     * (which also covers rotation and cropped origins) before the lookup.
+     */
+    suspend fun textIn(index: Int, area: RectF): String = lock.withLock {
+        if (closed) return@withLock ""
+        runCatching {
+            document.openPage(index).use { page ->
+                val w = page.getPageWidthPoint().coerceAtLeast(1) * TEXT_RES
+                val h = page.getPageHeightPoint().coerceAtLeast(1) * TEXT_RES
+                val device = Rect(
+                    floor(area.left * w).toInt(),
+                    floor(area.top * h).toInt(),
+                    ceil(area.right * w).toInt(),
+                    ceil(area.bottom * h).toInt(),
+                )
+                val r = page.mapRectToPage(0, 0, w, h, 0, device)
+                // pdfium's bounded lookup wants top above bottom.
+                val bounds = RectF(
+                    min(r.left, r.right), max(r.top, r.bottom),
+                    max(r.left, r.right), min(r.top, r.bottom),
+                )
+                page.openTextPage().use { text -> cleanPdfText(text.textPageGetBoundedText(bounds, MAX_BOUNDED_CHARS).orEmpty()) }
+            }
+        }.getOrDefault("")
+    }
+
     fun close() {
         closeScope.launch {
             lock.withLock {
                 if (closed) return@withLock
                 closed = true
-                pageCache.clear()
+                synchronized(cacheGuard) { pageCache.clear() }
                 runCatching { document.close() }
                 runCatching { pfd.close() }
             }
@@ -179,7 +246,9 @@ class PdfDocumentSource private constructor(
     private fun blank(): Bitmap = Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
 
     companion object {
-        private const val PAGE_CACHE_SIZE = 6
+        private const val PAGE_CACHE_SIZE = 10
+        private const val TEXT_RES = 8
+        private const val MAX_BOUNDED_CHARS = 1024
 
         fun open(context: Context, file: File): PdfDocumentSource =
             open(context, ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY))

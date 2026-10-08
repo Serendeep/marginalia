@@ -13,8 +13,11 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         StrokeEntity::class,
         AnchorEntity::class,
         StudySessionEntity::class,
+        PageTextEntity::class,
+        IndexedDocumentEntity::class,
+        HighlightEntity::class,
     ],
-    version = 5,
+    version = 6,
     exportSchema = true,
 )
 abstract class MarginaliaDatabase : RoomDatabase() {
@@ -24,6 +27,8 @@ abstract class MarginaliaDatabase : RoomDatabase() {
     abstract fun strokeDao(): StrokeDao
     abstract fun anchorDao(): AnchorDao
     abstract fun studySessionDao(): StudySessionDao
+    abstract fun searchDao(): SearchDao
+    abstract fun highlightDao(): HighlightDao
 
     companion object {
         val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -80,6 +85,34 @@ abstract class MarginaliaDatabase : RoomDatabase() {
                     """.trimIndent(),
                 )
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_study_sessions_startedAt` ON `study_sessions` (`startedAt`)")
+            }
+        }
+
+        val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE VIRTUAL TABLE IF NOT EXISTS `page_text` USING FTS4(" +
+                        "`documentId` TEXT NOT NULL, `page` INTEGER NOT NULL, `text` TEXT NOT NULL, " +
+                        "tokenize=unicode61, notindexed=`documentId`, notindexed=`page`)",
+                )
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `indexed_documents` (" +
+                        "`documentId` TEXT NOT NULL, `indexedAt` INTEGER NOT NULL, PRIMARY KEY(`documentId`))",
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `highlights` (
+                        `id` TEXT NOT NULL, `lectureId` TEXT NOT NULL, `documentId` TEXT NOT NULL,
+                        `page` INTEGER NOT NULL, `text` TEXT NOT NULL, `color` INTEGER NOT NULL,
+                        `strokeId` TEXT NOT NULL, `createdAt` INTEGER NOT NULL,
+                        PRIMARY KEY(`id`),
+                        FOREIGN KEY(`lectureId`) REFERENCES `lectures`(`id`)
+                            ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_highlights_lectureId` ON `highlights` (`lectureId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_highlights_strokeId` ON `highlights` (`strokeId`)")
             }
         }
     }

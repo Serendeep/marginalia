@@ -1,6 +1,9 @@
 package com.serendeep.marginalia.data
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
+import androidx.room.Fts4
+import androidx.room.FtsOptions
 import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
@@ -146,3 +149,44 @@ data class StrokeEntity(
 
     override fun hashCode(): Int = 31 * id.hashCode() + inkBlob.contentHashCode()
 }
+
+// Extracted text of one PDF page. Full-text index only; documentId and page ride along unindexed.
+@Fts4(tokenizer = FtsOptions.TOKENIZER_UNICODE61, notIndexed = ["documentId", "page"])
+@Entity(tableName = "page_text")
+data class PageTextEntity(
+    @PrimaryKey @ColumnInfo(name = "rowid") val rowId: Int,
+    val documentId: String,
+    val page: Int,
+    val text: String,
+)
+
+// A document whose pages are all in page_text. Absence means indexing is pending or interrupted.
+@Entity(tableName = "indexed_documents")
+data class IndexedDocumentEntity(
+    @PrimaryKey val documentId: String,
+    val indexedAt: Long,
+)
+
+// PDF text picked up by a highlighter stroke. strokeId ties it to the ink so erasing removes it.
+@Entity(
+    tableName = "highlights",
+    foreignKeys = [
+        ForeignKey(
+            entity = LectureEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["lectureId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
+    indices = [Index("lectureId"), Index("strokeId")],
+)
+data class HighlightEntity(
+    @PrimaryKey val id: String,
+    val lectureId: String,
+    val documentId: String,
+    val page: Int,
+    val text: String,
+    val color: Long,
+    val strokeId: String,
+    val createdAt: Long,
+)

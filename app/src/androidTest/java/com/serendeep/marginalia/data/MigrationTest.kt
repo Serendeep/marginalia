@@ -140,6 +140,36 @@ class MigrationTest {
         )
     }
 
+    @Test
+    fun migrate5To6_addsTextIndexAndHighlights() {
+        val db = helper.createDatabase(DB, 5)
+        db.execSQL(
+            "INSERT INTO courses (id, name, createdAt, orderIndex, colorIndex, emoji) VALUES ('c1', 'Course', 1, 1, 0, NULL)",
+        )
+        db.execSQL(
+            "INSERT INTO lectures (id, courseId, title, createdAt, orderIndex, lastPage, lastOpenedAt, readingStatus) " +
+                "VALUES ('l1', 'c1', 'L', 1, 1, 0, NULL, 'TO_READ')",
+        )
+        db.close()
+
+        val migrated = helper.runMigrationsAndValidate(DB, 6, true, MarginaliaDatabase.MIGRATION_5_6)
+
+        migrated.execSQL("INSERT INTO page_text (documentId, page, text) VALUES ('d1', 2, 'Entropy never decreases')")
+        migrated.query("SELECT page FROM page_text WHERE page_text MATCH 'entrop*'").use { c ->
+            assertTrue(c.moveToFirst())
+            assertEquals(2, c.getInt(0))
+        }
+        migrated.execSQL("INSERT INTO indexed_documents (documentId, indexedAt) VALUES ('d1', 5)")
+        migrated.execSQL(
+            "INSERT INTO highlights (id, lectureId, documentId, page, text, color, strokeId, createdAt) " +
+                "VALUES ('h1', 'l1', 'd1', 2, 'quote', 4294951115, 's1', 9)",
+        )
+        migrated.query("SELECT COUNT(*) FROM highlights WHERE strokeId = 's1'").use { c ->
+            assertTrue(c.moveToFirst())
+            assertEquals(1, c.getInt(0))
+        }
+    }
+
     private companion object {
         const val DB = "migration-test.db"
     }

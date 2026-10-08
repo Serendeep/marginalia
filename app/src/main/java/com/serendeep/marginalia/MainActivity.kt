@@ -32,7 +32,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import com.serendeep.marginalia.highlights.HighlightsScreen
 import com.serendeep.marginalia.library.LibraryScreen
+import com.serendeep.marginalia.search.SearchScreen
 import com.serendeep.marginalia.shell.AppShell
 import com.serendeep.marginalia.shell.ComingSoon
 import com.serendeep.marginalia.shell.Screen
@@ -104,21 +106,22 @@ class MainActivity : ComponentActivity() {
                                     viewModel = notebookViewModel,
                                     lectureId = openId,
                                     onBack = { screen = shellScreen },
+                                    startPage = (screen as? Screen.Notebook)?.page,
                                 )
                             } else {
-                                val open: (String) -> Unit = { screen = Screen.Notebook(it, shellScreen) }
+                                val open: (String, Int?) -> Unit = { id, page -> screen = Screen.Notebook(id, shellScreen, page) }
                                 AppShell(screen = shellScreen, onNavigate = { screen = it }) {
                                     when (val s = shellScreen) {
-                                        Screen.Today -> TodayScreen(onOpenLecture = open, onNavigate = { screen = it })
+                                        Screen.Today -> TodayScreen(onOpenLecture = { open(it, null) }, onOpenAt = { id, page -> open(id, page) }, onNavigate = { screen = it })
                                         is Screen.Library -> LibraryScreen(
                                             filter = s.filter,
                                             incomingPdfUri = pendingPdf,
                                             onIncomingPdfHandled = { incomingPdfUri = null },
-                                            onOpenLecture = open,
+                                            onOpenLecture = { open(it, null) },
                                         )
                                         Screen.Review -> ComingSoon("Review")
-                                        Screen.Search -> ComingSoon("Search")
-                                        Screen.Highlights -> ComingSoon("Highlights")
+                                        Screen.Search -> SearchScreen(onOpen = open)
+                                        Screen.Highlights -> HighlightsScreen(onOpen = { id, page -> open(id, page) })
                                         Screen.Stats -> ComingSoon("Stats")
                                         is Screen.Notebook -> Unit
                                     }

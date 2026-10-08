@@ -14,6 +14,8 @@ class MarginaliaRepository @Inject constructor(
     private val strokeDao: StrokeDao,
     private val anchorDao: AnchorDao,
     private val sessionDao: StudySessionDao,
+    private val searchDao: SearchDao,
+    private val highlightDao: HighlightDao,
 ) {
     fun observeCourses(): Flow<List<CourseEntity>> = courseDao.observeAll()
 
@@ -102,7 +104,10 @@ class MarginaliaRepository @Inject constructor(
         lectureDao.move(lectureId, courseId)
 
     suspend fun deleteLecture(lectureId: String) {
-        val files = documentDao.getByLecture(lectureId).map { File(it.localPath) }
+        val documents = documentDao.getByLecture(lectureId)
+        val files = documents.map { File(it.localPath) }
+        // The text index is virtual, so the cascade below cannot reach it.
+        documents.forEach { dropIndex(it.id) }
         lectureDao.deleteById(lectureId) // FK CASCADE removes documents/strokes/anchors
         files.forEach { runCatching { it.delete() } } // best-effort; rows are gone already
     }
@@ -111,7 +116,66 @@ class MarginaliaRepository @Inject constructor(
 
     suspend fun saveStrokes(strokes: List<InkStroke>) = strokeDao.insertAll(strokes.map { it.toEntity() })
 
-    suspend fun deleteStroke(id: String) = strokeDao.deleteById(id)
+    /** Removes a stroke along with any highlight it produced. */
+    suspend fun deleteStroke(id: String) {
+        highlightDao.deleteByStroke(id)
+        strokeDao.deleteById(id)
+    }
+
+    suspend fun saveHighlight(highlight: HighlightEntity) = highlightDao.insert(highlight)
+
+    suspend fun saveHighlights(highlights: List<HighlightEntity>) {
+        if (highlights.isNotEmpty()) highlightDao.insertAll(highlights)
+    }
+
+    suspend fun highlightsForStrokes(strokeIds: List<String>): List<HighlightEntity> =
+        if (strokeIds.isEmpty()) emptyList() else highlightDao.forStrokes(strokeIds)
+
+    fun observeHighlights(): Flow<List<HighlightRow>> = highlightDao.observeAll()
+
+    fun observeRecentHighlights(limit: Int): Flow<List<HighlightRow>> = highlightDao.observeRecent(limit)
+
+    fun observeHighlightCount(): Flow<Int> = highlightDao.observeCount()
+
+    suspend fun anchorCount(lectureId: String): Int = anchorDao.countByLecture(lectureId)
+
+    suspend fun unindexedDocuments(): List<DocumentEntity> = searchDao.unindexedDocuments()
+
+    /** Replaces a document's indexed pages; blank pages are skipped. */
+    suspend fun indexPage(documentId: String, page: Int, text: String) {
+        if (text.isNotBlank()) searchDao.insertPage(documentId, page, text)
+    }
+
+    private suspend fun deletePages(documentId: String) {
+        searchDao.pageRows().filter { it.documentId == documentId }.map { it.rowId }
+            .chunked(500).forEach { searchDao.deleteRows(it) }
+    }
+
+    suspend fun beginIndexing(documentId: String) {
+        searchDao.clearIndexed(documentId)
+        deletePages(documentId)
+    }
+
+    /** Marks every document for re-indexing; each one's old pages are replaced as it is redone. */
+    suspend fun invalidateIndex() = searchDao.clearAllIndexed()
+
+    suspend fun finishIndexing(documentId: String) =
+        searchDao.markIndexed(IndexedDocumentEntity(documentId, now()))
+
+    private suspend fun dropIndex(documentId: String) {
+        deletePages(documentId)
+        searchDao.clearIndexed(documentId)
+    }
+
+    suspend fun search(query: String): SearchResults {
+        val like = likePattern(query)
+        val match = ftsQuery(query)
+        return SearchResults(
+            documents = like?.let { searchDao.searchTitles(it, SEARCH_DOCS) }.orEmpty(),
+            pages = match?.let { searchDao.searchPages(it, SEARCH_PAGES) }.orEmpty(),
+            highlights = like?.let { highlightDao.search(it, SEARCH_HIGHLIGHTS) }.orEmpty(),
+        )
+    }
 
     fun observeAnchors(lectureId: String): Flow<List<AnchorEntity>> =
         anchorDao.observeByLecture(lectureId)
@@ -156,7 +220,21 @@ class MarginaliaRepository @Inject constructor(
     suspend fun loadStrokes(lectureId: String): List<InkStroke> =
         strokeDao.getByLecture(lectureId).map { it.toInkStroke() }
 
+    private companion object {
+        const val SEARCH_DOCS = 20
+        const val SEARCH_PAGES = 50
+        const val SEARCH_HIGHLIGHTS = 30
+    }
+
     private fun newId(): String = UUID.randomUUID().toString()
 
     private fun now(): Long = System.currentTimeMillis()
+}
+
+data class SearchResults(
+    val documents: List<TitleHit> = emptyList(),
+    val pages: List<PageHit> = emptyList(),
+    val highlights: List<HighlightRow> = emptyList(),
+) {
+    val isEmpty: Boolean get() = documents.isEmpty() && pages.isEmpty() && highlights.isEmpty()
 }

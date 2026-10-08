@@ -118,6 +118,7 @@ fun NotebookScreen(
     viewModel: NotebookViewModel = hiltViewModel(),
     lectureId: String,
     onBack: () -> Unit,
+    startPage: Int? = null,
 ) {
     val context = LocalContext.current
     var source by remember { mutableStateOf<PdfDocumentSource?>(null) }
@@ -128,7 +129,7 @@ fun NotebookScreen(
         detents = listOf(Hidden, peekDetent, FullyExpanded),
     )
 
-    LaunchedEffect(lectureId) { viewModel.openLecture(lectureId) }
+    LaunchedEffect(lectureId) { viewModel.openLecture(lectureId, startPage) }
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->

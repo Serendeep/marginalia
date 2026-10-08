@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -31,6 +32,7 @@ data class CourseNav(val id: String, val name: String, val colorIndex: Int, val 
 data class SidebarState(
     val libraryCount: Int = 0,
     val reviewDue: Int = 0,
+    val highlights: Int = 0,
     val courses: List<CourseNav> = emptyList(),
     val toRead: Int = 0,
     val reading: Int = 0,
@@ -47,10 +49,14 @@ class ShellViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
 ) : ViewModel() {
 
-    val sidebar: StateFlow<SidebarState> = repository.observeShelf().map { data ->
+    val sidebar: StateFlow<SidebarState> = combine(
+        repository.observeShelf(),
+        repository.observeHighlightCount(),
+    ) { data, highlightCount ->
         val byCourse = data.rows.groupingBy { it.lecture.courseId }.eachCount()
         SidebarState(
             libraryCount = data.rows.size,
+            highlights = highlightCount,
             courses = data.courses.map { CourseNav(it.id, it.name, it.colorIndex, byCourse[it.id] ?: 0) },
             toRead = data.rows.count { it.status == ReadingStatus.TO_READ },
             reading = data.rows.count { it.status == ReadingStatus.READING },

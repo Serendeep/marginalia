@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import coil3.ImageLoader
 import com.serendeep.marginalia.data.CourseEntity
 import com.serendeep.marginalia.data.MarginaliaRepository
+import com.serendeep.marginalia.search.TextIndexer
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -22,6 +23,7 @@ import javax.inject.Inject
 class LibraryViewModel @Inject constructor(
     private val repository: MarginaliaRepository,
     val imageLoader: ImageLoader,
+    private val indexer: TextIndexer,
     @ApplicationContext context: Context,
 ) : ViewModel() {
 
@@ -55,7 +57,10 @@ class LibraryViewModel @Inject constructor(
     fun importPdf(lectureId: String, uri: Uri) {
         viewModelScope.launch {
             when (val result = importer.import(lectureId, uri)) {
-                is PdfImporter.Result.Success -> _error.value = null
+                is PdfImporter.Result.Success -> {
+                    _error.value = null
+                    indexer.schedule()
+                }
                 is PdfImporter.Result.Failure -> _error.value = result.message
             }
         }
@@ -86,7 +91,10 @@ class LibraryViewModel @Inject constructor(
                     }
                 }
             }
-            if (imported > 0) _celebration.value += 1
+            if (imported > 0) {
+                _celebration.value += 1
+                indexer.schedule()
+            }
         }
     }
 

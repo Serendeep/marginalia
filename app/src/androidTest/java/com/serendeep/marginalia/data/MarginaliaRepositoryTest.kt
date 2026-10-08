@@ -25,7 +25,7 @@ class MarginaliaRepositoryTest {
     fun setup() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         db = Room.inMemoryDatabaseBuilder(context, MarginaliaDatabase::class.java).build()
-        repo = MarginaliaRepository(db.courseDao(), db.lectureDao(), db.documentDao(), db.strokeDao(), db.anchorDao(), db.studySessionDao())
+        repo = MarginaliaRepository(db.courseDao(), db.lectureDao(), db.documentDao(), db.strokeDao(), db.anchorDao(), db.studySessionDao(), db.searchDao(), db.highlightDao())
     }
 
     @After
@@ -133,6 +133,39 @@ class MarginaliaRepositoryTest {
         val v1 = repo.importDocument(lecture.id, "slides.pdf", "/data/v1.pdf", pageCount = 9)
         assertEquals(0, v0.versionIndex)
         assertEquals(1, v1.versionIndex)
+    }
+
+    @Test
+    fun deletingStrokeRemovesItsHighlight() = runBlocking {
+        val course = repo.createCourse("Thermodynamics", colorIndex = 0, emoji = null)
+        val lecture = repo.createLecture(course.id, "Week 3")
+        val doc = repo.importDocument(lecture.id, "slides.pdf", "/data/slides.pdf", pageCount = 2)
+        fun stroke(id: String) = InkStroke(
+            id = id, lectureId = lecture.id, documentId = doc.id, pdfPage = 1,
+            viewport = Box(0f, 0f, 600f, 800f), bounds = Box(10f, 10f, 30f, 14f),
+            startedAt = 1, endedAt = 2, brushColor = 0x99F2C84B, brushSizeDp = 22f,
+            batch = strokeOf(listOf(10f to 10f, 30f to 14f)), surface = InkSurface.PAGE,
+        )
+        repo.saveStrokes(listOf(stroke("s1"), stroke("s2")))
+        repo.saveHighlights(
+            listOf(
+                HighlightEntity("h1", lecture.id, doc.id, 1, "entropy never decreases", 0x99F2C84B, "s1", 5),
+                HighlightEntity("h2", lecture.id, doc.id, 1, "free energy", 0x99F2C84B, "s2", 6),
+            ),
+        )
+        assertEquals(2, repo.observeHighlightCount().first())
+
+        repo.deleteStroke("s1")
+
+        val left = repo.observeHighlights().first()
+        assertEquals(listOf("h2"), left.map { it.highlight.id })
+        assertEquals("Week 3", left.single().lectureTitle)
+        assertEquals(1, repo.loadStrokes(lecture.id).size)
+
+        repo.saveHighlights(
+            listOf(HighlightEntity("h1", lecture.id, doc.id, 1, "entropy never decreases", 0x99F2C84B, "s1", 5)),
+        )
+        assertEquals(2, repo.observeHighlightCount().first())
     }
 
     private fun strokeOf(points: List<Pair<Float, Float>>): MutableStrokeInputBatch {

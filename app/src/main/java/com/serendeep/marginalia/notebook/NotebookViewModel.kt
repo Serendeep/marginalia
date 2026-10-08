@@ -1,11 +1,13 @@
 package com.serendeep.marginalia.notebook
 
+import android.graphics.RectF
 import androidx.ink.strokes.Stroke
 import androidx.ink.strokes.StrokeInputBatch
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.serendeep.marginalia.data.AnchorEntity
 import com.serendeep.marginalia.data.DocumentEntity
+import com.serendeep.marginalia.data.HighlightEntity
 import com.serendeep.marginalia.data.InkStroke
 import com.serendeep.marginalia.data.InkSurface
 import com.serendeep.marginalia.data.MarginaliaRepository
@@ -15,6 +17,7 @@ import com.serendeep.marginalia.ink.Pen
 import com.serendeep.marginalia.ink.Pens
 import com.serendeep.marginalia.ink.StrokeEraser
 import com.serendeep.marginalia.ink.toStroke
+import com.serendeep.marginalia.search.TextIndexer
 import com.serendeep.marginalia.sync.ScrollSync
 import com.serendeep.marginalia.study.FocusState
 import com.serendeep.marginalia.study.FocusTimer
@@ -32,6 +35,8 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.io.File
 import java.util.UUID
 import javax.inject.Inject
@@ -55,6 +60,7 @@ class NotebookViewModel @Inject constructor(
     private val repository: MarginaliaRepository,
     private val tracker: StudyTracker,
     private val focusTimer: FocusTimer,
+    private val indexer: TextIndexer,
 ) : ViewModel() {
 
     val focus: StateFlow<FocusState> = focusTimer.state
@@ -147,6 +153,7 @@ class NotebookViewModel @Inject constructor(
     private var restoreChecked = false
 
     private var lectureId: String? = null
+    private var startPage: Int? = null
     private var lectureJob: Job? = null
     private var documentId: String = ""
     private var pdfPageCount = 0
@@ -166,8 +173,10 @@ class NotebookViewModel @Inject constructor(
     private var syncCanvasAfterRequest = false
 
     /** Switches the notebook to a different lecture, resetting all per-lecture state. */
-    fun openLecture(id: String) {
+    fun openLecture(id: String, startPage: Int? = null) {
         if (lectureId == id) return
+        this.startPage = startPage
+        parkedHighlights.clear()
         lectureJob?.cancel()
         canvasAnim?.cancel()
 
@@ -232,7 +241,7 @@ class NotebookViewModel @Inject constructor(
                     pdfPageCount = latest?.pageCount ?: 0
                     _pageCount.value = pdfPageCount
                     if (!restoreChecked) {
-                        val saved = repository.getLecture(id)?.lastPage ?: 0
+                        val saved = startPage ?: repository.getLecture(id)?.lastPage ?: 0
                         val target = saved.coerceAtMost((pdfPageCount - 1).coerceAtLeast(0))
                         if (latest != null && target > 0) {
                             restoring = true
@@ -319,6 +328,57 @@ class NotebookViewModel @Inject constructor(
         _pageStrokes.value = _pageStrokes.value + RenderedStroke(record, stroke)
         pushOp(EditOp.Add(record))
         viewModelScope.launch { repository.saveStroke(record) }
+        if (_tool.value == InkTool.HIGHLIGHTER) captureHighlight(record, width, height, stroke.brush.size)
+    }
+
+    // Highlights ride on their stroke: pulled out when it is erased or undone, put back on redo.
+    private val parkedHighlights = HashMap<String, HighlightEntity>()
+    private val highlightLock = Mutex()
+
+    /** Reads the page text under a finished highlighter stroke; runs entirely off the ink path. */
+    private fun captureHighlight(record: InkStroke, width: Float, height: Float, brushSize: Float) {
+        val path = _document.value?.localPath ?: return
+        if (width <= 0f || height <= 0f) return
+        val b = record.bounds
+        // The stroke's inputs trace its centre line; widen to the painted band.
+        val pad = brushSize / 2f
+        val area = RectF(
+            (b.left / width).coerceIn(0f, 1f),
+            ((b.top - pad) / height).coerceIn(0f, 1f),
+            (b.right / width).coerceIn(0f, 1f),
+            ((b.bottom + pad) / height).coerceIn(0f, 1f),
+        )
+        viewModelScope.launch {
+            val text = indexer.textIn(path, record.pdfPage, area).replace(Regex("\\s+"), " ").trim()
+            if (text.isEmpty()) return@launch
+            val highlight = HighlightEntity(
+                id = newId(),
+                lectureId = record.lectureId,
+                documentId = record.documentId,
+                page = record.pdfPage,
+                text = text,
+                color = record.brushColor,
+                strokeId = record.id,
+                createdAt = now(),
+            )
+            highlightLock.withLock {
+                if (_pageStrokes.value.any { it.record.id == record.id }) {
+                    repository.saveHighlight(highlight)
+                } else {
+                    parkedHighlights[record.id] = highlight
+                }
+            }
+        }
+    }
+
+    private suspend fun removeStrokes(ids: Collection<String>) = highlightLock.withLock {
+        repository.highlightsForStrokes(ids.toList()).forEach { parkedHighlights[it.strokeId] = it }
+        ids.forEach { repository.deleteStroke(it) }
+    }
+
+    private suspend fun restoreStrokes(records: List<InkStroke>) = highlightLock.withLock {
+        repository.saveStrokes(records)
+        repository.saveHighlights(records.mapNotNull { parkedHighlights.remove(it.id) })
     }
 
     fun eraseAt(x: Float, y: Float) {
@@ -358,7 +418,7 @@ class NotebookViewModel @Inject constructor(
         if (surface == InkSurface.MARGIN) _strokes.value = next else _pageStrokes.value = next
         pushOp(EditOp.Erase(removed, added))
         viewModelScope.launch {
-            removed.forEach { repository.deleteStroke(it.id) }
+            removeStrokes(removed.map { it.id })
             repository.saveStrokes(added)
         }
     }
@@ -368,7 +428,7 @@ class NotebookViewModel @Inject constructor(
         when (op) {
             is EditOp.Add -> {
                 updateSurface(op.record.surface) { it.filterNot { stroke -> stroke.record.id == op.record.id } }
-                viewModelScope.launch { repository.deleteStroke(op.record.id) }
+                viewModelScope.launch { removeStrokes(listOf(op.record.id)) }
             }
 
             is EditOp.Erase -> {
@@ -377,8 +437,8 @@ class NotebookViewModel @Inject constructor(
                 val surface = op.removed.firstOrNull()?.surface ?: InkSurface.MARGIN
                 updateSurface(surface) { it.filterNot { stroke -> stroke.record.id in addedIds } + restored }
                 viewModelScope.launch {
-                    addedIds.forEach { repository.deleteStroke(it) }
-                    repository.saveStrokes(op.removed)
+                    removeStrokes(addedIds)
+                    restoreStrokes(op.removed)
                 }
             }
 
@@ -400,7 +460,7 @@ class NotebookViewModel @Inject constructor(
         when (op) {
             is EditOp.Add -> {
                 updateSurface(op.record.surface) { it + RenderedStroke(op.record, op.record.toStroke()) }
-                viewModelScope.launch { repository.saveStroke(op.record) }
+                viewModelScope.launch { restoreStrokes(listOf(op.record)) }
             }
 
             is EditOp.Erase -> {
@@ -409,8 +469,8 @@ class NotebookViewModel @Inject constructor(
                 val surface = op.removed.firstOrNull()?.surface ?: InkSurface.MARGIN
                 updateSurface(surface) { it.filterNot { stroke -> stroke.record.id in removedIds } + pieces }
                 viewModelScope.launch {
-                    removedIds.forEach { repository.deleteStroke(it) }
-                    repository.saveStrokes(op.added)
+                    removeStrokes(removedIds)
+                    restoreStrokes(op.added)
                 }
             }
 
