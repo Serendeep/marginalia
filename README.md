@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="docs/brand/icon-512.png" width="112" alt="Marginalia app icon: a handwritten M crossing a violet margin line">
+
 # Marginalia
 
 **Handwritten lecture notes next to the slides, for Android tablets.**
