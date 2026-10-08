@@ -21,3 +21,10 @@ object Pens {
 }
 
 enum class Pen { GRAPHITE, INDIGO, RUST }
+
+/** Eraser reach, as a radius in canvas pixels. */
+enum class EraserSize(val radiusPx: Float) {
+    SMALL(Pens.DEFAULT_SIZE_PX * 1.5f),
+    MEDIUM(Pens.DEFAULT_SIZE_PX * 3f),
+    LARGE(Pens.DEFAULT_SIZE_PX * 7f),
+}

@@ -149,6 +149,7 @@ fun NotebookScreen(
     }
 
     val document by viewModel.document.collectAsStateWithLifecycle()
+    val eraserSize by viewModel.eraserSize.collectAsStateWithLifecycle()
     val lectureTitle by viewModel.lectureTitle.collectAsStateWithLifecycle()
     LaunchedEffect(document) {
         source?.close()
@@ -235,6 +236,7 @@ fun NotebookScreen(
                         Pen.RUST -> LocalPenPalette.current.rust
                     }.toArgb(),
                     inkSizePx = Pens.DEFAULT_SIZE_PX,
+                    eraserRadiusPx = eraserSize.radiusPx,
                     onPageStrokeFinished = viewModel::onPageStrokeFinished,
                     onPageErase = viewModel::erasePageAt,
                     onLasso = { region ->
@@ -395,6 +397,7 @@ fun NotebookScreen(
                     tool = tool,
                     penColor = penColor.toArgb(),
                     penSizePx = Pens.DEFAULT_SIZE_PX,
+                    eraserRadiusPx = eraserSize.radiusPx,
                     canvasOffset = canvasOffset,
                     onStrokeFinished = viewModel::onStrokeFinished,
                     onErase = viewModel::eraseAt,
@@ -422,6 +425,8 @@ fun NotebookScreen(
                 onSelectPen = viewModel::selectPen,
                 onHighlighter = viewModel::selectHighlighter,
                 onEraser = { viewModel.setTool(InkTool.ERASER) },
+                eraserSize = eraserSize,
+                onEraserSize = viewModel::setEraserSize,
                 onLasso = viewModel::selectLasso,
                 onUndo = viewModel::undo,
                 onRedo = viewModel::redo,

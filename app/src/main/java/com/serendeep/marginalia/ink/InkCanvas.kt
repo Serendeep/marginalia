@@ -49,6 +49,7 @@ fun InkCanvas(
     onScrollBy: (deltaPx: Float) -> Unit,
     modifier: Modifier = Modifier,
     onPenActive: (Boolean) -> Unit = {},
+    eraserRadiusPx: Float = EraserSize.MEDIUM.radiusPx,
 ) {
     val onFinished by rememberUpdatedState(onStrokeFinished)
     val onEraseAt by rememberUpdatedState(onErase)
@@ -57,6 +58,7 @@ fun InkCanvas(
     val currentTool by rememberUpdatedState(tool)
     val currentPenColor by rememberUpdatedState(penColor)
     val currentPenSize by rememberUpdatedState(penSizePx)
+    val currentEraserRadius by rememberUpdatedState(eraserRadiusPx)
 
     AndroidView(
         modifier = modifier,
@@ -105,7 +107,11 @@ fun InkCanvas(
                             ) -> {
                             touch.stylusNearUntil =
                                 SystemClock.uptimeMillis() + InkTouchHandler.STYLUS_NEAR_MS
-                            container.hoverView.show(e.x, e.y, currentPenColor, currentPenSize)
+                            if (currentTool == InkTool.ERASER) {
+                                container.hoverView.showRing(e.x, e.y, android.graphics.Color.WHITE, currentEraserRadius)
+                            } else {
+                                container.hoverView.show(e.x, e.y, currentPenColor, currentPenSize)
+                            }
                         }
 
                         e.actionMasked == MotionEvent.ACTION_HOVER_EXIT ->
@@ -181,10 +187,13 @@ private class HoverPreviewView(context: Context) : View(context) {
     private var hoverY = -1f
     private var radius = 0f
 
-    fun show(x: Float, y: Float, colorArgb: Int, penSizePx: Float) {
+    fun show(x: Float, y: Float, colorArgb: Int, penSizePx: Float) =
+        showRing(x, y, colorArgb, (penSizePx / 2f).coerceAtLeast(3f) + 2f * resources.displayMetrics.density)
+
+    fun showRing(x: Float, y: Float, colorArgb: Int, radiusPx: Float) {
         hoverX = x
         hoverY = y
-        radius = (penSizePx / 2f).coerceAtLeast(3f) + 2f * resources.displayMetrics.density
+        radius = radiusPx
         ring.color = colorArgb
         ring.alpha = 160
         invalidate()

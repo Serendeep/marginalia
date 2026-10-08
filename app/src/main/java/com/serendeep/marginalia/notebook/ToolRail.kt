@@ -2,6 +2,8 @@ package com.serendeep.marginalia.notebook
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.AnimatedVisibility
+import com.serendeep.marginalia.ink.EraserSize
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -68,6 +70,8 @@ fun ToolRail(
     onSelectPen: (Pen) -> Unit,
     onHighlighter: () -> Unit,
     onEraser: () -> Unit,
+    eraserSize: EraserSize,
+    onEraserSize: (EraserSize) -> Unit,
     onLasso: () -> Unit,
     onUndo: () -> Unit,
     onRedo: () -> Unit,
@@ -139,6 +143,16 @@ fun ToolRail(
         EraserButton(selected = tool == InkTool.ERASER, iconColor = iconColor) {
             haptics.performHapticFeedback(HapticFeedbackType.ToggleOn)
             onEraser()
+        }
+        AnimatedVisibility(visible = tool == InkTool.ERASER) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                EraserSize.entries.forEach { size ->
+                    EraserSizeDot(size, selected = size == eraserSize, iconColor = iconColor) {
+                        haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                        onEraserSize(size)
+                    }
+                }
+            }
         }
         LassoButton(selected = tool == InkTool.LASSO, iconColor = iconColor) {
             haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
@@ -268,6 +282,30 @@ private fun HistoryButton(enabled: Boolean, glyph: ImageVector, label: String, t
             contentDescription = label,
             tint = tint,
             modifier = Modifier.graphicsLayer { this.alpha = if (enabled) 1f else 0.35f },
+        )
+    }
+}
+
+@Composable
+private fun EraserSizeDot(size: EraserSize, selected: Boolean, iconColor: Color, onClick: () -> Unit) {
+    val accent = MaterialTheme.colorScheme.primary
+    val dot = when (size) {
+        EraserSize.SMALL -> 6.dp
+        EraserSize.MEDIUM -> 11.dp
+        EraserSize.LARGE -> 18.dp
+    }
+    Box(
+        Modifier
+            .size(width = TOUCH_TARGET_DP.dp, height = 36.dp)
+            .clickable(onClick = onClick)
+            .semantics { contentDescription = "Eraser size ${size.name.lowercase()}" },
+        contentAlignment = Alignment.Center,
+    ) {
+        Box(
+            Modifier
+                .size(dot)
+                .clip(CircleShape)
+                .background(if (selected) accent else iconColor.copy(alpha = 0.45f)),
         )
     }
 }

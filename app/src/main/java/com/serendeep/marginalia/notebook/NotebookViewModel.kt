@@ -18,6 +18,7 @@ import com.serendeep.marginalia.data.InkStroke
 import com.serendeep.marginalia.data.InkSurface
 import com.serendeep.marginalia.data.MarginaliaRepository
 import com.serendeep.marginalia.data.ReadingStatus
+import com.serendeep.marginalia.ink.EraserSize
 import com.serendeep.marginalia.ink.InkTool
 import com.serendeep.marginalia.ink.Pen
 import com.serendeep.marginalia.ink.Pens
@@ -121,6 +122,23 @@ class NotebookViewModel @Inject constructor(
     }
 
     val focus: StateFlow<FocusState> = focusTimer.state
+
+    private val prefs by lazy { context.getSharedPreferences(com.serendeep.marginalia.shell.PREFS, Context.MODE_PRIVATE) }
+    private val _eraserSize = MutableStateFlow(EraserSize.MEDIUM)
+    val eraserSize: StateFlow<EraserSize> = _eraserSize.asStateFlow()
+
+    init {
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            prefs.getString(ERASER_SIZE_KEY, null)
+                ?.let { runCatching { EraserSize.valueOf(it) }.getOrNull() }
+                ?.let { _eraserSize.value = it }
+        }
+    }
+
+    fun setEraserSize(size: EraserSize) {
+        _eraserSize.value = size
+        prefs.edit().putString(ERASER_SIZE_KEY, size.name).apply()
+    }
 
     fun toggleFocus() = focusTimer.toggle()
 
@@ -451,7 +469,7 @@ class NotebookViewModel @Inject constructor(
     }
 
     private fun eraseSurface(surface: InkSurface, page: Int?, x: Float, y: Float) {
-        val radius = Pens.DEFAULT_SIZE_PX * 3f
+        val radius = _eraserSize.value.radiusPx
         val current = if (surface == InkSurface.MARGIN) _strokes.value else _pageStrokes.value
         val removed = ArrayList<InkStroke>()
         val added = ArrayList<InkStroke>()
@@ -774,5 +792,6 @@ class NotebookViewModel @Inject constructor(
         const val POS_EPSILON = 0.05f
         const val CANVAS_ANIM_MS = 250f
         const val PAGE_SAVE_DEBOUNCE_MS = 1000L
+        const val ERASER_SIZE_KEY = "eraser_size"
     }
 }

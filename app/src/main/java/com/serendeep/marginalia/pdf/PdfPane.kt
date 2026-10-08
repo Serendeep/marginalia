@@ -58,6 +58,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.ink.strokes.Stroke
 import com.serendeep.marginalia.ink.InkCanvas
+import com.serendeep.marginalia.ink.EraserSize
 import com.serendeep.marginalia.ink.InkTool
 import com.serendeep.marginalia.ink.Pens
 import com.serendeep.marginalia.notebook.LassoOverlay
@@ -119,6 +120,7 @@ fun PdfPane(
     inkTool: InkTool = InkTool.PEN,
     inkColor: Int = Pens.DEFAULT_COLOR,
     inkSizePx: Float = Pens.DEFAULT_SIZE_PX,
+    eraserRadiusPx: Float = EraserSize.MEDIUM.radiusPx,
     onPageStrokeFinished: ((page: Int, width: Float, height: Float, stroke: Stroke) -> Unit)? = null,
     onPageErase: ((page: Int, x: Float, y: Float) -> Unit)? = null,
     onLasso: ((PdfLassoRegion) -> Unit)? = null,
@@ -317,6 +319,7 @@ fun PdfPane(
                                 inkTool = inkTool,
                                 inkColor = inkColor,
                                 inkSizePx = inkSizePx,
+                                eraserRadiusPx = eraserRadiusPx,
                                 onStrokeFinished = onPageStrokeFinished?.let { callback ->
                                     { width, height, stroke -> callback(index, width, height, stroke) }
                                 },
@@ -461,6 +464,7 @@ private fun PdfPageItem(
     inkTool: InkTool = InkTool.PEN,
     inkColor: Int = Pens.DEFAULT_COLOR,
     inkSizePx: Float = Pens.DEFAULT_SIZE_PX,
+    eraserRadiusPx: Float = EraserSize.MEDIUM.radiusPx,
     onStrokeFinished: ((width: Float, height: Float, stroke: Stroke) -> Unit)? = null,
     onErase: ((x: Float, y: Float) -> Unit)? = null,
     onScrollBy: (Float) -> Unit = {},
@@ -519,6 +523,7 @@ private fun PdfPageItem(
                 tool = inkTool,
                 penColor = inkColor,
                 penSizePx = inkSizePx,
+                eraserRadiusPx = eraserRadiusPx,
                 canvasOffset = 0f,
                 onStrokeFinished = { stroke ->
                     onStrokeFinished(pageSize.width.toFloat(), pageSize.height.toFloat(), stroke)
