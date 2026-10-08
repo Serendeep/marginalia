@@ -1,3 +1,4 @@
-# Marginalia — release ProGuard rules (spike stage; minify disabled).
-# pdfium native bindings are loaded via JNI; keep them if minify is enabled later.
+# pdfium binds to native code through JNI.
 -keep class io.legere.pdfiumandroid.** { *; }
+# Ink geometry, brushes and rendering are backed by native handles.
+-keep class androidx.ink.** { *; }

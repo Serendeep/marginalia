@@ -21,3 +21,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "Marginalia"
 include(":app")
+include(":baselineprofile")
