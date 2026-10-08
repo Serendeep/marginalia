@@ -56,7 +56,9 @@ import com.serendeep.marginalia.ink.InkTool
 import com.serendeep.marginalia.ink.Pens
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
@@ -125,6 +127,20 @@ fun PdfPane(
                         }
                         listState.firstVisibleItemIndex + frac.coerceIn(0f, 0.999f)
                     }.collect { onScrollPos(it) }
+                }
+            }
+
+            // Render the pages just outside the viewport ahead of time, nearest first, so
+            // scrolling lands on finished bitmaps instead of grey placeholders.
+            LaunchedEffect(source, widthPx) {
+                if (widthPx <= 0) return@LaunchedEffect
+                snapshotFlow {
+                    val visible = listState.layoutInfo.visibleItemsInfo
+                    (visible.firstOrNull()?.index ?: 0) to (visible.lastOrNull()?.index ?: 0)
+                }.distinctUntilChanged().collectLatest { (first, last) ->
+                    for (index in intArrayOf(last + 1, first - 1, last + 2, first - 2)) {
+                        withContext(Dispatchers.Default) { runCatching { source.prefetch(index, widthPx) } }
+                    }
                 }
             }
 
@@ -268,7 +284,8 @@ fun PdfPane(
                                 onErase = onPageErase?.let { callback ->
                                     { x, y -> callback(index, x, y) }
                                 },
-                                onScrollBy = { delta -> scope.launch { listState.scrollBy(delta) } },
+                                // Raw delta: no coroutine launched per touch event.
+                                onScrollBy = { delta -> listState.dispatchRawDelta(delta) },
                             )
                         }
                     }
@@ -366,15 +383,18 @@ private fun PdfPageItem(
     onErase: ((x: Float, y: Float) -> Unit)? = null,
     onScrollBy: (Float) -> Unit = {},
 ) {
-    var bitmap by remember(source, index, widthPx) { mutableStateOf<Bitmap?>(null) }
-    var aspect by remember(source, index) { mutableStateOf(0.7f) }
+    // Seeded from the caches so a page scrolled back into view shows at once, at its final height.
+    var bitmap by remember(source, index, widthPx) { mutableStateOf(source.cachedPage(index, widthPx)) }
+    var aspect by remember(source, index) { mutableStateOf(source.cachedAspect(index) ?: 0.7f) }
     var links by remember(source, index) { mutableStateOf<List<PageLink>>(emptyList()) }
     var pageSize by remember(source, index) { mutableStateOf(IntSize.Zero) }
 
     LaunchedEffect(source, index, widthPx) {
         if (widthPx <= 0) return@LaunchedEffect
-        aspect = source.pageAspectRatio(index)
-        bitmap = withContext(Dispatchers.Default) { source.renderFullPage(index, widthPx) }
+        if (bitmap == null) {
+            aspect = source.pageAspectRatio(index)
+            bitmap = withContext(Dispatchers.Default) { source.renderFullPage(index, widthPx) }
+        }
         links = source.pageLinks(index)
     }
 
@@ -399,8 +419,9 @@ private fun PdfPageItem(
             },
     ) {
         if (current != null) {
+            val image = remember(current) { current.asImageBitmap() }
             Image(
-                bitmap = current.asImageBitmap(),
+                bitmap = image,
                 contentDescription = "Page ${index + 1}",
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.FillWidth,
@@ -454,8 +475,6 @@ private fun PdfPageItem(
             )
         }
     }
-    // ponytail: bitmaps for scrolled-away pages are dropped by LazyColumn and left to GC.
-    // Add an LRU bitmap cache with safe recycling if very large PDFs cause memory pressure.
 }
 
 @Composable
