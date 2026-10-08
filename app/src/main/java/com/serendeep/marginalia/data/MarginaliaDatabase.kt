@@ -18,8 +18,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         HighlightEntity::class,
         CardEntity::class,
         ReviewLogEntity::class,
+        TagEntity::class,
+        LectureTagEntity::class,
     ],
-    version = 7,
+    version = 8,
     exportSchema = true,
 )
 abstract class MarginaliaDatabase : RoomDatabase() {
@@ -32,6 +34,7 @@ abstract class MarginaliaDatabase : RoomDatabase() {
     abstract fun searchDao(): SearchDao
     abstract fun highlightDao(): HighlightDao
     abstract fun cardDao(): CardDao
+    abstract fun tagDao(): TagDao
 
     companion object {
         val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -152,6 +155,32 @@ abstract class MarginaliaDatabase : RoomDatabase() {
                 )
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_review_log_reviewedAt` ON `review_log` (`reviewedAt`)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_review_log_cardId` ON `review_log` (`cardId`)")
+            }
+        }
+
+        val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `tags` (`id` TEXT NOT NULL, " +
+                        "`name` TEXT NOT NULL COLLATE NOCASE, `createdAt` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+                )
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_tags_name` ON `tags` (`name`)")
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `lecture_tags` (
+                        `lectureId` TEXT NOT NULL, `tagId` TEXT NOT NULL,
+                        PRIMARY KEY(`lectureId`, `tagId`),
+                        FOREIGN KEY(`lectureId`) REFERENCES `lectures`(`id`)
+                            ON UPDATE NO ACTION ON DELETE CASCADE,
+                        FOREIGN KEY(`tagId`) REFERENCES `tags`(`id`)
+                            ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_lecture_tags_tagId` ON `lecture_tags` (`tagId`)")
+                db.execSQL("ALTER TABLE lectures ADD COLUMN doi TEXT")
+                db.execSQL("ALTER TABLE lectures ADD COLUMN arxivId TEXT")
+                db.execSQL("ALTER TABLE lectures ADD COLUMN bibtex TEXT")
             }
         }
     }

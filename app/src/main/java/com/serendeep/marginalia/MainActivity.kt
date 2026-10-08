@@ -37,7 +37,7 @@ import com.serendeep.marginalia.library.LibraryScreen
 import com.serendeep.marginalia.review.ReviewScreen
 import com.serendeep.marginalia.search.SearchScreen
 import com.serendeep.marginalia.shell.AppShell
-import com.serendeep.marginalia.shell.ComingSoon
+import com.serendeep.marginalia.stats.StatsScreen
 import com.serendeep.marginalia.shell.Screen
 import com.serendeep.marginalia.today.TodayScreen
 import com.serendeep.marginalia.notebook.NotebookScreen
@@ -132,7 +132,7 @@ class MainActivity : ComponentActivity() {
                                         Screen.Review -> ReviewScreen(onOpen = { id, page -> open(id, page) }, onDone = { screen = Screen.Today })
                                         Screen.Search -> SearchScreen(onOpen = open)
                                         Screen.Highlights -> HighlightsScreen(onOpen = { id, page -> open(id, page) })
-                                        Screen.Stats -> ComingSoon("Stats")
+                                        Screen.Stats -> StatsScreen()
                                         is Screen.Notebook -> Unit
                                     }
                                 }

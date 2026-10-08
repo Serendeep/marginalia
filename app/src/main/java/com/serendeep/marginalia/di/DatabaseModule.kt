@@ -12,6 +12,7 @@ import com.serendeep.marginalia.data.MarginaliaDatabase
 import com.serendeep.marginalia.data.SearchDao
 import com.serendeep.marginalia.data.StrokeDao
 import com.serendeep.marginalia.data.StudySessionDao
+import com.serendeep.marginalia.data.TagDao
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -34,6 +35,7 @@ object DatabaseModule {
                 MarginaliaDatabase.MIGRATION_4_5,
                 MarginaliaDatabase.MIGRATION_5_6,
                 MarginaliaDatabase.MIGRATION_6_7,
+                MarginaliaDatabase.MIGRATION_7_8,
             )
             .build()
 
@@ -63,4 +65,7 @@ object DatabaseModule {
 
     @Provides
     fun provideCardDao(db: MarginaliaDatabase): CardDao = db.cardDao()
+
+    @Provides
+    fun provideTagDao(db: MarginaliaDatabase): TagDao = db.tagDao()
 }

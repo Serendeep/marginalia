@@ -31,7 +31,7 @@ class CardPersistenceTest {
         ).build()
         repo = MarginaliaRepository(
             db.courseDao(), db.lectureDao(), db.documentDao(), db.strokeDao(), db.anchorDao(),
-            db.studySessionDao(), db.searchDao(), db.highlightDao(), db.cardDao(),
+            db.studySessionDao(), db.searchDao(), db.highlightDao(), db.cardDao(), db.tagDao(),
         )
     }
 

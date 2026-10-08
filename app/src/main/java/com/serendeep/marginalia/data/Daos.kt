@@ -62,6 +62,37 @@ interface LectureDao {
 
     @Query("UPDATE lectures SET readingStatus = :status WHERE id = :id")
     suspend fun setStatus(id: String, status: String)
+
+    // Fills only what is still empty, so an identifier the user already has is never overwritten.
+    @Query("UPDATE lectures SET doi = COALESCE(doi, :doi), arxivId = COALESCE(arxivId, :arxivId) WHERE id = :id")
+    suspend fun fillIdentifiers(id: String, doi: String?, arxivId: String?)
+
+    @Query("UPDATE lectures SET bibtex = :bibtex WHERE id = :id")
+    suspend fun setBibtex(id: String, bibtex: String)
+}
+
+@Dao
+interface TagDao {
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insert(tag: TagEntity)
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun link(link: LectureTagEntity)
+
+    @Query("DELETE FROM lecture_tags WHERE lectureId = :lectureId AND tagId = :tagId")
+    suspend fun unlink(lectureId: String, tagId: String)
+
+    @Query("SELECT * FROM tags WHERE name = :name LIMIT 1")
+    suspend fun byName(name: String): TagEntity?
+
+    @Query("SELECT * FROM tags ORDER BY name")
+    fun observeTags(): Flow<List<TagEntity>>
+
+    @Query("SELECT * FROM lecture_tags")
+    fun observeLinks(): Flow<List<LectureTagEntity>>
+
+    @Query("DELETE FROM tags WHERE id = :id")
+    suspend fun delete(id: String)
 }
 
 @Dao
@@ -180,6 +211,13 @@ interface SearchDao {
 
     @Query("SELECT id AS lectureId, title FROM lectures WHERE title LIKE :pattern ESCAPE '\\' ORDER BY title LIMIT :limit")
     suspend fun searchTitles(pattern: String, limit: Int): List<TitleHit>
+
+    @Query(
+        "SELECT DISTINCT l.id AS lectureId, l.title AS title FROM lectures l " +
+            "JOIN lecture_tags lt ON lt.lectureId = l.id JOIN tags t ON t.id = lt.tagId " +
+            "WHERE t.name LIKE :pattern ESCAPE '\\' ORDER BY l.title LIMIT :limit",
+    )
+    suspend fun searchTagged(pattern: String, limit: Int): List<TitleHit>
 
     @Query(
         "SELECT d.lectureId AS lectureId, l.title AS title, page_text.page AS page, " +

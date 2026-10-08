@@ -17,6 +17,7 @@ class MarginaliaRepository @Inject constructor(
     private val searchDao: SearchDao,
     private val highlightDao: HighlightDao,
     private val cardDao: CardDao,
+    private val tagDao: TagDao,
 ) {
     fun observeCourses(): Flow<List<CourseEntity>> = courseDao.observeAll()
 
@@ -95,6 +96,32 @@ class MarginaliaRepository @Inject constructor(
 
     suspend fun saveSession(lectureId: String?, kind: SessionKind, startedAt: Long, endedAt: Long) =
         sessionDao.insert(StudySessionEntity(newId(), lectureId, kind.name, startedAt, endedAt))
+
+    fun observeTags(): Flow<List<TagEntity>> = tagDao.observeTags()
+
+    fun observeTagLinks(): Flow<List<LectureTagEntity>> = tagDao.observeLinks()
+
+    /** Tags the lecture with [name], creating the tag on first use (names compare case-insensitively). */
+    suspend fun addTag(lectureId: String, name: String) {
+        val clean = name.trim()
+        if (clean.isEmpty()) return
+        val tag = tagDao.byName(clean) ?: TagEntity(newId(), clean, now()).also { tagDao.insert(it) }
+        tagDao.link(LectureTagEntity(lectureId, tag.id))
+    }
+
+    suspend fun setTagged(lectureId: String, tagId: String, tagged: Boolean) =
+        if (tagged) tagDao.link(LectureTagEntity(lectureId, tagId)) else tagDao.unlink(lectureId, tagId)
+
+    suspend fun deleteTag(tagId: String) = tagDao.delete(tagId)
+
+    suspend fun fillIdentifiers(lectureId: String, doi: String?, arxivId: String?) {
+        if (doi != null || arxivId != null) lectureDao.fillIdentifiers(lectureId, doi, arxivId)
+    }
+
+    suspend fun saveBibtex(lectureId: String, bibtex: String) = lectureDao.setBibtex(lectureId, bibtex)
+
+    suspend fun latestDocument(lectureId: String): DocumentEntity? =
+        documentDao.getByLecture(lectureId).maxByOrNull { it.versionIndex }
 
     suspend fun deleteLecture(lecture: LectureEntity) = lectureDao.delete(lecture)
 
@@ -229,7 +256,10 @@ class MarginaliaRepository @Inject constructor(
         val like = likePattern(query)
         val match = ftsQuery(query)
         return SearchResults(
-            documents = like?.let { searchDao.searchTitles(it, SEARCH_DOCS) }.orEmpty(),
+            documents = like?.let {
+                (searchDao.searchTitles(it, SEARCH_DOCS) + searchDao.searchTagged(it, SEARCH_DOCS))
+                    .distinctBy { hit -> hit.lectureId }
+            }.orEmpty(),
             pages = match?.let { searchDao.searchPages(it, SEARCH_PAGES) }.orEmpty(),
             highlights = like?.let { highlightDao.search(it, SEARCH_HIGHLIGHTS) }.orEmpty(),
         )

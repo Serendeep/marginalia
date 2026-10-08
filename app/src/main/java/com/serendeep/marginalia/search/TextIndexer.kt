@@ -6,6 +6,8 @@ import android.os.Process
 import com.serendeep.marginalia.data.DocumentEntity
 import com.serendeep.marginalia.data.MarginaliaRepository
 import com.serendeep.marginalia.pdf.PdfDocumentSource
+import com.serendeep.marginalia.research.findArxivId
+import com.serendeep.marginalia.research.findDoi
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -75,9 +77,15 @@ class TextIndexer @Inject constructor(
                 yield()
             }
             repository.finishIndexing(document.id)
+            if (source.pageCount > 0) sniffIdentifiers(document, source.pageText(0))
         } finally {
             source.close()
         }
+    }
+
+    private suspend fun sniffIdentifiers(document: DocumentEntity, firstPage: String) {
+        val arxiv = findArxivId(firstPage, requirePrefix = true) ?: findArxivId(document.fileName)
+        repository.fillIdentifiers(document.lectureId, findDoi(firstPage), arxiv)
     }
 
     /** Text under [area] (top-left-origin page fractions) of a PDF page; empty on any failure. */
@@ -96,6 +104,6 @@ class TextIndexer @Inject constructor(
         const val VERSION_KEY = "text_index_version"
 
         // Bump when extraction changes so existing indexes are rebuilt.
-        const val INDEX_VERSION = 3
+        const val INDEX_VERSION = 4
     }
 }

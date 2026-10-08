@@ -240,7 +240,7 @@ private fun EmptyToday(onImport: () -> Unit) {
 }
 
 @Composable
-private fun Tile(modifier: Modifier, background: Modifier = Modifier, border: Color, content: @Composable () -> Unit) {
+internal fun Tile(modifier: Modifier, background: Modifier = Modifier, border: Color, content: @Composable () -> Unit) {
     Box(
         modifier
             .fillMaxHeight()
@@ -252,7 +252,7 @@ private fun Tile(modifier: Modifier, background: Modifier = Modifier, border: Co
 }
 
 @Composable
-private fun TileLabel(text: String, color: Color, modifier: Modifier = Modifier) {
+internal fun TileLabel(text: String, color: Color, modifier: Modifier = Modifier) {
     Text(
         text.uppercase(Locale.ROOT),
         fontFamily = MonoFamily,

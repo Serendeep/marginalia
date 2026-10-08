@@ -6,6 +6,7 @@ import com.serendeep.marginalia.data.DocumentEntity
 import com.serendeep.marginalia.data.LectureEntity
 import com.serendeep.marginalia.data.MarginaliaRepository
 import com.serendeep.marginalia.data.ReadingStatus
+import com.serendeep.marginalia.data.TagEntity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
@@ -17,6 +18,7 @@ sealed interface LibraryFilter {
     data object All : LibraryFilter
     data class Course(val courseId: String) : LibraryFilter
     data class Status(val status: ReadingStatus) : LibraryFilter
+    data class Tag(val tagId: String) : LibraryFilter
 }
 
 /** One notebook as the list screens see it. */
@@ -26,6 +28,7 @@ data class RowModel(
     val document: DocumentEntity?,
     val course: CourseEntity?,
     val lastWrittenAt: Long?,
+    val tags: List<TagEntity> = emptyList(),
 ) {
     val status: ReadingStatus
         get() = runCatching { ReadingStatus.valueOf(lecture.readingStatus) }.getOrDefault(ReadingStatus.TO_READ)
@@ -34,7 +37,11 @@ data class RowModel(
 }
 
 @Immutable
-data class ShelfData(val courses: List<CourseEntity>, val rows: List<RowModel>)
+data class ShelfData(
+    val courses: List<CourseEntity>,
+    val rows: List<RowModel>,
+    val tags: List<TagEntity> = emptyList(),
+)
 
 /** A shelf section; [course] is null for quick-imported, ungrouped notebooks. */
 @Immutable
@@ -46,16 +53,23 @@ fun MarginaliaRepository.observeShelf(): Flow<ShelfData> = combine(
     observeAllLectures(),
     observeAllDocuments(),
     observeLastWritten(),
-) { courses, lectures, documents, touches ->
+    combine(observeTags(), observeTagLinks()) { tags, links -> tags to links },
+) { courses, lectures, documents, touches, (tags, links) ->
     val latestByLecture = documents
         .filter { it.localPath.isNotEmpty() && File(it.localPath).exists() }
         .groupBy { it.lectureId }
         .mapValues { (_, versions) -> versions.maxBy { it.versionIndex } }
     val touchByLecture = touches.associate { it.lectureId to it.lastAt }
     val courseById = courses.associateBy { it.id }
+    val tagById = tags.associateBy { it.id }
+    val tagsByLecture = links.groupBy({ it.lectureId }, { tagById[it.tagId] })
+        .mapValues { (_, list) -> list.filterNotNull().sortedBy { it.name.lowercase() } }
     ShelfData(
         courses,
-        lectures.map { RowModel(it, latestByLecture[it.id], courseById[it.courseId], touchByLecture[it.id]) },
+        lectures.map {
+            RowModel(it, latestByLecture[it.id], courseById[it.courseId], touchByLecture[it.id], tagsByLecture[it.id].orEmpty())
+        },
+        tags,
     )
 }.flowOn(Dispatchers.IO)
 
@@ -66,13 +80,14 @@ fun ShelfData.sections(filter: LibraryFilter): List<ShelfSection> {
         val items = byCourse[course.id].orEmpty().filter {
             when (filter) {
                 is LibraryFilter.Status -> it.status == filter.status
+                is LibraryFilter.Tag -> it.tags.any { t -> t.id == filter.tagId }
                 else -> true
             }
         }
         val shown = when (filter) {
             LibraryFilter.All -> true
             is LibraryFilter.Course -> filter.courseId == course.id
-            is LibraryFilter.Status -> items.isNotEmpty()
+            is LibraryFilter.Status, is LibraryFilter.Tag -> items.isNotEmpty()
         }
         if (!shown) return null
         // Ungrouped notebooks only get a section once they exist.

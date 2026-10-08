@@ -208,6 +208,42 @@ class MigrationTest {
         }
     }
 
+    @Test
+    fun migrate7To8_addsTagsAndIdentifierColumns() {
+        val db = helper.createDatabase(DB, 7)
+        db.execSQL(
+            "INSERT INTO courses (id, name, createdAt, orderIndex, colorIndex, emoji) VALUES ('c1', 'Course', 1, 1, 0, NULL)",
+        )
+        db.execSQL(
+            "INSERT INTO lectures (id, courseId, title, createdAt, orderIndex, lastPage, lastOpenedAt, readingStatus) " +
+                "VALUES ('l1', 'c1', 'L', 1, 1, 0, NULL, 'TO_READ')",
+        )
+        db.close()
+
+        val migrated = helper.runMigrationsAndValidate(DB, 8, true, MarginaliaDatabase.MIGRATION_7_8)
+
+        migrated.query("SELECT doi, arxivId, bibtex FROM lectures WHERE id = 'l1'").use { c ->
+            assertTrue(c.moveToFirst())
+            assertTrue(c.isNull(0) && c.isNull(1) && c.isNull(2))
+        }
+        migrated.execSQL("PRAGMA foreign_keys = ON")
+        migrated.execSQL("INSERT INTO tags (id, name, createdAt) VALUES ('t1', 'Physics', 1)")
+        migrated.execSQL("INSERT INTO lecture_tags (lectureId, tagId) VALUES ('l1', 't1')")
+        migrated.query("SELECT COUNT(*) FROM tags WHERE name = 'physics'").use { c ->
+            assertTrue(c.moveToFirst())
+            assertEquals(1, c.getInt(0))
+        }
+        migrated.execSQL("DELETE FROM lectures WHERE id = 'l1'")
+        migrated.query("SELECT COUNT(*) FROM lecture_tags").use { c ->
+            assertTrue(c.moveToFirst())
+            assertEquals(0, c.getInt(0))
+        }
+        migrated.query("SELECT COUNT(*) FROM tags").use { c ->
+            assertTrue(c.moveToFirst())
+            assertEquals(1, c.getInt(0))
+        }
+    }
+
     private companion object {
         const val DB = "migration-test.db"
     }

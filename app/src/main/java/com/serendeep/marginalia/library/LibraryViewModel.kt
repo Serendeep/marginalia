@@ -7,14 +7,19 @@ import androidx.lifecycle.viewModelScope
 import coil3.ImageLoader
 import com.serendeep.marginalia.data.CourseEntity
 import com.serendeep.marginalia.data.MarginaliaRepository
+import com.serendeep.marginalia.research.Citation
+import com.serendeep.marginalia.research.CitationService
 import com.serendeep.marginalia.search.TextIndexer
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -24,6 +29,7 @@ class LibraryViewModel @Inject constructor(
     private val repository: MarginaliaRepository,
     val imageLoader: ImageLoader,
     private val indexer: TextIndexer,
+    private val citations: CitationService,
     @ApplicationContext context: Context,
 ) : ViewModel() {
 
@@ -39,6 +45,23 @@ class LibraryViewModel @Inject constructor(
     /** Bumps once per successful import batch; the screen celebrates it. */
     private val _celebration = MutableStateFlow(0)
     val celebration: StateFlow<Int> = _celebration.asStateFlow()
+
+    private val _citation = Channel<Citation>(Channel.BUFFERED)
+
+    /** One event per "Copy citation" request, once the text is ready to put on the clipboard. */
+    val citation: Flow<Citation> = _citation.receiveAsFlow()
+
+    fun copyCitation(lectureId: String) {
+        viewModelScope.launch { _citation.send(citations.citationFor(lectureId)) }
+    }
+
+    fun addTag(lectureId: String, name: String) {
+        viewModelScope.launch { repository.addTag(lectureId, name) }
+    }
+
+    fun setTagged(lectureId: String, tagId: String, tagged: Boolean) {
+        viewModelScope.launch { repository.setTagged(lectureId, tagId, tagged) }
+    }
 
     fun createCourse(name: String, colorIndex: Int, emoji: String?) {
         if (name.isBlank()) return

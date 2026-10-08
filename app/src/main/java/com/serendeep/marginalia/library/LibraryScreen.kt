@@ -13,6 +13,15 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
+import com.serendeep.marginalia.data.TagEntity
+import com.serendeep.marginalia.ui.theme.OnViolet
+import com.serendeep.marginalia.ui.theme.Violet
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -91,6 +100,21 @@ fun LibraryScreen(
     var showNewNotebook by remember { mutableStateOf(false) }
     var renaming by remember { mutableStateOf<RowModel?>(null) }
     var deleting by remember { mutableStateOf<RowModel?>(null) }
+    var taggingId by remember { mutableStateOf<String?>(null) }
+    val snackbar = remember { SnackbarHostState() }
+    val clipboard = LocalClipboardManager.current
+    LaunchedEffect(Unit) {
+        viewModel.citation.collect { citation ->
+            clipboard.setText(AnnotatedString(citation.text))
+            snackbar.showSnackbar(
+                when {
+                    citation.fetched -> "Citation copied"
+                    citation.hasIdentifier -> "Offline — copied title only"
+                    else -> "No DOI or arXiv ID — copied title only"
+                },
+            )
+        }
+    }
 
     LaunchedEffect(incomingPdfUri) {
         incomingPdfUri?.let { uri ->
@@ -124,6 +148,8 @@ fun LibraryScreen(
 
     fun menuEntries(item: RowModel) = buildList {
         add(GlassMenuEntry("Rename") { renaming = item })
+        add(GlassMenuEntry("Tags…") { taggingId = item.lecture.id })
+        add(GlassMenuEntry("Copy citation") { viewModel.copyCitation(item.lecture.id) })
         moveTargets
             .filter { it.id != item.lecture.courseId }
             .forEach { course ->
@@ -160,10 +186,11 @@ fun LibraryScreen(
                         LectureRow(
                             row = item,
                             imageLoader = viewModel.imageLoader,
-                            meta = remember(item.lecture.id, item.document?.pageCount, item.touchedAt) {
+                            meta = remember(item.lecture.id, item.document?.pageCount, item.touchedAt, item.lecture.arxivId, item.lecture.doi) {
                                 listOfNotNull(
                                     item.document?.pageCount?.let { if (it == 1) "1 PAGE" else "$it PAGES" },
                                     relativeTime(item.touchedAt),
+                                    item.lecture.arxivId?.let { "ARXIV $it" } ?: item.lecture.doi?.let { "DOI $it" },
                                 ).joinToString(" · ")
                             },
                             onClick = { onOpenLecture(item.lecture.id) },
@@ -218,6 +245,8 @@ fun LibraryScreen(
             }
         }
 
+        SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).padding(24.dp))
+
         error?.let { message ->
             LaunchedEffect(message) {
                 delay(4_000)
@@ -232,6 +261,21 @@ fun LibraryScreen(
                     .padding(24.dp)
                     .background(MaterialTheme.colorScheme.error, RoundedCornerShape(12.dp))
                     .padding(horizontal = 16.dp, vertical = 10.dp),
+            )
+        }
+    }
+
+    taggingId?.let { id ->
+        val row = data?.rows?.firstOrNull { it.lecture.id == id }
+        if (row == null) {
+            taggingId = null
+        } else {
+            TagsDialog(
+                allTags = data?.tags.orEmpty(),
+                selected = row.tags.map { it.id }.toSet(),
+                onToggle = { tagId, on -> viewModel.setTagged(id, tagId, on) },
+                onCreate = { viewModel.addTag(id, it) },
+                onDismiss = { taggingId = null },
             )
         }
     }
@@ -382,6 +426,58 @@ private fun NamePromptDialog(
             GlassTextButton("Cancel", onDismiss)
             Spacer(Modifier.width(8.dp))
             GlassButton("Create", { onConfirm(text) }, enabled = text.isNotBlank())
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun TagsDialog(
+    allTags: List<TagEntity>,
+    selected: Set<String>,
+    onToggle: (tagId: String, on: Boolean) -> Unit,
+    onCreate: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var text by remember { mutableStateOf("") }
+    GlassDialog(onDismiss = onDismiss) {
+        Text("Tags", style = MaterialTheme.typography.titleMedium)
+        Spacer(Modifier.height(16.dp))
+        if (allTags.isNotEmpty()) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                allTags.forEach { tag ->
+                    val on = tag.id in selected
+                    Text(
+                        tag.name,
+                        fontSize = 12.sp,
+                        color = if (on) OnViolet else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(if (on) Violet else Color.Transparent)
+                            .border(1.dp, if (on) Violet else MaterialTheme.colorScheme.outline, RoundedCornerShape(6.dp))
+                            .clickable { onToggle(tag.id, !on) }
+                            .padding(horizontal = 10.dp, vertical = 5.dp),
+                    )
+                }
+            }
+            Spacer(Modifier.height(16.dp))
+        }
+        OutlinedTextField(
+            value = text,
+            onValueChange = { text = it },
+            singleLine = true,
+            placeholder = { Text("New tag") },
+            colors = glassTextFieldColors(),
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(Modifier.height(20.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+            GlassTextButton("Done", onDismiss)
+            Spacer(Modifier.width(8.dp))
+            GlassButton("Add", {
+                onCreate(text)
+                text = ""
+            }, enabled = text.isNotBlank())
         }
     }
 }

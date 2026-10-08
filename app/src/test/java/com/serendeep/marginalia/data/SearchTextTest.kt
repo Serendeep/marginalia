@@ -2,6 +2,7 @@ package com.serendeep.marginalia.data
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SearchTextTest {
@@ -55,6 +56,12 @@ class SearchTextTest {
         assertEquals(listOf("B", "a"), pushRecent(listOf("a", "b"), " B "))
         assertEquals(listOf("6", "5", "4", "3", "2"), pushRecent(listOf("5", "4", "3", "2", "1"), "6"))
         assertEquals(listOf("a"), pushRecent(listOf("a"), "  "))
+    }
+
+    @Test
+    fun highlightsMarkdown_putsCitationUnderTitle() {
+        val md = highlightsMarkdown("Paper", listOf(MarkdownHighlight(0, "Intro")), 0, "@misc{k}")
+        assertTrue(md.startsWith("# Paper\n\n```bibtex\n@misc{k}\n```\n\n> Intro"))
     }
 
     @Test

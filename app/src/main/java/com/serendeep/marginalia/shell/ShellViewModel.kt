@@ -34,11 +34,15 @@ import javax.inject.Inject
 data class CourseNav(val id: String, val name: String, val colorIndex: Int, val count: Int)
 
 @Immutable
+data class TagNav(val id: String, val name: String, val count: Int)
+
+@Immutable
 data class SidebarState(
     val libraryCount: Int = 0,
     val reviewDue: Int = 0,
     val highlights: Int = 0,
     val courses: List<CourseNav> = emptyList(),
+    val tags: List<TagNav> = emptyList(),
     val toRead: Int = 0,
     val reading: Int = 0,
     val done: Int = 0,
@@ -68,6 +72,9 @@ class ShellViewModel @Inject constructor(
             highlights = highlightCount,
             reviewDue = due,
             courses = data.courses.map { CourseNav(it.id, it.name, it.colorIndex, byCourse[it.id] ?: 0) },
+            tags = data.tags
+                .map { tag -> TagNav(tag.id, tag.name, data.rows.count { r -> r.tags.any { it.id == tag.id } }) }
+                .filter { it.count > 0 },
             toRead = data.rows.count { it.status == ReadingStatus.TO_READ },
             reading = data.rows.count { it.status == ReadingStatus.READING },
             done = data.rows.count { it.status == ReadingStatus.DONE },

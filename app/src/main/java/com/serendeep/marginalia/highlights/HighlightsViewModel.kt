@@ -37,5 +37,6 @@ class HighlightsViewModel @Inject constructor(
         group.title,
         group.items.map { MarkdownHighlight(it.highlight.page, it.highlight.text) },
         repository.anchorCount(group.lectureId),
+        repository.getLecture(group.lectureId)?.bibtex,
     )
 }

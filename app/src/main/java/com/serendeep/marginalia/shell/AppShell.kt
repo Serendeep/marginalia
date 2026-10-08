@@ -35,6 +35,7 @@ import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.LibraryBooks
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Style
+import androidx.compose.material.icons.outlined.Tag
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -166,6 +167,17 @@ private fun Sidebar(screen: Screen, onNavigate: (Screen) -> Unit, viewModel: She
                     count = course.count.toString(),
                     dot = CoursePalette.color(course.colorIndex),
                 ) { onNavigate(Screen.Library(LibraryFilter.Course(course.id))) }
+            }
+
+            if (state.tags.isNotEmpty()) {
+                SectionLabel("TAGS")
+                state.tags.forEach { tag ->
+                    NavItem(
+                        tag.name, Icons.Outlined.Tag,
+                        filter == LibraryFilter.Tag(tag.id),
+                        count = tag.count.toString(),
+                    ) { onNavigate(Screen.Library(LibraryFilter.Tag(tag.id))) }
+                }
             }
 
             SectionLabel("READING")
@@ -374,26 +386,11 @@ private fun titleFor(screen: Screen, sidebar: SidebarState): Pair<String, String
             (course?.name ?: "Library") to "%03d NOTEBOOKS".format(Locale.ROOT, course?.count ?: 0)
         }
         is LibraryFilter.Status -> "Library" to statusLabel(f.status).uppercase(Locale.ROOT)
+        is LibraryFilter.Tag -> "Library" to (sidebar.tags.firstOrNull { it.id == f.tagId }?.name ?: "Tag").uppercase(Locale.ROOT)
     }
     Screen.Review -> "Review" to ""
     Screen.Search -> "Search" to ""
     Screen.Highlights -> "Highlights" to ""
     Screen.Stats -> "Stats" to ""
     is Screen.Notebook -> "" to ""
-}
-
-@Composable
-fun ComingSoon(label: String) {
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(label, fontFamily = DisplayFamily, fontWeight = FontWeight.SemiBold, fontSize = 20.sp)
-            Text(
-                "COMING SOON",
-                fontFamily = MonoFamily,
-                fontSize = 12.sp,
-                letterSpacing = 2.sp,
-                color = DimInkDark,
-            )
-        }
-    }
 }

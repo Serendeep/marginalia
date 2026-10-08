@@ -39,6 +39,9 @@ data class LectureEntity(
     val lastPage: Int = 0,
     val lastOpenedAt: Long? = null,
     val readingStatus: String = ReadingStatus.TO_READ.name,
+    val doi: String? = null,
+    val arxivId: String? = null,
+    val bibtex: String? = null,
 )
 
 enum class ReadingStatus { TO_READ, READING, DONE }
@@ -265,3 +268,31 @@ data class ReviewLogEntity(
     val prevIntervalDays: Double?,
     val newIntervalDays: Double?,
 )
+
+@Entity(tableName = "tags", indices = [Index(value = ["name"], unique = true)])
+data class TagEntity(
+    @PrimaryKey val id: String,
+    @ColumnInfo(collate = ColumnInfo.NOCASE) val name: String,
+    val createdAt: Long,
+)
+
+@Entity(
+    tableName = "lecture_tags",
+    primaryKeys = ["lectureId", "tagId"],
+    foreignKeys = [
+        ForeignKey(
+            entity = LectureEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["lectureId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+        ForeignKey(
+            entity = TagEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["tagId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
+    indices = [Index("tagId")],
+)
+data class LectureTagEntity(val lectureId: String, val tagId: String)

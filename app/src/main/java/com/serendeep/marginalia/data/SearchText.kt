@@ -59,9 +59,15 @@ fun pushRecent(recent: List<String>, query: String, max: Int = 5): List<String> 
 
 class MarkdownHighlight(val page: Int, val text: String)
 
-/** One document's highlights as a Markdown note: title, a quote per highlight with its page, anchor count. */
-fun highlightsMarkdown(title: String, highlights: List<MarkdownHighlight>, anchorCount: Int): String = buildString {
+/** One document's highlights as a Markdown note: title, optional BibTeX citation, a quote per highlight with its page, anchor count. */
+fun highlightsMarkdown(
+    title: String,
+    highlights: List<MarkdownHighlight>,
+    anchorCount: Int,
+    citation: String? = null,
+): String = buildString {
     append("# ").append(title.trim()).append("\n\n")
+    if (!citation.isNullOrBlank()) append("```bibtex\n").append(citation.trim()).append("\n```\n\n")
     highlights.forEach { h ->
         val body = h.text.replace(Regex("\\s+"), " ").trim()
         append("> ").append(body).append(" (p. ").append(h.page + 1).append(")\n\n")

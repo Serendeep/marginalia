@@ -46,6 +46,7 @@ import java.util.Locale
 private val RowDivider = Color(0xFF18181C)
 private val ChipBorder = Color(0xFF2A2A30)
 private val ChipText = Color(0xFFA0A0AB)
+private const val MAX_ROW_TAGS = 2
 
 /** Dense list row: thumbnail, title with mono meta, a chip, reading progress. */
 @Composable
@@ -91,6 +92,8 @@ fun LectureRow(
                 modifier = Modifier.padding(top = 3.dp),
             )
         }
+        row.tags.take(MAX_ROW_TAGS).forEach { Chip(it.name) }
+        if (row.tags.size > MAX_ROW_TAGS) Chip("+${row.tags.size - MAX_ROW_TAGS}")
         when (chip) {
             ChipKind.Course -> Chip(row.course?.name ?: "Notebook", dot = CoursePalette.color(row.colorIndex))
             ChipKind.Status -> Chip(statusLabel(row.status))
