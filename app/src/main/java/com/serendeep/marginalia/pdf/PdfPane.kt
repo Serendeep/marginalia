@@ -131,6 +131,7 @@ fun PdfPane(
     onPageStrokeFinished: ((page: Int, width: Float, height: Float, stroke: Stroke) -> Unit)? = null,
     onPageErase: ((page: Int, x: Float, y: Float) -> Unit)? = null,
     onLasso: ((PdfLassoRegion) -> Unit)? = null,
+    onText: ((PdfLassoRegion) -> Unit)? = null,
     onLaser: ((rawX: Float, rawY: Float, phase: Int) -> Unit)? = null,
     selection: SelectionState? = null,
     selectionActions: SelectionActions? = null,
@@ -345,6 +346,7 @@ fun PdfPane(
                                 selectionActions = selectionActions,
                                 selectionColors = selectionColors,
                                 onCard = onLasso,
+                                onText = onText,
                             )
                         }
                     }
@@ -511,6 +513,7 @@ private fun PdfPageItem(
     selectionActions: SelectionActions? = null,
     selectionColors: List<Int> = emptyList(),
     onCard: ((PdfLassoRegion) -> Unit)? = null,
+    onText: ((PdfLassoRegion) -> Unit)? = null,
 ) {
     // Seeded from the caches so a page scrolled back into view shows at once, at its final height.
     var bitmap by remember(source, index, widthPx) { mutableStateOf(source.cachedPage(index, widthPx)) }
@@ -585,6 +588,7 @@ private fun PdfPageItem(
                 colors = selectionColors,
                 actions = selectionActions,
                 onCard = { box -> onCard?.invoke(pageRegion(index, pageSize, box)) },
+                onText = { box -> onText?.invoke(pageRegion(index, pageSize, box)) },
                 modifier = Modifier.fillMaxSize(),
             )
         }

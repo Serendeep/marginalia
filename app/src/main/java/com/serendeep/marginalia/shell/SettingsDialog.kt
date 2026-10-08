@@ -25,6 +25,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.serendeep.marginalia.handwriting.ModelState
+import com.serendeep.marginalia.handwriting.modelStatus
 import com.serendeep.marginalia.ink.PencilAction
 import com.serendeep.marginalia.ui.components.GlassButton
 import com.serendeep.marginalia.ui.components.GlassDialog
@@ -38,9 +40,13 @@ fun SettingsDialog(
     goalMin: Int,
     reminder: ReminderSettings,
     pencilAction: PencilAction,
+    handwritingSearch: Boolean,
+    modelState: ModelState,
+    onDownloadModel: () -> Unit,
     onDismiss: () -> Unit,
-    onSave: (goalMin: Int, reminder: ReminderSettings, pencilAction: PencilAction) -> Unit,
+    onSave: (goalMin: Int, reminder: ReminderSettings, pencilAction: PencilAction, handwritingSearch: Boolean) -> Unit,
 ) {
+    var searchInk by remember { mutableStateOf(handwritingSearch) }
     var action by remember { mutableStateOf(pencilAction) }
     var goalText by remember { mutableStateOf(goalMin.toString()) }
     var enabled by remember { mutableStateOf(reminder.enabled) }
@@ -80,11 +86,28 @@ fun SettingsDialog(
             }
         }
         Spacer(Modifier.height(16.dp))
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text("Handwriting search", modifier = Modifier.weight(1f))
+            Switch(checked = searchInk, onCheckedChange = { searchInk = it })
+        }
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                when (modelState) {
+                    ModelState.Ready -> "Handwriting model installed"
+                    ModelState.NotDownloaded -> "Handwriting model not downloaded (~20 MB)"
+                    else -> modelStatus(modelState).orEmpty()
+                },
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.weight(1f),
+            )
+            if (modelState == ModelState.NotDownloaded) GlassTextButton("Download model", onClick = onDownloadModel)
+        }
+        Spacer(Modifier.height(16.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
             GlassTextButton("Cancel", onClick = onDismiss)
             Spacer(Modifier.width(8.dp))
             GlassButton("Save", enabled = goal != null, onClick = {
-                onSave(goal ?: goalMin, ReminderSettings(enabled, time.hour * 60 + time.minute), action)
+                onSave(goal ?: goalMin, ReminderSettings(enabled, time.hour * 60 + time.minute), action, searchInk)
             })
         }
     }

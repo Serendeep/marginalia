@@ -12,6 +12,9 @@ import androidx.ink.strokes.StrokeInputBatch
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.serendeep.marginalia.data.AnchorEntity
+import com.serendeep.marginalia.handwriting.InkIndexer
+import com.serendeep.marginalia.handwriting.InkRecognizer
+import com.serendeep.marginalia.handwriting.recognizeLines
 import com.serendeep.marginalia.data.DocumentEntity
 import com.serendeep.marginalia.data.HighlightEntity
 import com.serendeep.marginalia.data.InkStroke
@@ -86,12 +89,45 @@ class NotebookViewModel @Inject constructor(
     private val tracker: StudyTracker,
     private val focusTimer: FocusTimer,
     private val indexer: TextIndexer,
+    private val inkIndexer: InkIndexer,
+    private val recognizer: InkRecognizer,
     @ApplicationContext private val context: Context,
     val imageLoader: ImageLoader,
 ) : ViewModel() {
 
     /** A lasso capture waiting in the "Make card" sheet. */
-    data class LassoDraft(val id: String, val imagePath: String, val page: Int?)
+    data class LassoDraft(val id: String, val imagePath: String, val page: Int?, val back: String = "")
+
+    /** A selection being read as text; [text] is null until recognition finishes. */
+    class TextDraft(val page: Int?, val render: suspend () -> Bitmap, val text: String? = null)
+
+    private val _textDraft = MutableStateFlow<TextDraft?>(null)
+    val textDraft: StateFlow<TextDraft?> = _textDraft.asStateFlow()
+    val modelState = recognizer.state
+    private var convertJob: Job? = null
+
+    /** Reads the selected strokes as text; [render] produces the crop used if it becomes a card. */
+    fun convertSelection(page: Int?, render: suspend () -> Bitmap) {
+        val sel = _selection.value ?: return
+        val draft = TextDraft(page, render)
+        _textDraft.value = draft
+        convertJob?.cancel()
+        convertJob = viewModelScope.launch(Dispatchers.Default) {
+            val text = recognizer.recognizeLines(sel.items.map { it.record }).joinToString("\n")
+            _textDraft.value = TextDraft(page, render, text)
+        }
+    }
+
+    fun dismissText() {
+        convertJob?.cancel()
+        _textDraft.value = null
+    }
+
+    fun cardFromText(text: String) {
+        val draft = _textDraft.value ?: return
+        _textDraft.value = null
+        stageLassoCard(draft.page, text, draft.render)
+    }
 
     private val _lassoDraft = MutableStateFlow<LassoDraft?>(null)
     val lassoDraft: StateFlow<LassoDraft?> = _lassoDraft.asStateFlow()
@@ -100,7 +136,7 @@ class NotebookViewModel @Inject constructor(
      * Renders and saves a crop for a new card, then shows the sheet. The lasso is one-shot, so the
      * pen comes back at once; everything heavy runs on IO.
      */
-    fun stageLassoCard(page: Int?, render: suspend () -> Bitmap) {
+    fun stageLassoCard(page: Int?, back: String = "", render: suspend () -> Bitmap) {
         _tool.value = InkTool.PEN
         viewModelScope.launch(Dispatchers.IO) {
             val bitmap = runCatching { render() }.getOrNull() ?: return@launch
@@ -112,7 +148,7 @@ class NotebookViewModel @Inject constructor(
                 file.delete()
                 return@launch
             }
-            _lassoDraft.value = LassoDraft(id, file.absolutePath, page ?: firstVisiblePage.takeIf { documentId.isNotEmpty() })
+            _lassoDraft.value = LassoDraft(id, file.absolutePath, page ?: firstVisiblePage.takeIf { documentId.isNotEmpty() }, back)
         }
     }
 
@@ -324,6 +360,7 @@ class NotebookViewModel @Inject constructor(
 
         lectureId = id
         tracker.start(id)
+        inkIndexer.onNotebookOpened()
         restoring = false
         restoreChecked = false
         _status.value = ReadingStatus.TO_READ.name
@@ -401,6 +438,7 @@ class NotebookViewModel @Inject constructor(
     fun closeLecture() {
         val id = lectureId ?: return
         tracker.stop()
+        inkIndexer.onNotebookClosed()
         if (!restoring && restoreChecked) {
             val page = firstVisiblePage
             viewModelScope.launch { repository.setLastPage(id, page) }

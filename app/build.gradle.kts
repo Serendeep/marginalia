@@ -148,6 +148,7 @@ dependencies {
     implementation(libs.ink.rendering)
     implementation(libs.ink.geometry)
     implementation(libs.input.motionprediction)
+    implementation(libs.mlkit.digital.ink)
 
     implementation(libs.hilt.android)
     implementation(libs.hilt.navigation.compose)

@@ -87,6 +87,7 @@ import com.serendeep.marginalia.ui.components.GlassTextButton
 import com.serendeep.marginalia.ui.components.MarginLabel
 import com.serendeep.marginalia.ui.components.glassBorder
 import com.serendeep.marginalia.cards.CardEditorSheet
+import com.serendeep.marginalia.handwriting.HandwritingTextSheet
 import com.serendeep.marginalia.data.InkSurface
 import com.serendeep.marginalia.ink.InkCanvas
 import com.serendeep.marginalia.ink.PenColors
@@ -95,6 +96,7 @@ import com.serendeep.marginalia.ink.Pen
 import com.serendeep.marginalia.ink.Pens
 import com.serendeep.marginalia.pdf.PageAnchor
 import com.serendeep.marginalia.pdf.PdfDocumentSource
+import com.serendeep.marginalia.pdf.PdfLassoRegion
 import com.serendeep.marginalia.pdf.PdfPane
 import com.serendeep.marginalia.ui.theme.DotGridDark
 import com.serendeep.marginalia.ui.theme.DotGridLight
@@ -221,7 +223,18 @@ fun NotebookScreen(
             imageLoader = viewModel.imageLoader,
             frontImagePath = draft.imagePath,
             onDismiss = viewModel::cancelLassoCard,
+            initialBack = draft.back,
             onSave = { _, back, _ -> viewModel.saveLassoCard(back) },
+        )
+    }
+    val textDraft by viewModel.textDraft.collectAsStateWithLifecycle()
+    val modelState by viewModel.modelState.collectAsStateWithLifecycle()
+    textDraft?.let { draft ->
+        HandwritingTextSheet(
+            text = draft.text,
+            modelState = modelState,
+            onCard = viewModel::cardFromText,
+            onDismiss = viewModel::dismissText,
         )
     }
     val pdfHaze = remember { HazeState() }
@@ -268,19 +281,8 @@ fun NotebookScreen(
                     selection = selection,
                     selectionActions = selectionActions,
                     selectionColors = choiceColors,
-                    onLasso = { region ->
-                        viewModel.stageLassoCard(region.page) {
-                            current.renderRegion(
-                                region.page,
-                                region.scaledPageWidthPx,
-                                region.scaledPageHeightPx,
-                                region.srcLeftPx,
-                                region.srcTopPx,
-                                region.outWidthPx,
-                                region.outHeightPx,
-                            )
-                        }
-                    },
+                    onLasso = { region -> viewModel.stageLassoCard(region.page) { current.renderRegion(region) } },
+                    onText = { region -> viewModel.convertSelection(region.page) { current.renderRegion(region) } },
                 )
             }
             DocumentBar(
@@ -438,6 +440,11 @@ fun NotebookScreen(
                         actions = selectionActions,
                         onCard = { box ->
                             viewModel.stageLassoCard(null) {
+                                renderMarginCrop(strokes, Rect(box.left, box.top, box.right, box.bottom), sheetColor)
+                            }
+                        },
+                        onText = { box ->
+                            viewModel.convertSelection(null) {
                                 renderMarginCrop(strokes, Rect(box.left, box.top, box.right, box.bottom), sheetColor)
                             }
                         },
@@ -632,3 +639,7 @@ private fun CenteredHint(text: String) {
         Text(text, style = MaterialTheme.typography.bodyLarge)
     }
 }
+
+private suspend fun PdfDocumentSource.renderRegion(r: PdfLassoRegion) = renderRegion(
+    r.page, r.scaledPageWidthPx, r.scaledPageHeightPx, r.srcLeftPx, r.srcTopPx, r.outWidthPx, r.outHeightPx,
+)

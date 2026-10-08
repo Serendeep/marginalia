@@ -163,6 +163,35 @@ data class PageTextEntity(
     val text: String,
 )
 
+// Recognised margin handwriting, one row per block. Full-text index only; the rest rides along unindexed.
+@Fts4(tokenizer = FtsOptions.TOKENIZER_UNICODE61, notIndexed = ["lectureId", "blockKey", "page"])
+@Entity(tableName = "ink_text")
+data class InkTextEntity(
+    @PrimaryKey @ColumnInfo(name = "rowid") val rowId: Int,
+    val lectureId: String,
+    val blockKey: String,
+    val page: Int?,
+    val text: String,
+)
+
+// The margin strokes a lecture's ink_text rows were built from; a different hash means they are stale.
+@Entity(
+    tableName = "ink_index_state",
+    foreignKeys = [
+        ForeignKey(
+            entity = LectureEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["lectureId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
+)
+data class InkIndexStateEntity(
+    @PrimaryKey val lectureId: String,
+    val strokesHash: String,
+    val indexedAt: Long,
+)
+
 // A document whose pages are all in page_text. Absence means indexing is pending or interrupted.
 @Entity(tableName = "indexed_documents")
 data class IndexedDocumentEntity(

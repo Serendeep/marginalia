@@ -36,6 +36,7 @@ object DatabaseModule {
                 MarginaliaDatabase.MIGRATION_5_6,
                 MarginaliaDatabase.MIGRATION_6_7,
                 MarginaliaDatabase.MIGRATION_7_8,
+                MarginaliaDatabase.MIGRATION_8_9,
             )
             .build()
 

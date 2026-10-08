@@ -85,6 +85,7 @@ fun SelectionLayer(
     colors: List<Int>,
     actions: SelectionActions,
     onCard: (Extent) -> Unit,
+    onText: (Extent) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val sel by rememberUpdatedState(selection)
@@ -172,6 +173,7 @@ fun SelectionLayer(
                 colors = colors,
                 actions = actions,
                 onCard = { onCard(shown.bounds) },
+                onText = { onText(shown.bounds) },
                 modifier = Modifier
                     .onSizeChanged { toolbarSize = it }
                     .offset {
@@ -229,6 +231,7 @@ private fun MiniToolbar(
     colors: List<Int>,
     actions: SelectionActions,
     onCard: () -> Unit,
+    onText: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var picking by remember { mutableStateOf(false) }
@@ -250,6 +253,7 @@ private fun MiniToolbar(
             ToolbarAction("Colour", "Recolour selection") { picking = true }
             ToolbarAction("Copy", "Duplicate selection", actions.onDuplicate)
             ToolbarAction("Delete", "Delete selection", actions.onDelete)
+            ToolbarAction("Text", "Convert selection to text", onText)
             ToolbarAction("Card", "Make card from selection", onCard)
         }
     }

@@ -6,6 +6,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.serendeep.marginalia.data.MarginaliaRepository
 import com.serendeep.marginalia.data.ReadingStatus
+import com.serendeep.marginalia.handwriting.HANDWRITING_SEARCH_KEY
+import com.serendeep.marginalia.handwriting.InkIndexer
+import com.serendeep.marginalia.handwriting.InkRecognizer
+import com.serendeep.marginalia.handwriting.ModelState
 import com.serendeep.marginalia.library.observeShelf
 import com.serendeep.marginalia.reminder.DEFAULT_REMINDER_MIN
 import com.serendeep.marginalia.reminder.REMINDER_ENABLED_KEY
@@ -60,6 +64,8 @@ const val GOAL_KEY = "daily_goal_min"
 @HiltViewModel
 class ShellViewModel @Inject constructor(
     repository: MarginaliaRepository,
+    private val recognizer: InkRecognizer,
+    private val inkIndexer: InkIndexer,
     @ApplicationContext private val context: Context,
 ) : ViewModel() {
 
@@ -97,11 +103,29 @@ class ShellViewModel @Inject constructor(
     private val _pencilAction = MutableStateFlow(PencilAction.TOGGLE_ERASER)
     val pencilAction: StateFlow<PencilAction> = _pencilAction.asStateFlow()
 
+    private val _handwritingSearch = MutableStateFlow(true)
+    val handwritingSearch: StateFlow<Boolean> = _handwritingSearch.asStateFlow()
+
+    val modelState: StateFlow<ModelState> = recognizer.state
+
+    /** Downloads the handwriting model now (foreground, any network), then indexes what is waiting. */
+    fun downloadModel() {
+        viewModelScope.launch {
+            if (recognizer.ensureModel()) inkIndexer.schedule()
+        }
+    }
+
+    /** Looks the model up on the device so the settings line is accurate before the first conversion. */
+    fun refreshModel() {
+        viewModelScope.launch { recognizer.refresh() }
+    }
+
     init {
         viewModelScope.launch {
             val prefs = withContext(Dispatchers.IO) { context.getSharedPreferences(PREFS, Context.MODE_PRIVATE) }
             _pencilAction.value = PenColors.actionFrom(prefs.getString(PenColors.ACTION_KEY, null))
             _goalMin.value = prefs.getInt(GOAL_KEY, DEFAULT_GOAL_MIN)
+            _handwritingSearch.value = prefs.getBoolean(HANDWRITING_SEARCH_KEY, true)
             _reminder.value = ReminderSettings(
                 prefs.getBoolean(REMINDER_ENABLED_KEY, true),
                 prefs.getInt(REMINDER_TIME_KEY, DEFAULT_REMINDER_MIN),
@@ -109,18 +133,21 @@ class ShellViewModel @Inject constructor(
         }
     }
 
-    fun saveSettings(goalMin: Int, reminder: ReminderSettings, pencilAction: PencilAction) {
+    fun saveSettings(goalMin: Int, reminder: ReminderSettings, pencilAction: PencilAction, handwritingSearch: Boolean) {
+        _handwritingSearch.value = handwritingSearch
         _pencilAction.value = pencilAction
         _goalMin.value = goalMin
         _reminder.value = reminder
         viewModelScope.launch(Dispatchers.IO) {
             context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
                 .putInt(GOAL_KEY, goalMin)
+                .putBoolean(HANDWRITING_SEARCH_KEY, handwritingSearch)
                 .putString(PenColors.ACTION_KEY, pencilAction.name)
                 .putBoolean(REMINDER_ENABLED_KEY, reminder.enabled)
                 .putInt(REMINDER_TIME_KEY, reminder.minuteOfDay)
                 .apply()
             ReminderScheduler.arm(context)
+            if (handwritingSearch) inkIndexer.schedule()
         }
     }
 

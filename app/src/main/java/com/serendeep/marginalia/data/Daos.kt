@@ -159,6 +159,9 @@ interface StrokeDao {
     @Query("DELETE FROM strokes WHERE id = :id")
     suspend fun deleteById(id: String)
 
+    @Query("SELECT lectureId, id AS strokeId FROM strokes WHERE surface = 'MARGIN'")
+    suspend fun marginStrokeIds(): List<StrokeRef>
+
     @Query("SELECT id FROM strokes WHERE anchorId = :anchorId")
     suspend fun idsBoundTo(anchorId: String): List<String>
 
@@ -181,6 +184,12 @@ data class HighlightRow(
 
 data class PageRow(val rowId: Long, val documentId: String)
 
+data class StrokeRef(val lectureId: String, val strokeId: String)
+
+data class InkRow(val rowId: Long, val lectureId: String)
+
+data class InkHit(val lectureId: String, val title: String, val blockKey: String, val page: Int?, val snippet: String)
+
 @Dao
 interface SearchDao {
     @Query("INSERT INTO page_text (documentId, page, text) VALUES (:documentId, :page, :text)")
@@ -193,6 +202,31 @@ interface SearchDao {
 
     @Query("DELETE FROM page_text WHERE rowid IN (:rowIds)")
     suspend fun deleteRows(rowIds: List<Long>)
+
+    @Query("INSERT INTO ink_text (lectureId, blockKey, page, text) VALUES (:lectureId, :blockKey, :page, :text)")
+    suspend fun insertInk(lectureId: String, blockKey: String, page: Int?, text: String)
+
+    // Same unindexed-column caveat as pageRows: filter in Kotlin, delete by rowid.
+    @Query("SELECT rowid AS rowId, lectureId FROM ink_text")
+    suspend fun inkRows(): List<InkRow>
+
+    @Query("DELETE FROM ink_text WHERE rowid IN (:rowIds)")
+    suspend fun deleteInkRows(rowIds: List<Long>)
+
+    @Query("SELECT * FROM ink_index_state")
+    suspend fun inkStates(): List<InkIndexStateEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun putInkState(state: InkIndexStateEntity)
+
+    @Query(
+        "SELECT ink_text.lectureId AS lectureId, l.title AS title, ink_text.blockKey AS blockKey, " +
+            "ink_text.page AS page, " +
+            "snippet(ink_text, '$SNIPPET_OPEN', '$SNIPPET_CLOSE', '…', 3, 16) AS snippet " +
+            "FROM ink_text JOIN lectures l ON l.id = ink_text.lectureId " +
+            "WHERE ink_text MATCH :match ORDER BY l.title LIMIT :limit",
+    )
+    suspend fun searchInk(match: String, limit: Int): List<InkHit>
 
     @Query("DELETE FROM indexed_documents WHERE documentId = :documentId")
     suspend fun clearIndexed(documentId: String)

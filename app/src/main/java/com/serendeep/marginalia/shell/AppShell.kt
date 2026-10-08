@@ -40,6 +40,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -276,12 +277,20 @@ private fun GoalCard(viewModel: ShellViewModel) {
     val goal by viewModel.goalMin.collectAsStateWithLifecycle()
     val reminder by viewModel.reminder.collectAsStateWithLifecycle()
     val pencilAction by viewModel.pencilAction.collectAsStateWithLifecycle()
+    val handwritingSearch by viewModel.handwritingSearch.collectAsStateWithLifecycle()
+    val modelState by viewModel.modelState.collectAsStateWithLifecycle()
     var settingsOpen by remember { mutableStateOf(false) }
     if (settingsOpen) {
-        SettingsDialog(goal, reminder, pencilAction, onDismiss = { settingsOpen = false }, onSave = { g, r, a ->
-            settingsOpen = false
-            viewModel.saveSettings(g, r, a)
-        })
+        LaunchedEffect(Unit) { viewModel.refreshModel() }
+        SettingsDialog(
+            goal, reminder, pencilAction, handwritingSearch, modelState,
+            onDownloadModel = viewModel::downloadModel,
+            onDismiss = { settingsOpen = false },
+            onSave = { g, r, a, h ->
+                settingsOpen = false
+                viewModel.saveSettings(g, r, a, h)
+            },
+        )
     }
     Row(
         verticalAlignment = Alignment.CenterVertically,
