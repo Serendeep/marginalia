@@ -82,6 +82,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.serendeep.marginalia.sharedCover
 import com.serendeep.marginalia.ui.components.GlassButton
 import com.serendeep.marginalia.ui.components.GlassDialog
+import com.serendeep.marginalia.ui.components.WebPopup
 import com.serendeep.marginalia.ui.components.GlassTextButton
 import com.serendeep.marginalia.ui.components.MarginLabel
 import com.serendeep.marginalia.ui.components.glassBorder
@@ -251,24 +252,7 @@ fun NotebookScreen(
         }
 
         pendingWebLink?.let { url ->
-            GlassDialog(onDismiss = { pendingWebLink = null }) {
-                Text("Open link?", style = MaterialTheme.typography.titleMedium)
-                Spacer(Modifier.height(8.dp))
-                Text(Uri.parse(url).host ?: url, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Spacer(Modifier.height(20.dp))
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    GlassTextButton("Cancel", onClick = { pendingWebLink = null })
-                    Spacer(Modifier.width(8.dp))
-                    GlassButton("Open", onClick = {
-                        pendingWebLink = null
-                        val parsed = Uri.parse(url)
-                        // Only ever hand http(s) to the system; PDFs can carry hostile schemes.
-                        if (parsed.scheme == "http" || parsed.scheme == "https") {
-                            runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, parsed)) }
-                        }
-                    })
-                }
-            }
+            WebPopup(url = url, onDismiss = { pendingWebLink = null })
         }
 
         // Outline sheet: opens at half height for a glance, drags to full for
