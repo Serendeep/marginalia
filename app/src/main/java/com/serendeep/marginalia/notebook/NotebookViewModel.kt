@@ -9,19 +9,28 @@ import com.serendeep.marginalia.data.DocumentEntity
 import com.serendeep.marginalia.data.InkStroke
 import com.serendeep.marginalia.data.InkSurface
 import com.serendeep.marginalia.data.MarginaliaRepository
+import com.serendeep.marginalia.data.ReadingStatus
 import com.serendeep.marginalia.ink.InkTool
 import com.serendeep.marginalia.ink.Pen
 import com.serendeep.marginalia.ink.Pens
 import com.serendeep.marginalia.ink.StrokeEraser
 import com.serendeep.marginalia.ink.toStroke
 import com.serendeep.marginalia.sync.ScrollSync
+import com.serendeep.marginalia.study.FocusState
+import com.serendeep.marginalia.study.FocusTimer
+import com.serendeep.marginalia.study.StudyTracker
 import com.serendeep.marginalia.sync.SyncPair
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.io.File
 import java.util.UUID
@@ -40,10 +49,23 @@ private sealed interface EditOp {
     data class RemoveAnchor(val anchor: AnchorEntity, val boundStrokeIds: List<String>) : EditOp
 }
 
+@OptIn(FlowPreview::class)
 @HiltViewModel
 class NotebookViewModel @Inject constructor(
     private val repository: MarginaliaRepository,
+    private val tracker: StudyTracker,
+    private val focusTimer: FocusTimer,
 ) : ViewModel() {
+
+    val focus: StateFlow<FocusState> = focusTimer.state
+
+    fun toggleFocus() = focusTimer.toggle()
+
+    fun onForeground() {
+        lectureId?.let(tracker::start)
+    }
+
+    fun onBackground() = tracker.stop()
 
     private val _strokes = MutableStateFlow<List<RenderedStroke>>(emptyList())
     val strokes: StateFlow<List<RenderedStroke>> = _strokes.asStateFlow()
@@ -100,6 +122,30 @@ class NotebookViewModel @Inject constructor(
     private val _pageCount = MutableStateFlow(0)
     val pageCount: StateFlow<Int> = _pageCount.asStateFlow()
 
+    private val _status = MutableStateFlow(ReadingStatus.TO_READ.name)
+    private val markDoneDismissed = MutableStateFlow(false)
+
+    /** True on the last page of a document that is not yet marked done. */
+    val showMarkDone: StateFlow<Boolean> = combine(
+        _currentPage, _pageCount, _status, markDoneDismissed,
+    ) { page, count, status, dismissed ->
+        count > 1 && page >= count - 1 && status != ReadingStatus.DONE.name && !dismissed
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    fun markDone() {
+        val id = lectureId ?: return
+        markDoneDismissed.value = true
+        viewModelScope.launch { repository.setReadingStatus(id, ReadingStatus.DONE) }
+    }
+
+    fun dismissMarkDone() {
+        markDoneDismissed.value = true
+    }
+
+    // True while a saved page is being scrolled back to; page reports then are echoes, not reading.
+    private var restoring = false
+    private var restoreChecked = false
+
     private var lectureId: String? = null
     private var lectureJob: Job? = null
     private var documentId: String = ""
@@ -126,6 +172,11 @@ class NotebookViewModel @Inject constructor(
         canvasAnim?.cancel()
 
         lectureId = id
+        tracker.start(id)
+        restoring = false
+        restoreChecked = false
+        _status.value = ReadingStatus.TO_READ.name
+        markDoneDismissed.value = false
         documentId = ""
         pdfPageCount = 0
         _tool.value = InkTool.PEN
@@ -153,9 +204,16 @@ class NotebookViewModel @Inject constructor(
         _lectureTitle.value = "Notebook"
 
         lectureJob = viewModelScope.launch {
+            launch { repository.markOpened(id) }
+            launch {
+                _currentPage.debounce(PAGE_SAVE_DEBOUNCE_MS).collect { page ->
+                    if (!restoring && restoreChecked) repository.setLastPage(id, page)
+                }
+            }
             launch {
                 repository.observeLecture(id).collect { lecture ->
                     _lectureTitle.value = lecture?.title ?: "Notebook"
+                    _status.value = lecture?.readingStatus ?: ReadingStatus.TO_READ.name
                 }
             }
             val loaded = repository.loadStrokes(id)
@@ -173,9 +231,29 @@ class NotebookViewModel @Inject constructor(
                     documentId = latest?.id ?: ""
                     pdfPageCount = latest?.pageCount ?: 0
                     _pageCount.value = pdfPageCount
+                    if (!restoreChecked) {
+                        val saved = repository.getLecture(id)?.lastPage ?: 0
+                        val target = saved.coerceAtMost((pdfPageCount - 1).coerceAtLeast(0))
+                        if (latest != null && target > 0) {
+                            restoring = true
+                            requestPdfPage(target)
+                        }
+                        restoreChecked = true
+                    }
                 }
             }
         }
+    }
+
+    /** Persists the page now and forgets the lecture, so the next open starts fresh. */
+    fun closeLecture() {
+        val id = lectureId ?: return
+        tracker.stop()
+        if (!restoring && restoreChecked) {
+            val page = firstVisiblePage
+            viewModelScope.launch { repository.setLastPage(id, page) }
+        }
+        lectureId = null
     }
 
     fun setTool(tool: InkTool) {
@@ -215,6 +293,7 @@ class NotebookViewModel @Inject constructor(
             batch = stroke.inputs,
             surface = InkSurface.MARGIN,
         )
+        tracker.activity()
         _strokes.value = _strokes.value + RenderedStroke(record, stroke)
         pushOp(EditOp.Add(record))
         viewModelScope.launch { repository.saveStroke(record) }
@@ -236,6 +315,7 @@ class NotebookViewModel @Inject constructor(
             batch = stroke.inputs,
             surface = InkSurface.PAGE,
         )
+        tracker.activity()
         _pageStrokes.value = _pageStrokes.value + RenderedStroke(record, stroke)
         pushOp(EditOp.Add(record))
         viewModelScope.launch { repository.saveStroke(record) }
@@ -424,6 +504,7 @@ class NotebookViewModel @Inject constructor(
 
     /** Finger scroll on the note sheet. The canvas becomes the sync driver. */
     fun onCanvasScrolledBy(delta: Float) {
+        tracker.activity()
         canvasAnim?.cancel()
         _canvasOffset.value = (_canvasOffset.value + delta).coerceAtLeast(0f)
         driver = Driver.CANVAS
@@ -439,6 +520,8 @@ class NotebookViewModel @Inject constructor(
 
     /** A real touch landed on the PDF pane; only that makes the PDF the driver. */
     fun onPdfTouched() {
+        // A saved page the list cannot scroll to the top (the last page) never matches; touch ends the restore.
+        restoring = false
         driver = Driver.PDF
         drivenAt = now()
     }
@@ -470,6 +553,7 @@ class NotebookViewModel @Inject constructor(
      * ([onPdfTouched]) or as the tail of a deliberate navigation ([requestPdfPage]).
      */
     fun onPdfScrollPos(pos: Float) {
+        tracker.activity()
         pdfPos = pos
         firstVisiblePage = pos.toInt()
         _currentPage.value = firstVisiblePage
@@ -478,6 +562,7 @@ class NotebookViewModel @Inject constructor(
         val expected = expectedPdfPos
         if (expected != null && kotlin.math.abs(pos - expected) < POS_EPSILON) {
             expectedPdfPos = null
+            restoring = false
             if (syncCanvasAfterRequest) {
                 syncCanvasAfterRequest = false
                 syncCanvasToPos(pos)
@@ -567,5 +652,6 @@ class NotebookViewModel @Inject constructor(
         const val PDF_DRIVE_WINDOW_MS = 2000L
         const val POS_EPSILON = 0.05f
         const val CANVAS_ANIM_MS = 250f
+        const val PAGE_SAVE_DEBOUNCE_MS = 1000L
     }
 }

@@ -13,6 +13,7 @@ class MarginaliaRepository @Inject constructor(
     private val documentDao: DocumentDao,
     private val strokeDao: StrokeDao,
     private val anchorDao: AnchorDao,
+    private val sessionDao: StudySessionDao,
 ) {
     fun observeCourses(): Flow<List<CourseEntity>> = courseDao.observeAll()
 
@@ -77,6 +78,20 @@ class MarginaliaRepository @Inject constructor(
         documentDao.insert(document)
         return document
     }
+
+    suspend fun getLecture(id: String): LectureEntity? = lectureDao.getById(id)
+
+    suspend fun markOpened(id: String) = lectureDao.markOpened(id, now())
+
+    suspend fun setLastPage(id: String, page: Int) = lectureDao.setLastPage(id, page)
+
+    suspend fun setReadingStatus(id: String, status: ReadingStatus) =
+        lectureDao.setStatus(id, status.name)
+
+    fun observeSessions(): Flow<List<StudySessionEntity>> = sessionDao.observeAll()
+
+    suspend fun saveSession(lectureId: String?, kind: SessionKind, startedAt: Long, endedAt: Long) =
+        sessionDao.insert(StudySessionEntity(newId(), lectureId, kind.name, startedAt, endedAt))
 
     suspend fun deleteLecture(lecture: LectureEntity) = lectureDao.delete(lecture)
 

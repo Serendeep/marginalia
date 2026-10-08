@@ -12,8 +12,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         DocumentEntity::class,
         StrokeEntity::class,
         AnchorEntity::class,
+        StudySessionEntity::class,
     ],
-    version = 4,
+    version = 5,
     exportSchema = true,
 )
 abstract class MarginaliaDatabase : RoomDatabase() {
@@ -22,6 +23,7 @@ abstract class MarginaliaDatabase : RoomDatabase() {
     abstract fun documentDao(): DocumentDao
     abstract fun strokeDao(): StrokeDao
     abstract fun anchorDao(): AnchorDao
+    abstract fun studySessionDao(): StudySessionDao
 
     companion object {
         val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -56,6 +58,28 @@ abstract class MarginaliaDatabase : RoomDatabase() {
         val MIGRATION_3_4 = object : Migration(3, 4) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE strokes ADD COLUMN surface TEXT NOT NULL DEFAULT 'MARGIN'")
+            }
+        }
+
+        val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE lectures ADD COLUMN lastPage INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE lectures ADD COLUMN lastOpenedAt INTEGER")
+                db.execSQL("ALTER TABLE lectures ADD COLUMN readingStatus TEXT NOT NULL DEFAULT 'TO_READ'")
+                db.execSQL(
+                    "UPDATE lectures SET readingStatus = 'READING' " +
+                        "WHERE id IN (SELECT DISTINCT lectureId FROM strokes)",
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `study_sessions` (
+                        `id` TEXT NOT NULL, `lectureId` TEXT, `kind` TEXT NOT NULL,
+                        `startedAt` INTEGER NOT NULL, `endedAt` INTEGER NOT NULL,
+                        PRIMARY KEY(`id`)
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_study_sessions_startedAt` ON `study_sessions` (`startedAt`)")
             }
         }
     }

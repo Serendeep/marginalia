@@ -44,6 +44,31 @@ interface LectureDao {
 
     @Query("DELETE FROM lectures WHERE id = :id")
     suspend fun deleteById(id: String)
+
+    @Query("SELECT * FROM lectures WHERE id = :id LIMIT 1")
+    suspend fun getById(id: String): LectureEntity?
+
+    @Query(
+        "UPDATE lectures SET lastOpenedAt = :at, " +
+            "readingStatus = CASE WHEN readingStatus = 'TO_READ' THEN 'READING' ELSE readingStatus END " +
+            "WHERE id = :id",
+    )
+    suspend fun markOpened(id: String, at: Long)
+
+    @Query("UPDATE lectures SET lastPage = :page WHERE id = :id")
+    suspend fun setLastPage(id: String, page: Int)
+
+    @Query("UPDATE lectures SET readingStatus = :status WHERE id = :id")
+    suspend fun setStatus(id: String, status: String)
+}
+
+@Dao
+interface StudySessionDao {
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insert(session: StudySessionEntity)
+
+    @Query("SELECT * FROM study_sessions ORDER BY startedAt")
+    fun observeAll(): Flow<List<StudySessionEntity>>
 }
 
 @Dao

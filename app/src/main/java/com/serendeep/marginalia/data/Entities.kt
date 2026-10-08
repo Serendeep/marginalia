@@ -33,6 +33,23 @@ data class LectureEntity(
     val title: String,
     val createdAt: Long,
     val orderIndex: Long,
+    val lastPage: Int = 0,
+    val lastOpenedAt: Long? = null,
+    val readingStatus: String = ReadingStatus.TO_READ.name,
+)
+
+enum class ReadingStatus { TO_READ, READING, DONE }
+
+enum class SessionKind { FOCUS, READING, REVIEW }
+
+// Time spent studying. No foreign key: history outlives a deleted lecture.
+@Entity(tableName = "study_sessions", indices = [Index("startedAt")])
+data class StudySessionEntity(
+    @PrimaryKey val id: String,
+    val lectureId: String?,
+    val kind: String,
+    val startedAt: Long,
+    val endedAt: Long,
 )
 
 @Entity(

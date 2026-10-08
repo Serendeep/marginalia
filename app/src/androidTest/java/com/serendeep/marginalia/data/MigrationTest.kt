@@ -104,6 +104,42 @@ class MigrationTest {
         }
     }
 
+    @Test
+    fun migrate4To5_addsReadingColumnsAndBackfillsInkedLectures() {
+        val db = helper.createDatabase(DB, 4)
+        db.execSQL(
+            "INSERT INTO courses (id, name, createdAt, orderIndex, colorIndex, emoji) VALUES ('c1', 'Course', 1, 1, 0, NULL)",
+        )
+        db.execSQL("INSERT INTO lectures (id, courseId, title, createdAt, orderIndex) VALUES ('inked', 'c1', 'A', 1, 1)")
+        db.execSQL("INSERT INTO lectures (id, courseId, title, createdAt, orderIndex) VALUES ('blank', 'c1', 'B', 1, 1)")
+        db.execSQL(
+            """
+            INSERT INTO strokes (id, lectureId, documentId, anchorId, pdfPage,
+                viewportLeft, viewportTop, viewportRight, viewportBottom,
+                boundsLeft, boundsTop, boundsRight, boundsBottom,
+                startedAt, endedAt, brushColor, brushSizeDp, inkBlob, surface)
+            VALUES ('s1', 'inked', 'd1', NULL, 0, 0,0,0,0, 0,0,0,0, 10,20,255,4.0,x'00', 'MARGIN')
+            """.trimIndent(),
+        )
+        db.close()
+
+        val migrated = helper.runMigrationsAndValidate(DB, 5, true, MarginaliaDatabase.MIGRATION_4_5)
+
+        migrated.query("SELECT lastPage, lastOpenedAt, readingStatus FROM lectures WHERE id = 'blank'").use { c ->
+            assertTrue(c.moveToFirst())
+            assertEquals(0, c.getInt(0))
+            assertTrue(c.isNull(1))
+            assertEquals("TO_READ", c.getString(2))
+        }
+        migrated.query("SELECT readingStatus FROM lectures WHERE id = 'inked'").use { c ->
+            assertTrue(c.moveToFirst())
+            assertEquals("READING", c.getString(0))
+        }
+        migrated.execSQL(
+            "INSERT INTO study_sessions (id, lectureId, kind, startedAt, endedAt) VALUES ('x', NULL, 'FOCUS', 1, 2)",
+        )
+    }
+
     private companion object {
         const val DB = "migration-test.db"
     }

@@ -34,7 +34,7 @@ class LibraryImportTest {
     @Before
     fun setup() {
         db = Room.inMemoryDatabaseBuilder(context, MarginaliaDatabase::class.java).build()
-        repo = MarginaliaRepository(db.courseDao(), db.lectureDao(), db.documentDao(), db.strokeDao(), db.anchorDao())
+        repo = MarginaliaRepository(db.courseDao(), db.lectureDao(), db.documentDao(), db.strokeDao(), db.anchorDao(), db.studySessionDao())
         importer = PdfImporter(context, repo)
         pdfsDir = File(context.filesDir, "pdfs")
         preExisting = pdfsDir.list()?.toSet() ?: emptySet()

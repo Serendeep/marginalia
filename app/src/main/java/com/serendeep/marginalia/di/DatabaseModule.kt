@@ -8,6 +8,7 @@ import com.serendeep.marginalia.data.DocumentDao
 import com.serendeep.marginalia.data.LectureDao
 import com.serendeep.marginalia.data.MarginaliaDatabase
 import com.serendeep.marginalia.data.StrokeDao
+import com.serendeep.marginalia.data.StudySessionDao
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -27,6 +28,7 @@ object DatabaseModule {
                 MarginaliaDatabase.MIGRATION_1_2,
                 MarginaliaDatabase.MIGRATION_2_3,
                 MarginaliaDatabase.MIGRATION_3_4,
+                MarginaliaDatabase.MIGRATION_4_5,
             )
             .build()
 
@@ -44,4 +46,7 @@ object DatabaseModule {
 
     @Provides
     fun provideAnchorDao(db: MarginaliaDatabase): AnchorDao = db.anchorDao()
+
+    @Provides
+    fun provideStudySessionDao(db: MarginaliaDatabase): StudySessionDao = db.studySessionDao()
 }

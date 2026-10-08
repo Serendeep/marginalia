@@ -102,6 +102,11 @@ publishing {
     }
 }
 
+composeCompiler {
+    reportsDestination = layout.buildDirectory.dir("compose_reports")
+    metricsDestination = layout.buildDirectory.dir("compose_reports")
+}
+
 ksp {
     arg("room.schemaLocation", "$projectDir/schemas")
 }

@@ -72,6 +72,11 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import com.serendeep.marginalia.study.WORK_SECONDS
+import com.serendeep.marginalia.ui.theme.Lime
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.serendeep.marginalia.sharedCover
@@ -124,6 +129,21 @@ fun NotebookScreen(
     )
 
     LaunchedEffect(lectureId) { viewModel.openLecture(lectureId) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_START -> viewModel.onForeground()
+                Lifecycle.Event.ON_STOP -> viewModel.onBackground()
+                else -> Unit
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            viewModel.closeLecture()
+        }
+    }
 
     val document by viewModel.document.collectAsStateWithLifecycle()
     val lectureTitle by viewModel.lectureTitle.collectAsStateWithLifecycle()
@@ -214,12 +234,18 @@ fun NotebookScreen(
                 hazeState = pdfHaze,
                 modifier = Modifier.align(Alignment.TopStart).padding(12.dp),
             )
-            if (pageCount > 0) {
-                PageIndicator(
-                    page = currentPage + 1,
-                    pageCount = pageCount,
-                    modifier = Modifier.align(Alignment.BottomCenter).padding(12.dp),
-                )
+            Column(
+                Modifier.align(Alignment.BottomCenter).padding(12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                MarkDoneChip(viewModel)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    if (pageCount > 0) {
+                        PageIndicator(page = currentPage + 1, pageCount = pageCount)
+                    }
+                    FocusPill(viewModel)
+                }
             }
         }
 
@@ -386,6 +412,10 @@ fun NotebookScreen(
                 modifier = Modifier.align(Alignment.TopEnd).padding(12.dp),
             )
 
+            if (current == null) {
+                FocusPill(viewModel, Modifier.align(Alignment.BottomStart).padding(12.dp))
+            }
+
             activeAnchor?.let { anchor ->
                 AssistChip(
                     onClick = viewModel::finishAnchorBinding,
@@ -486,6 +516,39 @@ private fun PageIndicator(page: Int, pageCount: Int, modifier: Modifier = Modifi
             .clip(shape)
             .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.7f))
             .border(1.dp, glassBorder(), shape)
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+    )
+}
+
+/** Offers to finish a document once its last page is reached. */
+@Composable
+private fun MarkDoneChip(viewModel: NotebookViewModel) {
+    val show by viewModel.showMarkDone.collectAsStateWithLifecycle()
+    if (!show) return
+    AssistChip(
+        onClick = viewModel::markDone,
+        label = { Text("Mark as done?") },
+    )
+}
+
+/** Running focus timer; tap to pause or resume. Reads its own state so only it recomposes each second. */
+@Composable
+private fun FocusPill(viewModel: NotebookViewModel, modifier: Modifier = Modifier) {
+    val state by viewModel.focus.collectAsStateWithLifecycle()
+    if (!state.running && state.remainingSec == WORK_SECONDS && !state.onBreak) return
+    val shape = RoundedCornerShape(14.dp)
+    val tint = if (state.running) Lime else MaterialTheme.colorScheme.onSurfaceVariant
+    Text(
+        "%02d:%02d".format(Locale.ROOT, state.remainingSec / 60, state.remainingSec % 60),
+        fontFamily = MonoFamily,
+        fontSize = 11.sp,
+        letterSpacing = 1.2.sp,
+        color = tint,
+        modifier = modifier
+            .clip(shape)
+            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.7f))
+            .border(1.dp, glassBorder(), shape)
+            .clickable(onClick = viewModel::toggleFocus)
             .padding(horizontal = 12.dp, vertical = 6.dp),
     )
 }

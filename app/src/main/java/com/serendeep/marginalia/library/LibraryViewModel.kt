@@ -6,8 +6,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import coil3.ImageLoader
 import com.serendeep.marginalia.data.CourseEntity
-import com.serendeep.marginalia.data.DocumentEntity
-import com.serendeep.marginalia.data.LectureEntity
 import com.serendeep.marginalia.data.MarginaliaRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -15,34 +13,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import java.io.File
 import javax.inject.Inject
-
-/** One notebook on the shelf: a lecture plus its newest readable document. */
-data class ShelfItem(
-    val lecture: LectureEntity,
-    val document: DocumentEntity?,
-    val lastWrittenAt: Long? = null,
-)
-
-/** A shelf section; [course] is null for quick-imported, ungrouped notebooks. */
-data class ShelfSection(
-    val course: CourseEntity?,
-    val items: List<ShelfItem>,
-)
-
-/** The library: the notebook to continue in, plus everything else. */
-data class Shelf(
-    val hero: ShelfItem? = null,
-    val sections: List<ShelfSection> = emptyList(),
-    val courseCount: Int = 0,
-) {
-    val isEmpty: Boolean get() = hero == null && sections.isEmpty()
-}
 
 @HiltViewModel
 class LibraryViewModel @Inject constructor(
@@ -53,48 +27,9 @@ class LibraryViewModel @Inject constructor(
 
     private val importer = PdfImporter(context, repository)
 
-    val shelf: StateFlow<Shelf> = combine(
-        repository.observeCourses(),
-        repository.observeAllLectures(),
-        repository.observeAllDocuments(),
-        repository.observeLastWritten(),
-    ) { courses, lectures, documents, touches ->
-        val latestByLecture = documents
-            .filter { it.localPath.isNotEmpty() && File(it.localPath).exists() }
-            .groupBy { it.lectureId }
-            .mapValues { (_, versions) -> versions.maxBy { it.versionIndex } }
-        val touchByLecture = touches.associate { it.lectureId to it.lastAt }
-        val byCourse = lectures.groupBy { it.courseId }
-        fun items(courseId: String) = byCourse[courseId].orEmpty()
-            .map { ShelfItem(it, latestByLecture[it.id], touchByLecture[it.id]) }
-
-        val all = lectures.map { ShelfItem(it, latestByLecture[it.id], touchByLecture[it.id]) }
-        val hero = all
-            .filter { it.document != null }
-            .maxByOrNull { it.lastWrittenAt ?: it.document!!.importedAt }
-
-        val unsorted = courses.firstOrNull { it.name == UNSORTED_NAME }
-        val sections = buildList {
-            unsorted?.let {
-                val rest = items(it.id).filterNot { item -> item.lecture.id == hero?.lecture?.id }
-                if (rest.isNotEmpty()) add(ShelfSection(null, rest))
-            }
-            courses.filterNot { it.id == unsorted?.id }.forEach { course ->
-                add(ShelfSection(course, items(course.id).filterNot { item -> item.lecture.id == hero?.lecture?.id }))
-            }
-        }
-        val namedCourseIds = sections
-            .mapNotNull { it.course }
-            .filterNot { it.name == UNSORTED_NAME }
-            .map { it.id }
-            .toMutableSet()
-        hero?.lecture?.courseId?.let { heroCourseId ->
-            if (courses.any { it.id == heroCourseId && it.name != UNSORTED_NAME }) {
-                namedCourseIds += heroCourseId
-            }
-        }
-        Shelf(hero, sections, namedCourseIds.size)
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), Shelf())
+    /** Null until the first load, so the screen never flashes its empty state. */
+    val shelf: StateFlow<ShelfData?> = repository.observeShelf()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
