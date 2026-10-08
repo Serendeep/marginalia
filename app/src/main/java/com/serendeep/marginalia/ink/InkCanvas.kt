@@ -26,7 +26,12 @@ import androidx.ink.strokes.Stroke
 import androidx.ink.strokes.StrokeInput
 import androidx.input.motionprediction.MotionEventPredictor
 
-enum class InkTool { PEN, HIGHLIGHTER, ERASER, LASSO }
+const val LASER_DOWN = 0
+const val LASER_MOVE = 1
+const val LASER_UP = 2
+const val LASER_ARGB: Int = 0xFFFF4D4D.toInt()
+
+enum class InkTool { PEN, HIGHLIGHTER, ERASER, LASSO, SELECT, LASER }
 
 /**
  * A note surface. The stylus draws or erases; a single-finger drag scrolls the
@@ -50,7 +55,9 @@ fun InkCanvas(
     modifier: Modifier = Modifier,
     onPenActive: (Boolean) -> Unit = {},
     eraserRadiusPx: Float = EraserSize.MEDIUM.radiusPx,
+    onLaser: ((rawX: Float, rawY: Float, phase: Int) -> Unit)? = null,
 ) {
+    val onLaserMove by rememberUpdatedState(onLaser)
     val onFinished by rememberUpdatedState(onStrokeFinished)
     val onEraseAt by rememberUpdatedState(onErase)
     val onScroll by rememberUpdatedState(onScrollBy)
@@ -99,6 +106,8 @@ fun InkCanvas(
                             }
                         },
                         erasing = currentTool == InkTool.ERASER,
+                        laser = currentTool == InkTool.LASER,
+                        onLaser = { x, y, phase -> onLaserMove?.invoke(x, y, phase) },
                         // Erasing works on stored strokes, so hit-test in canvas space.
                         onErase = { x, y -> onEraseAt(x, y + container.canvasOffset) },
                         onScrollBy = onScroll,
@@ -118,6 +127,8 @@ fun InkCanvas(
                                 SystemClock.uptimeMillis() + InkTouchHandler.STYLUS_NEAR_MS
                             if (currentTool == InkTool.ERASER) {
                                 container.hoverView.showRing(e.x, e.y, android.graphics.Color.WHITE, currentEraserRadius)
+                            } else if (currentTool == InkTool.LASER) {
+                                container.hoverView.showRing(e.x, e.y, LASER_ARGB, 10f * context.resources.displayMetrics.density)
                             } else {
                                 container.hoverView.show(e.x, e.y, currentPenColor, currentPenSize)
                             }
@@ -277,6 +288,8 @@ private class InkTouchHandler(
         // Built lazily: a brush is only needed at stroke start, never per event.
         brush: () -> Brush,
         erasing: Boolean,
+        laser: Boolean,
+        onLaser: (Float, Float, Int) -> Unit,
         onErase: (Float, Float) -> Unit,
         onScrollBy: (Float) -> Unit,
         onPenActive: (Boolean) -> Unit,
@@ -336,6 +349,23 @@ private class InkTouchHandler(
         }
 
         val buttonHeld = event.buttonState and MotionEvent.BUTTON_STYLUS_PRIMARY != 0
+        if (laser && !buttonHeld) {
+            strokeId?.let { view.cancelStroke(it, event) }
+            strokeId = null
+            val dx = event.rawX - event.x
+            val dy = event.rawY - event.y
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> onLaser(event.rawX, event.rawY, LASER_DOWN)
+                MotionEvent.ACTION_MOVE -> {
+                    for (h in 0 until event.historySize) {
+                        onLaser(event.getHistoricalX(h) + dx, event.getHistoricalY(h) + dy, LASER_MOVE)
+                    }
+                    onLaser(event.rawX, event.rawY, LASER_MOVE)
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> onLaser(event.rawX, event.rawY, LASER_UP)
+            }
+            return true
+        }
         if (erasing || buttonHeld) {
             // Never leave a half-drawn stroke behind when the tool flips mid-contact.
             strokeId?.let { view.cancelStroke(it, event) }

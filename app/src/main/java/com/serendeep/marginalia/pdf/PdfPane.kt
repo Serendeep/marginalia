@@ -3,6 +3,11 @@
 package com.serendeep.marginalia.pdf
 
 import kotlinx.coroutines.delay
+import com.serendeep.marginalia.data.InkSurface
+import com.serendeep.marginalia.ink.Extent
+import com.serendeep.marginalia.notebook.SelectionActions
+import com.serendeep.marginalia.notebook.SelectionLayer
+import com.serendeep.marginalia.notebook.SelectionState
 import androidx.ink.rendering.android.canvas.CanvasStrokeRenderer
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
@@ -126,6 +131,10 @@ fun PdfPane(
     onPageStrokeFinished: ((page: Int, width: Float, height: Float, stroke: Stroke) -> Unit)? = null,
     onPageErase: ((page: Int, x: Float, y: Float) -> Unit)? = null,
     onLasso: ((PdfLassoRegion) -> Unit)? = null,
+    onLaser: ((rawX: Float, rawY: Float, phase: Int) -> Unit)? = null,
+    selection: SelectionState? = null,
+    selectionActions: SelectionActions? = null,
+    selectionColors: List<Int> = emptyList(),
 ) {
     BoxWithConstraints(modifier) {
         val density = LocalDensity.current
@@ -330,6 +339,12 @@ fun PdfPane(
                                 },
                                 // Raw delta: no coroutine launched per touch event.
                                 onScrollBy = { delta -> listState.dispatchRawDelta(delta) },
+                                onLaser = onLaser,
+                                selecting = inkTool == InkTool.SELECT,
+                                selection = selection?.takeIf { it.surface == InkSurface.PAGE && it.page == index },
+                                selectionActions = selectionActions,
+                                selectionColors = selectionColors,
+                                onCard = onLasso,
                             )
                         }
                     }
@@ -357,6 +372,26 @@ fun PdfPane(
             }
         }
     }
+}
+
+/** The crop arguments for a rectangle in a page's own pixels, at twice its size. */
+private fun pageRegion(page: Int, pageSize: IntSize, box: Extent): PdfLassoRegion {
+    val w = pageSize.width.toFloat().coerceAtLeast(1f)
+    val h = pageSize.height.toFloat().coerceAtLeast(1f)
+    val l = box.left.coerceIn(0f, w - 1f)
+    val t = box.top.coerceIn(0f, h - 1f)
+    val r = box.right.coerceIn(l + 1f, w)
+    val b = box.bottom.coerceIn(t + 1f, h)
+    val out = cropScale(r - l, b - t)
+    return PdfLassoRegion(
+        page = page,
+        scaledPageWidthPx = (w * out).roundToInt(),
+        scaledPageHeightPx = (h * out).roundToInt(),
+        srcLeftPx = (l * out).roundToInt(),
+        srcTopPx = (t * out).roundToInt(),
+        outWidthPx = ((r - l) * out).roundToInt().coerceAtLeast(1),
+        outHeightPx = ((b - t) * out).roundToInt().coerceAtLeast(1),
+    )
 }
 
 /** Maps a pane-space rectangle onto the page beneath its centre; null when it misses every page. */
@@ -470,6 +505,12 @@ private fun PdfPageItem(
     onStrokeFinished: ((width: Float, height: Float, stroke: Stroke) -> Unit)? = null,
     onErase: ((x: Float, y: Float) -> Unit)? = null,
     onScrollBy: (Float) -> Unit = {},
+    onLaser: ((rawX: Float, rawY: Float, phase: Int) -> Unit)? = null,
+    selecting: Boolean = false,
+    selection: SelectionState? = null,
+    selectionActions: SelectionActions? = null,
+    selectionColors: List<Int> = emptyList(),
+    onCard: ((PdfLassoRegion) -> Unit)? = null,
 ) {
     // Seeded from the caches so a page scrolled back into view shows at once, at its final height.
     var bitmap by remember(source, index, widthPx) { mutableStateOf(source.cachedPage(index, widthPx)) }
@@ -532,6 +573,18 @@ private fun PdfPageItem(
                 },
                 onErase = onErase,
                 onScrollBy = onScrollBy,
+                modifier = Modifier.fillMaxSize(),
+                onLaser = onLaser,
+            )
+        }
+        if (selecting && selectionActions != null && onStrokeFinished != null) {
+            SelectionLayer(
+                selection = selection,
+                page = index,
+                offsetY = { 0f },
+                colors = selectionColors,
+                actions = selectionActions,
+                onCard = { box -> onCard?.invoke(pageRegion(index, pageSize, box)) },
                 modifier = Modifier.fillMaxSize(),
             )
         }

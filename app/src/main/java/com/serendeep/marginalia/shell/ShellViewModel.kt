@@ -13,6 +13,8 @@ import com.serendeep.marginalia.reminder.REMINDER_TIME_KEY
 import com.serendeep.marginalia.reminder.ReminderScheduler
 import com.serendeep.marginalia.study.minutesByDay
 import com.serendeep.marginalia.study.observeDue
+import com.serendeep.marginalia.ink.PenColors
+import com.serendeep.marginalia.ink.PencilAction
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
@@ -92,9 +94,13 @@ class ShellViewModel @Inject constructor(
     private val _reminder = MutableStateFlow(ReminderSettings())
     val reminder: StateFlow<ReminderSettings> = _reminder.asStateFlow()
 
+    private val _pencilAction = MutableStateFlow(PencilAction.TOGGLE_ERASER)
+    val pencilAction: StateFlow<PencilAction> = _pencilAction.asStateFlow()
+
     init {
         viewModelScope.launch {
             val prefs = withContext(Dispatchers.IO) { context.getSharedPreferences(PREFS, Context.MODE_PRIVATE) }
+            _pencilAction.value = PenColors.actionFrom(prefs.getString(PenColors.ACTION_KEY, null))
             _goalMin.value = prefs.getInt(GOAL_KEY, DEFAULT_GOAL_MIN)
             _reminder.value = ReminderSettings(
                 prefs.getBoolean(REMINDER_ENABLED_KEY, true),
@@ -103,12 +109,14 @@ class ShellViewModel @Inject constructor(
         }
     }
 
-    fun saveSettings(goalMin: Int, reminder: ReminderSettings) {
+    fun saveSettings(goalMin: Int, reminder: ReminderSettings, pencilAction: PencilAction) {
+        _pencilAction.value = pencilAction
         _goalMin.value = goalMin
         _reminder.value = reminder
         viewModelScope.launch(Dispatchers.IO) {
             context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
                 .putInt(GOAL_KEY, goalMin)
+                .putString(PenColors.ACTION_KEY, pencilAction.name)
                 .putBoolean(REMINDER_ENABLED_KEY, reminder.enabled)
                 .putInt(REMINDER_TIME_KEY, reminder.minuteOfDay)
                 .apply()

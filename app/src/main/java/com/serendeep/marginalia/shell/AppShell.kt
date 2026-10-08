@@ -275,11 +275,12 @@ private fun GoalCard(viewModel: ShellViewModel) {
     val minutes by viewModel.minutesToday.collectAsStateWithLifecycle()
     val goal by viewModel.goalMin.collectAsStateWithLifecycle()
     val reminder by viewModel.reminder.collectAsStateWithLifecycle()
+    val pencilAction by viewModel.pencilAction.collectAsStateWithLifecycle()
     var settingsOpen by remember { mutableStateOf(false) }
     if (settingsOpen) {
-        SettingsDialog(goal, reminder, onDismiss = { settingsOpen = false }, onSave = { g, r ->
+        SettingsDialog(goal, reminder, pencilAction, onDismiss = { settingsOpen = false }, onSave = { g, r, a ->
             settingsOpen = false
-            viewModel.saveSettings(g, r)
+            viewModel.saveSettings(g, r, a)
         })
     }
     Row(

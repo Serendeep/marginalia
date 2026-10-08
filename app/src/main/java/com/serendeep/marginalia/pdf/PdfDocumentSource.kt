@@ -231,6 +231,48 @@ class PdfDocumentSource private constructor(
         }.getOrDefault("")
     }
 
+    /**
+     * Text lines touching [area] (top-left-origin page fractions), each as the box around
+     * its characters, in the same fractions. Characters are grouped into a line while they
+     * keep overlapping its baseline band without a wide gap, so columns stay separate.
+     */
+    suspend fun textLineRects(index: Int, area: RectF): List<RectF> = lock.withLock {
+        if (closed) return@withLock emptyList()
+        runCatching {
+            document.openPage(index).use { page ->
+                val w = page.getPageWidthPoint().coerceAtLeast(1) * TEXT_RES
+                val h = page.getPageHeightPoint().coerceAtLeast(1) * TEXT_RES
+                page.openTextPage().use { text ->
+                    val lines = ArrayList<RectF>()
+                    var line: RectF? = null
+                    for (i in 0 until text.textPageCountChars()) {
+                        if (text.textPageGetUnicode(i).isWhitespace()) continue
+                        val charBox = text.textPageGetCharBox(i) ?: continue
+                        val device = page.mapRectToDevice(0, 0, w, h, 0, charBox)
+                        val box = RectF(device.left / w.toFloat(), device.top / h.toFloat(), device.right / w.toFloat(), device.bottom / h.toFloat())
+                        box.sort()
+                        if (box.width() <= 0f || box.height() <= 0f) continue
+                        val cur = line
+                        if (cur != null && sameLine(cur, box)) {
+                            cur.union(box)
+                        } else {
+                            if (cur != null) lines.add(cur)
+                            line = RectF(box)
+                        }
+                    }
+                    line?.let(lines::add)
+                    lines.filter { RectF.intersects(it, area) }
+                }
+            }
+        }.getOrDefault(emptyList())
+    }
+
+    private fun sameLine(line: RectF, box: RectF): Boolean {
+        val overlap = min(line.bottom, box.bottom) - max(line.top, box.top)
+        if (overlap < 0.5f * min(line.height(), box.height())) return false
+        return box.left - line.right <= LINE_GAP * line.height() && line.left - box.right <= LINE_GAP * line.height()
+    }
+
     fun close() {
         closeScope.launch {
             lock.withLock {
@@ -248,6 +290,7 @@ class PdfDocumentSource private constructor(
     companion object {
         private const val PAGE_CACHE_SIZE = 10
         private const val TEXT_RES = 8
+        private const val LINE_GAP = 2.5f
         private const val MAX_BOUNDED_CHARS = 1024
 
         fun open(context: Context, file: File): PdfDocumentSource =

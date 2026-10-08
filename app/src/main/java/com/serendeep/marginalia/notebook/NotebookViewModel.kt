@@ -19,6 +19,21 @@ import com.serendeep.marginalia.data.InkSurface
 import com.serendeep.marginalia.data.MarginaliaRepository
 import com.serendeep.marginalia.data.ReadingStatus
 import com.serendeep.marginalia.ink.EraserSize
+import com.serendeep.marginalia.ink.Extent
+import com.serendeep.marginalia.ink.PenColors
+import com.serendeep.marginalia.ink.PenWidth
+import com.serendeep.marginalia.ink.PencilAction
+import com.serendeep.marginalia.ink.ScratchOut
+import com.serendeep.marginalia.ink.ShapeSnap
+import com.serendeep.marginalia.ink.StrokeTransform
+import com.serendeep.marginalia.ink.bounds
+import com.serendeep.marginalia.ink.doubleTapTool
+import com.serendeep.marginalia.ink.fractionInsidePolygon
+import com.serendeep.marginalia.ink.recolored
+import com.serendeep.marginalia.ink.toBatch
+import com.serendeep.marginalia.ink.toPoints
+import com.serendeep.marginalia.ink.transformed
+import com.serendeep.marginalia.ink.InkPt
 import com.serendeep.marginalia.ink.InkTool
 import com.serendeep.marginalia.ink.Pen
 import com.serendeep.marginalia.ink.Pens
@@ -43,6 +58,7 @@ import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.withLock
 import java.io.File
 import java.util.UUID
@@ -57,6 +73,8 @@ data class RenderedStroke(
 
 private sealed interface EditOp {
     data class Add(val record: InkStroke) : EditOp
+    data class AddGroup(val records: List<InkStroke>) : EditOp
+    data class Transform(val before: List<InkStroke>, val after: List<InkStroke>) : EditOp
     data class Erase(val removed: List<InkStroke>, val added: List<InkStroke>) : EditOp
     data class RemoveAnchor(val anchor: AnchorEntity, val boundStrokeIds: List<String>) : EditOp
 }
@@ -127,12 +145,45 @@ class NotebookViewModel @Inject constructor(
     private val _eraserSize = MutableStateFlow(EraserSize.MEDIUM)
     val eraserSize: StateFlow<EraserSize> = _eraserSize.asStateFlow()
 
+    private val _penWidth = MutableStateFlow(PenWidth.MEDIUM)
+    val penWidth: StateFlow<PenWidth> = _penWidth.asStateFlow()
+
+    /** Palette choice behind each of the three pen swatches; see [PenColors]. */
+    private val _swatches = MutableStateFlow(List(PenColors.SWATCHES) { it })
+    val swatches: StateFlow<List<Int>> = _swatches.asStateFlow()
+
+    private var previousTool = InkTool.PEN
+
     init {
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             prefs.getString(ERASER_SIZE_KEY, null)
                 ?.let { runCatching { EraserSize.valueOf(it) }.getOrNull() }
                 ?.let { _eraserSize.value = it }
+            _penWidth.value = PenColors.widthFrom(prefs.getString(PenColors.WIDTH_KEY, null))
+            _swatches.value = List(PenColors.SWATCHES) { slot ->
+                PenColors.choiceFrom(prefs.getInt(PenColors.swatchKey(slot), -1), slot)
+            }
         }
+    }
+
+    fun setPenWidth(width: PenWidth) {
+        _penWidth.value = width
+        prefs.edit().putString(PenColors.WIDTH_KEY, width.name).apply()
+    }
+
+    fun setSwatch(slot: Int, choice: Int) {
+        _swatches.value = _swatches.value.toMutableList().also { it[slot] = choice }
+        prefs.edit().putInt(PenColors.swatchKey(slot), choice).apply()
+    }
+
+    /** Runs the user's chosen Pencil double-tap action. */
+    fun onPencilDoubleTap() {
+        val action = PenColors.actionFrom(prefs.getString(PenColors.ACTION_KEY, null))
+        if (action == PencilAction.UNDO) {
+            undo()
+            return
+        }
+        doubleTapTool(action, _tool.value, previousTool)?.let { _tool.value = it }
     }
 
     fun setEraserSize(size: EraserSize) {
@@ -156,6 +207,22 @@ class NotebookViewModel @Inject constructor(
 
     private val _tool = MutableStateFlow(InkTool.PEN)
     val tool: StateFlow<InkTool> = _tool.asStateFlow()
+
+    private val _selection = MutableStateFlow<SelectionState?>(null)
+    val selection: StateFlow<SelectionState?> = _selection.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            var prev = _tool.value
+            _tool.collect { now ->
+                if (now != prev) {
+                    previousTool = prev
+                    prev = now
+                }
+                if (now != InkTool.SELECT) _selection.value = null
+            }
+        }
+    }
 
     private val _selectedPen = MutableStateFlow(Pen.GRAPHITE)
     val selectedPen: StateFlow<Pen> = _selectedPen.asStateFlow()
@@ -264,6 +331,7 @@ class NotebookViewModel @Inject constructor(
         documentId = ""
         pdfPageCount = 0
         _tool.value = InkTool.PEN
+        _selection.value = null
         firstVisiblePage = 0
         pdfPos = 0f
         _currentPage.value = 0
@@ -344,10 +412,6 @@ class NotebookViewModel @Inject constructor(
         _tool.value = tool
     }
 
-    fun toggleTool() {
-        _tool.value = if (_tool.value == InkTool.PEN) InkTool.ERASER else InkTool.PEN
-    }
-
     fun selectPen(pen: Pen) {
         _selectedPen.value = pen
         _tool.value = InkTool.PEN
@@ -373,7 +437,7 @@ class NotebookViewModel @Inject constructor(
             // The correspondence pair that lets sync restore this exact alignment:
             // what the PDF showed, and where the sheet sat, as the ink went down.
             viewport = AnchorBox(pdfPos, _canvasOffset.value, 0f, 0f),
-            bounds = strokeBounds(stroke.inputs),
+            bounds = stroke.inputs.bounds(),
             startedAt = now(),
             endedAt = now(),
             brushColor = stroke.brush.colorIntArgb.toLong() and 0xFFFFFFFFL,
@@ -384,7 +448,8 @@ class NotebookViewModel @Inject constructor(
         tracker.activity()
         _strokes.value = _strokes.value + RenderedStroke(record, stroke)
         pushOp(EditOp.Add(record))
-        viewModelScope.launch { repository.saveStroke(record) }
+        val saved = viewModelScope.launch { repository.saveStroke(record) }
+        if (_tool.value == InkTool.PEN) refinePenStroke(record, saved)
     }
 
     fun onPageStrokeFinished(page: Int, width: Float, height: Float, stroke: Stroke) {
@@ -395,7 +460,7 @@ class NotebookViewModel @Inject constructor(
             documentId = documentId,
             pdfPage = page,
             viewport = AnchorBox(0f, 0f, width, height),
-            bounds = strokeBounds(stroke.inputs),
+            bounds = stroke.inputs.bounds(),
             startedAt = now(),
             endedAt = now(),
             brushColor = stroke.brush.colorIntArgb.toLong() and 0xFFFFFFFFL,
@@ -406,27 +471,161 @@ class NotebookViewModel @Inject constructor(
         tracker.activity()
         _pageStrokes.value = _pageStrokes.value + RenderedStroke(record, stroke)
         pushOp(EditOp.Add(record))
-        viewModelScope.launch { repository.saveStroke(record) }
-        if (_tool.value == InkTool.HIGHLIGHTER) captureHighlight(record, width, height, stroke.brush.size)
+        val saved = viewModelScope.launch { repository.saveStroke(record) }
+        when (_tool.value) {
+            InkTool.PEN -> refinePenStroke(record, saved)
+            InkTool.HIGHLIGHTER -> snapHighlighter(record, width, height, saved)
+            else -> Unit
+        }
+    }
+
+    private fun surfaceList(surface: InkSurface) = if (surface == InkSurface.MARGIN) _strokes.value else _pageStrokes.value
+
+    /**
+     * After a pen stroke ends: hold-to-shape swaps it for the clean shape, a scratch
+     * gesture deletes what it covers. All analysis runs off the main thread.
+     */
+    private fun refinePenStroke(record: InkStroke, saved: Job) {
+        viewModelScope.launch {
+            val verdict = withContext(Dispatchers.Default) {
+                val points = record.batch.toPoints()
+                ShapeSnap.snap(points)?.let { Refinement.Snap(it.toBatch(ShapeSnap.PRESSURE)) }
+                    ?: ScratchOut.detect(points)?.let { Refinement.Scratch(it) }
+            } ?: return@launch
+            saved.join()
+            when (verdict) {
+                is Refinement.Snap -> applySnap(record, verdict.batch)
+                is Refinement.Scratch -> applyScratch(record, verdict.area)
+            }
+        }
+    }
+
+    private sealed interface Refinement {
+        class Snap(val batch: StrokeInputBatch) : Refinement
+        class Scratch(val area: Extent) : Refinement
+    }
+
+    private suspend fun applySnap(record: InkStroke, batch: StrokeInputBatch) {
+        val snapped = record.copy(batch = batch, bounds = batch.bounds())
+        val present = surfaceList(record.surface).any { it.record.id == record.id }
+        val queued = swapAddOp(record.id, snapped)
+        if (!present && !queued) return
+        if (present) {
+            val rendered = withContext(Dispatchers.Default) { RenderedStroke(snapped, snapped.toStroke()) }
+            updateSurface(record.surface) { list -> list.map { if (it.record.id == record.id) rendered else it } }
+            repository.saveStroke(snapped)
+        }
+    }
+
+    /** Points whichever stack still holds the Add op for [id] at its replacement record. */
+    private fun swapAddOp(id: String, replacement: InkStroke): Boolean {
+        for (stack in listOf(ops, redos)) {
+            val at = stack.indexOfFirst { it is EditOp.Add && it.record.id == id }
+            if (at >= 0) {
+                stack[at] = EditOp.Add(replacement)
+                return true
+            }
+        }
+        return false
+    }
+
+    private suspend fun applyScratch(scratch: InkStroke, area: Extent) {
+        val candidates = surfaceList(scratch.surface).filter {
+            it.record.id != scratch.id && (scratch.surface == InkSurface.MARGIN || it.record.pdfPage == scratch.pdfPage)
+        }
+        val covered = withContext(Dispatchers.Default) {
+            val reach = area.inflated(ScratchOut.INFLATE_PX)
+            candidates.filter {
+                val b = it.record.bounds
+                reach.intersects(Extent(b.left, b.top, b.right, b.bottom)) &&
+                    ScratchOut.covers(area, it.record.batch.toPoints())
+            }.map { it.record }
+        }
+        val liveIds = surfaceList(scratch.surface).mapTo(HashSet()) { it.record.id }
+        val victims = covered.filter { it.id in liveIds }
+        if (victims.isEmpty() || scratch.id !in liveIds) return
+        val gone = victims.mapTo(HashSet()) { it.id } + scratch.id
+        updateSurface(scratch.surface) { list -> list.filterNot { it.record.id in gone } }
+        ops.removeAll { it is EditOp.Add && it.record.id == scratch.id }
+        pushOp(EditOp.Erase(victims, emptyList()))
+        removeStrokes(gone)
+    }
+
+    /**
+     * Replaces a freehand highlighter swipe with one straight band per text line it
+     * sweeps; with no text underneath the swipe stays as drawn.
+     */
+    private fun snapHighlighter(record: InkStroke, width: Float, height: Float, saved: Job) {
+        viewModelScope.launch {
+            val path = _document.value?.localPath
+            val b = record.bounds
+            val pad = record.brushSizeDp * BAND_REACH
+            val area = RectF(
+                (b.left / width).coerceIn(0f, 1f),
+                ((b.top - pad) / height).coerceIn(0f, 1f),
+                (b.right / width).coerceIn(0f, 1f),
+                ((b.bottom + pad) / height).coerceIn(0f, 1f),
+            )
+            val lines = if (path == null || width <= 0f || height <= 0f) {
+                emptyList()
+            } else {
+                indexer.textLineRects(path, record.pdfPage, area)
+            }
+            val bands = withContext(Dispatchers.Default) {
+                lines.mapNotNull { line ->
+                    val top = line.top * height
+                    val bottom = line.bottom * height
+                    val overlap = minOf(bottom, b.bottom + pad) - maxOf(top, b.top - pad)
+                    val left = maxOf(line.left * width, b.left)
+                    val right = minOf(line.right * width, b.right)
+                    if (overlap < 0.5f * (bottom - top) || right - left < MIN_BAND_PX) {
+                        null
+                    } else {
+                        bandRecord(record, left, right, (top + bottom) / 2f, bottom - top)
+                    }
+                }
+            }
+            saved.join()
+            val stillThere = _pageStrokes.value.any { it.record.id == record.id }
+            if (bands.isEmpty() || !stillThere) {
+                if (stillThere) captureHighlight(record, area)
+                return@launch
+            }
+            val rendered = withContext(Dispatchers.Default) { bands.map { RenderedStroke(it, it.toStroke()) } }
+            _pageStrokes.value = _pageStrokes.value.filterNot { it.record.id == record.id } + rendered
+            val at = ops.indexOfFirst { it is EditOp.Add && it.record.id == record.id }
+            if (at >= 0) ops[at] = EditOp.AddGroup(bands)
+            removeStrokes(listOf(record.id))
+            repository.saveStrokes(bands)
+            val union = RectF(
+                (bands.minOf { it.bounds.left } - bands.first().brushSizeDp * 0.25f) / width,
+                bands.minOf { it.bounds.top - it.brushSizeDp / 2f } / height,
+                (bands.maxOf { it.bounds.right } + bands.first().brushSizeDp * 0.25f) / width,
+                bands.maxOf { it.bounds.bottom + it.brushSizeDp / 2f } / height,
+            )
+            captureHighlight(bands.first(), union)
+        }
+    }
+
+    private fun bandRecord(base: InkStroke, left: Float, right: Float, y: Float, lineHeight: Float): InkStroke {
+        val steps = ((right - left) / BAND_STEP_PX).toInt().coerceAtLeast(1)
+        val points = List(steps + 1) { InkPt(left + (right - left) * it / steps, y, 10L * it) }
+        val batch = points.toBatch(1f)
+        return base.copy(
+            id = newId(),
+            batch = batch,
+            bounds = batch.bounds(),
+            brushSizeDp = lineHeight * BAND_THICKNESS,
+        )
     }
 
     // Highlights ride on their stroke: pulled out when it is erased or undone, put back on redo.
     private val parkedHighlights = HashMap<String, HighlightEntity>()
     private val highlightLock = Mutex()
 
-    /** Reads the page text under a finished highlighter stroke; runs entirely off the ink path. */
-    private fun captureHighlight(record: InkStroke, width: Float, height: Float, brushSize: Float) {
+    /** Reads the page text under [area] (page fractions) for a finished highlight; runs entirely off the ink path. */
+    private fun captureHighlight(record: InkStroke, area: RectF) {
         val path = _document.value?.localPath ?: return
-        if (width <= 0f || height <= 0f) return
-        val b = record.bounds
-        // The stroke's inputs trace its centre line; widen to the painted band.
-        val pad = brushSize / 2f
-        val area = RectF(
-            (b.left / width).coerceIn(0f, 1f),
-            ((b.top - pad) / height).coerceIn(0f, 1f),
-            (b.right / width).coerceIn(0f, 1f),
-            ((b.bottom + pad) / height).coerceIn(0f, 1f),
-        )
         viewModelScope.launch {
             val text = indexer.textIn(path, record.pdfPage, area).replace(Regex("\\s+"), " ").trim()
             if (text.isEmpty()) return@launch
@@ -510,6 +709,17 @@ class NotebookViewModel @Inject constructor(
                 viewModelScope.launch { removeStrokes(listOf(op.record.id)) }
             }
 
+            is EditOp.AddGroup -> {
+                val ids = op.records.mapTo(HashSet()) { it.id }
+                updateSurface(op.records.first().surface) { it.filterNot { stroke -> stroke.record.id in ids } }
+                viewModelScope.launch { removeStrokes(ids) }
+            }
+
+            is EditOp.Transform -> {
+                applyRecords(op.before)
+                _selection.value = null
+            }
+
             is EditOp.Erase -> {
                 val addedIds = op.added.map { it.id }.toSet()
                 val restored = op.removed.map { RenderedStroke(it, it.toStroke()) }
@@ -542,6 +752,16 @@ class NotebookViewModel @Inject constructor(
                 viewModelScope.launch { restoreStrokes(listOf(op.record)) }
             }
 
+            is EditOp.AddGroup -> {
+                updateSurface(op.records.first().surface) { list -> list + op.records.map { RenderedStroke(it, it.toStroke()) } }
+                viewModelScope.launch { restoreStrokes(op.records) }
+            }
+
+            is EditOp.Transform -> {
+                applyRecords(op.after)
+                _selection.value = null
+            }
+
             is EditOp.Erase -> {
                 val removedIds = op.removed.map { it.id }.toSet()
                 val pieces = op.added.map { RenderedStroke(it, it.toStroke()) }
@@ -563,6 +783,85 @@ class NotebookViewModel @Inject constructor(
         }
         ops.addLast(op)
         syncUndoState()
+    }
+
+    /** Swaps stored strokes for edited versions of themselves, matched by id, and persists them. */
+    private fun applyRecords(records: List<InkStroke>) {
+        val byId = records.associateBy { it.id }
+        updateSurface(records.first().surface) { list ->
+            list.map { item -> byId[item.record.id]?.let { RenderedStroke(it, it.toStroke()) } ?: item }
+        }
+        viewModelScope.launch { repository.saveStrokes(records) }
+    }
+
+    /** Picks the strokes on one surface (a page, or the margin when [page] is null) mostly inside [polygon]. */
+    fun selectInside(surface: InkSurface, page: Int?, polygon: List<Pair<Float, Float>>) {
+        val pool = surfaceList(surface).filter { page == null || it.record.pdfPage == page }
+        viewModelScope.launch {
+            val picked = withContext(Dispatchers.Default) {
+                if (polygon.size < 3) return@withContext emptyList()
+                val reach = Extent(polygon.minOf { it.first }, polygon.minOf { it.second }, polygon.maxOf { it.first }, polygon.maxOf { it.second })
+                pool.filter {
+                    val b = it.record.bounds
+                    reach.intersects(Extent(b.left, b.top, b.right, b.bottom)) &&
+                        fractionInsidePolygon(it.record.batch.toPoints(), polygon) >= SELECT_COVERAGE
+                }
+            }
+            _selection.value = if (picked.isEmpty()) {
+                null
+            } else {
+                withContext(Dispatchers.Default) { SelectionState.of(surface, page, picked) }
+            }
+        }
+    }
+
+    fun clearSelection() {
+        _selection.value = null
+    }
+
+    /** One undoable edit for a whole move, scale or recolour of the selection. */
+    private fun editSelection(change: (InkStroke) -> InkStroke) {
+        val sel = _selection.value ?: return
+        viewModelScope.launch {
+            val before = sel.items.map { it.record }
+            val (after, rendered) = withContext(Dispatchers.Default) {
+                val edited = before.map(change)
+                edited to edited.map { RenderedStroke(it, it.toStroke()) }
+            }
+            val byId = rendered.associateBy { it.record.id }
+            updateSurface(sel.surface) { list -> list.map { byId[it.record.id] ?: it } }
+            pushOp(EditOp.Transform(before, after))
+            repository.saveStrokes(after)
+            _selection.value = withContext(Dispatchers.Default) { SelectionState.of(sel.surface, sel.page, rendered) }
+        }
+    }
+
+    fun transformSelection(transform: StrokeTransform) = editSelection { it.transformed(transform) }
+
+    fun recolorSelection(rgb: Int) = editSelection { it.recolored(rgb) }
+
+    fun duplicateSelection() {
+        val sel = _selection.value ?: return
+        viewModelScope.launch {
+            val (copies, rendered) = withContext(Dispatchers.Default) {
+                val moved = StrokeTransform.move(DUPLICATE_OFFSET_PX, DUPLICATE_OFFSET_PX)
+                val made = sel.items.map { it.record.transformed(moved).copy(id = newId(), startedAt = now(), endedAt = now()) }
+                made to made.map { RenderedStroke(it, it.toStroke()) }
+            }
+            updateSurface(sel.surface) { it + rendered }
+            pushOp(EditOp.AddGroup(copies))
+            repository.saveStrokes(copies)
+            _selection.value = withContext(Dispatchers.Default) { SelectionState.of(sel.surface, sel.page, rendered) }
+        }
+    }
+
+    fun deleteSelection() {
+        val sel = _selection.value ?: return
+        _selection.value = null
+        val ids = sel.ids
+        updateSurface(sel.surface) { list -> list.filterNot { it.record.id in ids } }
+        pushOp(EditOp.Erase(sel.items.map { it.record }, emptyList()))
+        viewModelScope.launch { removeStrokes(ids) }
     }
 
     /** Records a fresh edit; anything undone before it can no longer be redone. */
@@ -766,22 +1065,6 @@ class NotebookViewModel @Inject constructor(
         }
     }
 
-    private fun strokeBounds(batch: StrokeInputBatch): AnchorBox {
-        if (batch.size == 0) return AnchorBox(0f, 0f, 0f, 0f)
-        var minX = Float.MAX_VALUE
-        var minY = Float.MAX_VALUE
-        var maxX = -Float.MAX_VALUE
-        var maxY = -Float.MAX_VALUE
-        for (i in 0 until batch.size) {
-            val p = batch.get(i)
-            if (p.x < minX) minX = p.x
-            if (p.y < minY) minY = p.y
-            if (p.x > maxX) maxX = p.x
-            if (p.y > maxY) maxY = p.y
-        }
-        return AnchorBox(minX, minY, maxX, maxY)
-    }
-
     private fun newId(): String = UUID.randomUUID().toString()
 
     private fun now(): Long = System.currentTimeMillis()
@@ -793,5 +1076,11 @@ class NotebookViewModel @Inject constructor(
         const val CANVAS_ANIM_MS = 250f
         const val PAGE_SAVE_DEBOUNCE_MS = 1000L
         const val ERASER_SIZE_KEY = "eraser_size"
+        const val BAND_REACH = 0.3f
+        const val BAND_THICKNESS = 1.1f
+        const val BAND_STEP_PX = 8f
+        const val MIN_BAND_PX = 4f
+        const val SELECT_COVERAGE = 0.6f
+        const val DUPLICATE_OFFSET_PX = 16f
     }
 }
