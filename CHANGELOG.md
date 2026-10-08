@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.3.0](https://github.com/Serendeep/marginalia/compare/v0.2.0...v0.3.0) (2026-10-08)
+
+
+### Features
+
+* add eraser sizes with a matching hover ring ([27070f7](https://github.com/Serendeep/marginalia/commit/27070f79e95baf5e4919426dc5ea2b8124b0e921))
+* add flashcards with lasso capture, spaced-repetition review and daily reminders ([e56a145](https://github.com/Serendeep/marginalia/commit/e56a1459b20f32ea60b28f45371e53e29e40226d))
+* add full-text search, PDF text highlights and markdown export ([7aae59b](https://github.com/Serendeep/marginalia/commit/7aae59bd1a612d92ce2b5c3671a03b2cadabb19c))
+* add study shell with today dashboard, session tracking and reading status ([10d3f6e](https://github.com/Serendeep/marginalia/commit/10d3f6e3fe5f4165e535772d556cf9b245f22fe1))
+* add tags, arXiv and DOI citations, and a stats screen ([f3bc775](https://github.com/Serendeep/marginalia/commit/f3bc775c5e3ef6cefa7b2f39f3cc49bdfcc94edd))
+* open PDF web links in an in-app popup ([3cd70c9](https://github.com/Serendeep/marginalia/commit/3cd70c9b6ead32c16fa1358e2ca0484b3b34cf87))
+* replace app icon with handwritten M mark ([eae698c](https://github.com/Serendeep/marginalia/commit/eae698cbf42d8b5bf84aae03c532fa6386a06d49))
+* study machine redesign, flashcards, search and research tools ([c04ed37](https://github.com/Serendeep/marginalia/commit/c04ed37b58ffc9005df6fd104c6b7e9f92ba214a))
+
+
+### Bug Fixes
+
+* keep PDF pages still while writing on them with the pen ([c6fca4b](https://github.com/Serendeep/marginalia/commit/c6fca4b5f2422f81fad4ae1f7e402e3ffa6156a2))
+* launch on the dark window background with the new splash icon ([c1870b6](https://github.com/Serendeep/marginalia/commit/c1870b644d5f2f51424836b4b2d4af0c1aed5e91))
+* resolve lint errors in the focus tile and ink rendering ([0debc71](https://github.com/Serendeep/marginalia/commit/0debc716d20ecd17eea61e3ed651ee7dbe88e000))
+
+
+### Performance Improvements
+
+* add a baseline profile and enable R8 for release builds ([5d35820](https://github.com/Serendeep/marginalia/commit/5d35820d1ac5ae619ad9281dc523369917897332))
+* mount live page ink only on pages at rest ([2c4a1d2](https://github.com/Serendeep/marginalia/commit/2c4a1d24a2e84ebe093816299a481bef56f891ec))
+* prefetch neighbouring PDF pages and reuse cached renders while scrolling ([4f6a6d0](https://github.com/Serendeep/marginalia/commit/4f6a6d04377d758bd35de1f88b418ab3bcdc3f26))
+
 ## [0.2.0](https://github.com/Serendeep/marginalia/compare/v0.1.0...v0.2.0) (2026-07-26)
 
 
