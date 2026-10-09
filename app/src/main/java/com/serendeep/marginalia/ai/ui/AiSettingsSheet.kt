@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -50,11 +51,15 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.serendeep.marginalia.ai.AiConfig
+import com.serendeep.marginalia.ai.AiTask
+import com.serendeep.marginalia.ai.Effort
+import com.serendeep.marginalia.ai.TaskModel
 import com.serendeep.marginalia.ai.ChatGptStatus
 import com.serendeep.marginalia.ai.ProviderChoice
 import com.serendeep.marginalia.ui.components.GlassButton
@@ -77,6 +82,8 @@ fun AiSettingsSheet(onDismiss: () -> Unit, viewModel: AiSettingsViewModel = hilt
     val models by viewModel.models.collectAsStateWithLifecycle()
     val notice by viewModel.notice.collectAsStateWithLifecycle()
     val autoSort by viewModel.autoSort.collectAsStateWithLifecycle()
+    val taskModels by viewModel.taskModels.collectAsStateWithLifecycle()
+    val selectedForDefault by viewModel.selected.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val connected = status is ChatGptStatus.Connected && config.provider == ProviderChoice.CHATGPT
     LaunchedEffect(connected) { if (connected) viewModel.loadModels() }
@@ -115,6 +122,9 @@ fun AiSettingsSheet(onDismiss: () -> Unit, viewModel: AiSettingsViewModel = hilt
             onCustomEdited = viewModel::saveCustom,
             autoSort = autoSort,
             onAutoSort = viewModel::setAutoSort,
+            taskModels = taskModels,
+            defaultModelFor = { task -> viewModel.defaultFor(task, (models as? ModelsState.Loaded)?.models.orEmpty()) ?: selectedForDefault },
+            onTaskModel = viewModel::setTaskModel,
         )
     }
 }
@@ -135,6 +145,9 @@ fun AiSettingsContent(
     onCustomEdited: (baseUrl: String, apiKey: String) -> Unit,
     autoSort: Boolean = true,
     onAutoSort: (Boolean) -> Unit = {},
+    taskModels: Map<AiTask, TaskModel> = emptyMap(),
+    defaultModelFor: (AiTask) -> String? = { null },
+    onTaskModel: (AiTask, TaskModel) -> Unit = { _, _ -> },
 ) {
     Column(
         Modifier
@@ -163,6 +176,9 @@ fun AiSettingsContent(
                 )
             }
             Switch(checked = autoSort, onCheckedChange = onAutoSort)
+        }
+        if (config.provider == ProviderChoice.COMPATIBLE || status is ChatGptStatus.Connected) {
+            TaskModelsSection(models, taskModels, defaultModelFor, onTaskModel)
         }
         Text(
             PRIVACY_NOTE,
@@ -333,6 +349,89 @@ private fun ModelPicker(models: ModelsState, selectedSlug: String?, onSelect: (S
                         onSelect(model.slug)
                     })
                 }
+            }
+        }
+    }
+}
+
+private val TASK_LABELS = listOf(
+    AiTask.ASK to "Ask",
+    AiTask.EXPLAIN to "Explain page",
+    AiTask.SUMMARIZE to "Summarize",
+    AiTask.CARDS to "Flashcards",
+    AiTask.AUTO_SORT to "Auto-sort & rename",
+)
+
+@Composable
+private fun TaskModelsSection(
+    models: ModelsState,
+    overrides: Map<AiTask, TaskModel>,
+    defaultModelFor: (AiTask) -> String?,
+    onChange: (AiTask, TaskModel) -> Unit,
+) {
+    val list = (models as? ModelsState.Loaded)?.models.orEmpty()
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text("MODELS PER ACTION", fontFamily = MonoFamily, fontSize = 10.5.sp, letterSpacing = 1.26.sp, color = DimInkDark)
+        TASK_LABELS.forEach { (task, label) ->
+            val current = overrides[task] ?: TaskModel()
+            val defaultSlug = defaultModelFor(task)
+            val defaultName = list.firstOrNull { it.slug == defaultSlug }?.displayName ?: defaultSlug ?: "none"
+            val efforts = (list.firstOrNull { it.slug == (current.model ?: defaultSlug) }?.efforts ?: emptyList())
+                .ifEmpty { Effort.entries }
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(label, fontFamily = BodyFamily, fontSize = 13.5.sp)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SettingsDropdown(
+                        shown = current.model?.let { slug -> list.firstOrNull { it.slug == slug }?.displayName ?: slug }
+                            ?: "Default \u00b7 $defaultName",
+                        options = listOf<Pair<String, String?>>("Default \u00b7 $defaultName" to null) +
+                            list.map { it.displayName to it.slug },
+                        onSelect = { onChange(task, current.copy(model = it)) },
+                        modifier = Modifier.weight(1f),
+                    )
+                    SettingsDropdown(
+                        shown = current.effort?.label() ?: "Default",
+                        options = listOf<Pair<String, Effort?>>("Default" to null) + efforts.map { it.label() to it },
+                        onSelect = { onChange(task, current.copy(effort = it)) },
+                        modifier = Modifier.width(120.dp),
+                    )
+                }
+            }
+        }
+    }
+}
+
+private fun Effort.label() = name.lowercase().replaceFirstChar { it.uppercase() }
+
+@Composable
+private fun <T> SettingsDropdown(
+    shown: String,
+    options: List<Pair<String, T>>,
+    onSelect: (T) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var open by remember { mutableStateOf(false) }
+    val shape = RoundedCornerShape(12.dp)
+    Box(modifier) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clip(shape)
+                .background(MaterialTheme.colorScheme.surfaceVariant)
+                .border(1.dp, MaterialTheme.colorScheme.outline, shape)
+                .clickable { open = true }
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(shown, fontFamily = BodyFamily, fontSize = 13.sp, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text("\u25be", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            options.forEach { (label, value) ->
+                DropdownMenuItem(text = { Text(label) }, onClick = {
+                    open = false
+                    onSelect(value)
+                })
             }
         }
     }
