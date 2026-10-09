@@ -8,22 +8,18 @@ import com.serendeep.marginalia.shell.PREFS
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
 import java.io.IOException
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
 
 data class BackupSummary(val createdAt: Long, val appVersionName: String, val counts: BackupCounts, val sizeBytes: Long)
 
 private const val DB_NAME = "marginalia.db"
-private const val KEEP_SAFETY_EXPORTS = 2
 
 @Singleton
 class BackupImporter @Inject constructor(
     @ApplicationContext private val context: Context,
     private val db: MarginaliaDatabase,
-    private val exporter: BackupExporter,
+    private val store: BackupStore,
 ) {
     private val staged = File(context.cacheDir, "backup-import.zip")
 
@@ -92,15 +88,8 @@ class BackupImporter @Inject constructor(
 
     private fun currentSchema() = db.openHelper.readableDatabase.version
 
-    private fun writeSafetyExport() {
-        val dir = File(context.filesDir, "backups").apply { mkdirs() }
-        val stamp = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date())
-        File(dir, "before-restore-$stamp.zip").outputStream().use { exporter.export(it) }
-        dir.listFiles { f -> f.name.startsWith("before-restore-") }
-            ?.sortedByDescending { it.name }
-            ?.drop(KEEP_SAFETY_EXPORTS)
-            ?.forEach { it.delete() }
-    }
+    private fun writeSafetyExport() =
+        store.writeSnapshot(BackupName(BackupKind.BEFORE_RESTORE, null, BackupName.stampOf(System.currentTimeMillis())))
 
     private fun restartApp() {
         val launch = context.packageManager.getLaunchIntentForPackage(context.packageName)

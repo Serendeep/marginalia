@@ -115,6 +115,15 @@ object BackupArchive {
         return manifest
     }
 
+    /** The manifest alone, unverified; null if the file isn't a readable backup. */
+    fun readManifest(file: File): BackupManifest? = try {
+        ZipFile(file).use { zip ->
+            zip.getEntry(MANIFEST)?.let { BackupManifest.parse(zip.getInputStream(it).readBytes().toString(Charsets.UTF_8)) }
+        }
+    } catch (_: Exception) {
+        null
+    }
+
     /** Checks the manifest, schema and every checksum; throws [BackupException] with a user-facing reason. */
     fun verify(file: File, currentSchema: Int): BackupManifest {
         val zip = try {

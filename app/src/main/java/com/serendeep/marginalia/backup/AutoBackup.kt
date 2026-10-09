@@ -5,8 +5,8 @@ import android.net.Uri
 import androidx.documentfile.provider.DocumentFile
 import androidx.work.Constraints
 import androidx.work.CoroutineWorker
-import androidx.work.ExistingPeriodicWorkPolicy
-import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.ExistingWorkPolicy
+import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.serendeep.marginalia.shell.PREFS
@@ -21,44 +21,85 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
+import java.time.Duration
+import java.time.Instant
+import java.time.ZoneId
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
 
-enum class BackupFrequency(val label: String, val days: Long) { DAILY("Daily", 1), WEEKLY("Weekly", 7) }
+const val DEFAULT_BACKUP_MINUTE = 3 * 60
 
 data class AutoBackupConfig(
-    val enabled: Boolean = false,
+    val schedule: BackupSchedule = BackupSchedule.NIGHTLY,
+    val destination: BackupDestination = BackupDestination.APP,
+    val minuteOfDay: Int = DEFAULT_BACKUP_MINUTE,
+    val onlyCharging: Boolean = true,
     val treeUri: String? = null,
-    val frequency: BackupFrequency = BackupFrequency.DAILY,
     val keep: Int = 7,
     val lastRunAt: Long = 0,
     val lastError: String? = null,
     val kept: Int = 0,
-)
+) {
+    /** A folder destination without a folder can't run. */
+    val active get() = schedule != BackupSchedule.OFF && (destination == BackupDestination.APP || treeUri != null)
+}
 
 private const val WORK_NAME = "auto-backup"
-private const val NAME_PREFIX = "marginalia-backup-"
-private const val KEY_ENABLED = "backup_auto_enabled"
+private const val KEY_SCHEDULE = "backup_auto_schedule"
+private const val KEY_DESTINATION = "backup_auto_destination"
+private const val KEY_MINUTE = "backup_auto_minute"
+private const val KEY_CHARGING = "backup_auto_charging"
 private const val KEY_TREE = "backup_auto_tree"
-private const val KEY_FREQUENCY = "backup_auto_frequency"
 private const val KEY_KEEP = "backup_auto_keep"
 private const val KEY_LAST_RUN = "backup_auto_last_run"
 private const val KEY_LAST_ERROR = "backup_auto_last_error"
 private const val KEY_KEPT = "backup_auto_kept"
 
-/** Off by default and silent: it only ever writes into the folder the user picked. */
+// Earlier layout: an on/off switch plus a daily/weekly choice, always into a folder.
+private const val KEY_LEGACY_ENABLED = "backup_auto_enabled"
+private const val KEY_LEGACY_FREQUENCY = "backup_auto_frequency"
+
+/** Reads the config from raw prefs, upgrading the folder-only layout; fresh installs get nightly into app storage. */
+fun autoBackupConfigFrom(p: Map<String, *>): AutoBackupConfig {
+    val tree = p[KEY_TREE] as? String
+    val base = AutoBackupConfig(
+        treeUri = tree,
+        keep = p[KEY_KEEP] as? Int ?: 7,
+        lastRunAt = p[KEY_LAST_RUN] as? Long ?: 0,
+        lastError = p[KEY_LAST_ERROR] as? String,
+        kept = p[KEY_KEPT] as? Int ?: 0,
+    )
+    val schedule = (p[KEY_SCHEDULE] as? String)?.let { runCatching { BackupSchedule.valueOf(it) }.getOrNull() }
+    if (schedule == null) {
+        val legacyFolder = p[KEY_LEGACY_ENABLED] == true && tree != null
+        return if (!legacyFolder) base else base.copy(
+            destination = BackupDestination.FOLDER,
+            schedule = if (p[KEY_LEGACY_FREQUENCY] == "WEEKLY") BackupSchedule.WEEKLY else BackupSchedule.NIGHTLY,
+        )
+    }
+    return base.copy(
+        schedule = schedule,
+        destination = (p[KEY_DESTINATION] as? String)?.let { runCatching { BackupDestination.valueOf(it) }.getOrNull() }
+            ?: BackupDestination.APP,
+        minuteOfDay = (p[KEY_MINUTE] as? Int)?.takeIf { it in 0 until 24 * 60 } ?: DEFAULT_BACKUP_MINUTE,
+        onlyCharging = p[KEY_CHARGING] as? Boolean ?: true,
+    )
+}
+
+/** On by default and silent: no notification, no foreground service. */
 @Singleton
 class AutoBackup @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val exporter: BackupExporter,
+    private val store: BackupStore,
 ) {
     private val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-    private val _config = MutableStateFlow(load())
+    private val _config = MutableStateFlow(autoBackupConfigFrom(prefs.all))
     val config: StateFlow<AutoBackupConfig> = _config.asStateFlow()
+
+    init {
+        save(_config.value)
+    }
 
     @Synchronized
     fun update(transform: (AutoBackupConfig) -> AutoBackupConfig) {
@@ -68,79 +109,105 @@ class AutoBackup @Inject constructor(
         schedule(next)
     }
 
-    /** Writes one backup into the chosen folder and trims old ones. Never throws. */
+    /** Status writes from a run; they must not touch the schedule, or the running worker would be replaced. */
+    private fun record(transform: (AutoBackupConfig) -> AutoBackupConfig) {
+        val next = transform(_config.value)
+        save(next)
+        _config.value = next
+    }
+
+    /** Called at launch so the default schedule exists without the user opening Settings. */
+    fun ensureScheduled() = schedule(_config.value, ExistingWorkPolicy.KEEP)
+
+    /** Writes one backup to the chosen destination and trims old ones. Never throws. */
     suspend fun run() {
         val cfg = _config.value
-        val tree = cfg.treeUri?.let { DocumentFile.fromTreeUri(context, Uri.parse(it)) }
-        if (!cfg.enabled || tree == null) return
+        if (!cfg.active) return
         withContext(Dispatchers.IO) {
-            var created: DocumentFile? = null
             try {
-                if (!tree.canWrite()) throw BackupException("The backup folder isn't available")
-                val stamp = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date())
-                created = tree.createFile("application/zip", "$NAME_PREFIX$stamp.zip")
-                    ?: throw BackupException("Couldn't create a file in the backup folder")
-                val out = context.contentResolver.openOutputStream(created.uri) ?: throw BackupException("Couldn't write to the backup folder")
-                out.use { exporter.export(it) }
-                val all = tree.listFiles()
-                    .filter { it.name.orEmpty().let { n -> n.startsWith(NAME_PREFIX) && n.endsWith(".zip") } }
-                    .sortedByDescending { it.name }
-                all.drop(cfg.keep).forEach { it.delete() }
-                update { it.copy(lastRunAt = System.currentTimeMillis(), lastError = null, kept = minOf(all.size, cfg.keep)) }
+                val kept = when (cfg.destination) {
+                    BackupDestination.APP -> {
+                        store.writeNightly(cfg.keep)
+                        store.nightlyCount()
+                    }
+                    BackupDestination.FOLDER -> writeToFolder(cfg)
+                }
+                record { it.copy(lastRunAt = System.currentTimeMillis(), lastError = null, kept = kept) }
             } catch (e: CancellationException) {
-                created?.delete()
                 throw e
             } catch (e: Exception) {
-                created?.delete()
-                update { it.copy(lastRunAt = System.currentTimeMillis(), lastError = e.message ?: "Backup failed") }
+                record { it.copy(lastRunAt = System.currentTimeMillis(), lastError = e.message ?: "Backup failed") }
             }
         }
     }
 
-    private fun schedule(cfg: AutoBackupConfig) {
+    private fun writeToFolder(cfg: AutoBackupConfig): Int {
+        val tree = DocumentFile.fromTreeUri(context, Uri.parse(cfg.treeUri))
+        if (tree == null || !tree.canWrite()) throw BackupException("The backup folder isn't available")
+        val name = BackupName(BackupKind.FOLDER, null, BackupName.stampOf(System.currentTimeMillis())).fileName
+        val created = tree.createFile("application/zip", name) ?: throw BackupException("Couldn't create a file in the backup folder")
+        try {
+            val out = context.contentResolver.openOutputStream(created.uri) ?: throw BackupException("Couldn't write to the backup folder")
+            out.use { store.exportTo(it) }
+        } catch (e: Exception) {
+            created.delete()
+            throw e
+        }
+        return store.trimFolder(tree, cfg.keep)
+    }
+
+    // One-shot jobs aimed at the next occurrence of the chosen time, each run queueing the next, so a
+    // changed time applies at once and the run stays on the wall clock across DST changes.
+    private fun schedule(cfg: AutoBackupConfig, policy: ExistingWorkPolicy = ExistingWorkPolicy.REPLACE) {
         val work = WorkManager.getInstance(context)
-        if (!cfg.enabled || cfg.treeUri == null) {
+        if (!cfg.active) {
             work.cancelUniqueWork(WORK_NAME)
             return
         }
         val constraints = Constraints.Builder()
-            .setRequiresCharging(true)
-            .setRequiresDeviceIdle(true)
+            .setRequiresCharging(cfg.onlyCharging)
             .setRequiresStorageNotLow(true)
             .build()
-        val request = PeriodicWorkRequestBuilder<AutoBackupWorker>(cfg.frequency.days, TimeUnit.DAYS)
+        val now = Instant.now()
+        // Weekly runs wait until most of a week has passed since the last one.
+        val from = if (cfg.schedule == BackupSchedule.WEEKLY && cfg.lastRunAt > 0) {
+            maxOf(now, Instant.ofEpochMilli(cfg.lastRunAt).plus(Duration.ofDays(6)))
+        } else {
+            now
+        }
+        val delay = Duration.between(now, from) + nextRunDelay(from, cfg.minuteOfDay, ZoneId.systemDefault())
+        val request = OneTimeWorkRequestBuilder<AutoBackupWorker>()
+            .setInitialDelay(delay.toMillis(), TimeUnit.MILLISECONDS)
             .setConstraints(constraints)
             .build()
-        work.enqueueUniquePeriodicWork(WORK_NAME, ExistingPeriodicWorkPolicy.UPDATE, request)
+        work.enqueueUniqueWork(WORK_NAME, policy, request)
     }
 
-    private fun load() = AutoBackupConfig(
-        enabled = prefs.getBoolean(KEY_ENABLED, false),
-        treeUri = prefs.getString(KEY_TREE, null),
-        frequency = prefs.getString(KEY_FREQUENCY, null)?.let { runCatching { BackupFrequency.valueOf(it) }.getOrNull() }
-            ?: BackupFrequency.DAILY,
-        keep = prefs.getInt(KEY_KEEP, 7),
-        lastRunAt = prefs.getLong(KEY_LAST_RUN, 0),
-        lastError = prefs.getString(KEY_LAST_ERROR, null),
-        kept = prefs.getInt(KEY_KEPT, 0),
-    )
+    /** Queues the run after this one; appended so it waits for the current worker to finish. */
+    fun scheduleNext() = schedule(_config.value, ExistingWorkPolicy.APPEND_OR_REPLACE)
 
     private fun save(c: AutoBackupConfig) {
         prefs.edit()
-            .putBoolean(KEY_ENABLED, c.enabled)
+            .putString(KEY_SCHEDULE, c.schedule.name)
+            .putString(KEY_DESTINATION, c.destination.name)
+            .putInt(KEY_MINUTE, c.minuteOfDay)
+            .putBoolean(KEY_CHARGING, c.onlyCharging)
             .putString(KEY_TREE, c.treeUri)
-            .putString(KEY_FREQUENCY, c.frequency.name)
             .putInt(KEY_KEEP, c.keep)
             .putLong(KEY_LAST_RUN, c.lastRunAt)
             .putString(KEY_LAST_ERROR, c.lastError)
             .putInt(KEY_KEPT, c.kept)
+            .remove(KEY_LEGACY_ENABLED)
+            .remove(KEY_LEGACY_FREQUENCY)
             .apply()
     }
 }
 
 class AutoBackupWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result {
-        EntryPointAccessors.fromApplication(applicationContext, AutoBackupEntryPoint::class.java).autoBackup().run()
+        val auto = EntryPointAccessors.fromApplication(applicationContext, AutoBackupEntryPoint::class.java).autoBackup()
+        auto.run()
+        auto.scheduleNext()
         return Result.success()
     }
 }

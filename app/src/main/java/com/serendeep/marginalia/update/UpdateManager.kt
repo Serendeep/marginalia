@@ -17,6 +17,7 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import com.serendeep.marginalia.BuildConfig
 import com.serendeep.marginalia.MainActivity
+import com.serendeep.marginalia.backup.SafetySnapshot
 import com.serendeep.marginalia.shell.PREFS
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
@@ -89,6 +90,7 @@ class UpdateRejected(message: String) : Exception(message)
 class UpdateManager @Inject constructor(
     @ApplicationContext private val context: Context,
     val remote: RemoteConfigStore,
+    private val snapshots: SafetySnapshot,
 ) {
     private val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -338,7 +340,7 @@ class UpdateManager @Inject constructor(
         scope.launch { install() }
     }
 
-    private fun install() {
+    private suspend fun install() {
         val info = latest() ?: return
         val file = apkFile(info)
         if (!file.exists()) return refresh()
@@ -355,6 +357,7 @@ class UpdateManager @Inject constructor(
             return refresh(error = problem)
         }
         _status.update { it.copy(phase = UpdatePhase.INSTALLING, error = null) }
+        snapshots.take("before update to ${info.versionName}")
         try {
             UpdateInstaller.install(context, file)
         } catch (e: Exception) {
