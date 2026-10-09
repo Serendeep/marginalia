@@ -192,3 +192,6 @@ fun MarginLabel(
         )
     }
 }
+
+/** Pills float over white PDF pages; anything thinner lets the page text show through them. */
+const val PILL_ALPHA = 0.94f
