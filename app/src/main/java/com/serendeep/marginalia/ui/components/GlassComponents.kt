@@ -9,10 +9,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -21,7 +17,6 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -30,14 +25,10 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.composables.core.Dialog
-import com.composables.core.DialogPanel
 import com.composables.core.Menu
 import com.composables.core.MenuButton
 import com.composables.core.MenuContent
 import com.composables.core.MenuItem
-import com.composables.core.Scrim
-import com.composables.core.rememberDialogState
 import com.composables.core.rememberMenuState
 import com.serendeep.marginalia.ui.theme.GlassBorderDark
 import com.serendeep.marginalia.ui.theme.GlassBorderLight
@@ -46,40 +37,8 @@ import com.serendeep.marginalia.ui.theme.LocalDarkTheme
 // The one place surfaces are styled. Screens compose these; they never touch
 // raw dialogs, menus, or button styling directly.
 
-private val PanelShape = RoundedCornerShape(28.dp)
-
 @Composable
 fun glassBorder(): Color = if (LocalDarkTheme.current) GlassBorderDark else GlassBorderLight
-
-/**
- * Modal panel on a dimmed scrim. Behavior (focus, back, outside-tap) comes
- * from the unstyled primitive; the shell is ours.
- */
-@Composable
-fun GlassDialog(
-    onDismiss: () -> Unit,
-    content: @Composable () -> Unit,
-) {
-    val state = rememberDialogState(initiallyVisible = true)
-    LaunchedEffect(state.visible) {
-        if (!state.visible) onDismiss()
-    }
-    Dialog(state = state) {
-        Scrim(scrimColor = Color.Black.copy(alpha = 0.55f))
-        DialogPanel(
-            Modifier
-                .widthIn(min = 320.dp, max = 480.dp)
-                .imePadding()
-                .verticalScroll(rememberScrollState())
-                .clip(PanelShape)
-                .background(MaterialTheme.colorScheme.surface)
-                .border(1.dp, glassBorder(), PanelShape)
-                .padding(24.dp),
-        ) {
-            Column(content = { content() })
-        }
-    }
-}
 
 @Composable
 fun glassTextFieldColors() = OutlinedTextFieldDefaults.colors(

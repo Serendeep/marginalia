@@ -14,7 +14,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -23,12 +22,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -41,13 +38,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import com.serendeep.marginalia.ui.theme.MonoFamily
 
 private fun isWeb(uri: Uri?) = uri?.scheme == "http" || uri?.scheme == "https"
 
@@ -100,33 +94,24 @@ fun WebPopup(url: String, onDismiss: () -> Unit) {
                     // Swallow taps so only the scrim dismisses.
                     .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {},
             ) {
-                Row(
-                    Modifier.fillMaxWidth().height(52.dp).padding(horizontal = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    IconButton(onClick = { if (canGoBack) webView?.goBack() else onDismiss() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                    Text(
-                        host.uppercase(),
-                        fontFamily = MonoFamily,
-                        fontSize = 12.sp,
-                        letterSpacing = 1.2.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.weight(1f).padding(horizontal = 6.dp),
-                    )
-                    IconButton(onClick = {
-                        runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(currentUrl))) }
-                        onDismiss()
-                    }) {
-                        Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = "Open in browser")
-                    }
-                    IconButton(onClick = onDismiss) {
-                        Icon(Icons.Filled.Close, contentDescription = "Close")
-                    }
-                }
+                PanelHeader(
+                    eyebrow = "Web",
+                    title = host,
+                    onClose = onDismiss,
+                    leading = {
+                        IconButton(onClick = { if (canGoBack) webView?.goBack() else onDismiss() }) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        }
+                    },
+                    actions = {
+                        IconButton(onClick = {
+                            runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(currentUrl))) }
+                            onDismiss()
+                        }) {
+                            Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = "Open in browser")
+                        }
+                    },
+                )
                 Box(Modifier.fillMaxWidth().height(2.dp)) {
                     if (progress in 1..99) {
                         LinearProgressIndicator(
