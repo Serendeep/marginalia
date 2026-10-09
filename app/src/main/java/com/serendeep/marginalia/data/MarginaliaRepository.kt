@@ -287,6 +287,11 @@ class MarginaliaRepository @Inject constructor(
         searchDao.clearIndexed(documentId)
     }
 
+    suspend fun highlightsOf(lectureId: String, limit: Int): List<HighlightRow> = highlightDao.forLecture(lectureId, limit)
+
+    /** Recognised handwriting of a lecture, optionally only the blocks written beside [page] (0-based). */
+    suspend fun inkText(lectureId: String, page: Int? = null): List<InkPageText> = searchDao.inkFor(lectureId, page)
+
     suspend fun indexedPageText(lectureId: String, page: Int): String? = searchDao.pageText(lectureId, page)
 
     suspend fun search(query: String, includeInk: Boolean = true): SearchResults {

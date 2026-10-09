@@ -201,6 +201,8 @@ data class StrokeRef(val lectureId: String, val strokeId: String)
 
 data class InkRow(val rowId: Long, val lectureId: String)
 
+data class InkPageText(val page: Int?, val text: String)
+
 data class InkHit(val lectureId: String, val title: String, val blockKey: String, val page: Int?, val snippet: String)
 
 @Dao
@@ -240,6 +242,9 @@ interface SearchDao {
             "WHERE ink_text MATCH :match ORDER BY l.title LIMIT :limit",
     )
     suspend fun searchInk(match: String, limit: Int): List<InkHit>
+
+    @Query("SELECT page, text FROM ink_text WHERE lectureId = :lectureId AND (:page IS NULL OR page = :page)")
+    suspend fun inkFor(lectureId: String, page: Int?): List<InkPageText>
 
     @Query("DELETE FROM indexed_documents WHERE documentId = :documentId")
     suspend fun clearIndexed(documentId: String)
@@ -311,6 +316,13 @@ interface HighlightDao {
             "JOIN lectures l ON l.id = h.lectureId ORDER BY h.createdAt DESC LIMIT :limit",
     )
     fun observeRecent(limit: Int): Flow<List<HighlightRow>>
+
+    @Query(
+        "SELECT h.*, l.title AS lectureTitle FROM highlights h " +
+            "JOIN lectures l ON l.id = h.lectureId WHERE h.lectureId = :lectureId " +
+            "ORDER BY h.page, h.createdAt LIMIT :limit",
+    )
+    suspend fun forLecture(lectureId: String, limit: Int): List<HighlightRow>
 
     @Query("SELECT COUNT(*) FROM highlights")
     fun observeCount(): Flow<Int>
