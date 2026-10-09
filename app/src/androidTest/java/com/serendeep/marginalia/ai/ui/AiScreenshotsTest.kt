@@ -2,7 +2,10 @@ package com.serendeep.marginalia.ai.ui
 
 import android.graphics.Bitmap
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -21,7 +24,6 @@ import com.serendeep.marginalia.ai.ChatGptStatus
 import com.serendeep.marginalia.ai.ChatModel
 import com.serendeep.marginalia.ai.ProviderChoice
 import com.serendeep.marginalia.ui.theme.MarginaliaTheme
-import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -74,50 +76,58 @@ class AiScreenshotsTest {
         settings(AiConfig(provider = ProviderChoice.COMPATIBLE), ChatGptStatus.Disconnected),
     )
 
-    private fun notebook(ready: Boolean, action: AiAction?, state: AiRunState, text: String) = @Composable {
-        NotebookAiContent(
-            ready = ready, hasPdf = true, action = action, state = state, text = MutableStateFlow(text),
-            drafts = emptyList(), savedCount = 0, pageLabel = "p.14",
-            onExplain = {}, onSummarize = {}, onCards = {}, onAsk = {}, onStop = {}, onSetup = {},
-            onDraft = { _, _, _, _ -> }, onSave = {},
+    private val transcript = listOf(
+        AnswerMessage("0-u", AnswerRole.USER, "Why does Dijkstra fail with negative edges?"),
+        AnswerMessage("0-0", AnswerRole.STATUS, "Reading Lecture 7 p.14"),
+        AnswerMessage(
+            "0-1", AnswerRole.ASSISTANT,
+            "A settled node can still get a shorter path through a negative edge [Lecture 7 p.14], so the **greedy choice breaks**.\n\n" +
+                "- Keep a priority queue of `(distance, node)` pairs\n- Bellman-Ford handles negative weights in O(VE) [Lecture 7 p.15]",
+        ),
+    )
+
+    private fun chat(ready: Boolean, messages: List<AnswerMessage>, streaming: Boolean = false) = @Composable {
+        ChatPaneContent(
+            messages = messages, streaming = streaming, ready = ready, needsSetup = false,
+            drafts = emptyList(), savedCount = 0,
+            suggestions = listOf("Quiz me on Lecture 7", "Compare Lecture 7 and Lecture 8", "What did I highlight this week?"),
+            onSend = {}, onStop = {}, onNewChat = {}, onCitation = { _, _ -> },
+            onDraft = { _, _, _, _ -> }, onSaveDrafts = {}, onSetup = {},
         )
     }
 
     @Test
-    fun notebookDisconnected() = shoot("notebook-disconnected", notebook(false, null, AiRunState.Idle, ""))
+    fun askScreen() = shoot("ask-screen") {
+        Row(Modifier.width(1120.dp).height(680.dp).padding(18.dp), horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+            Box(Modifier.weight(0.6f)) { chat(true, transcript)() }
+            PreviewPaneContent(null, null, false, {}, Modifier.weight(0.4f))
+        }
+    }
 
     @Test
-    fun notebookStreaming() = shoot(
-        "notebook-ask",
-        notebook(
-            true, AiAction.EXPLAIN, AiRunState.Streaming,
-            "**Main idea.** Dijkstra's algorithm finds shortest paths from one source when every edge weight is non-negative.\n\n" +
-                "- Keep a priority queue of `(distance, node)` pairs\n- Pop the closest node and relax its edges\n" +
-                "- With negative edges a settled node can still improve, so the **greedy choice breaks**",
-        ),
-    )
+    fun askScreenEmpty() = shoot("ask-empty") {
+        Box(Modifier.width(700.dp).height(560.dp).padding(18.dp)) { chat(true, emptyList())() }
+    }
 
     @Test
-    fun todayCardDisconnected() = shoot("today-card-disconnected", todayCard(false, AiRunState.Idle, ""))
+    fun notebookPanelDisconnected() = shoot("notebook-disconnected") {
+        Box(Modifier.width(460.dp).height(560.dp).padding(18.dp)) { chat(false, emptyList())() }
+    }
 
     @Test
-    fun todayCardAnswer() = shoot(
-        "today-card",
-        todayCard(
-            true, AiRunState.Done,
-            "Dijkstra fails with negative edge weights because a settled node may later get a shorter path [Lecture 7 p.14]. " +
-                "Bellman-Ford handles them in O(VE) [Lecture 7 p.15].",
-        ),
-    )
+    fun notebookPanelChat() = shoot("notebook-ask") {
+        Box(Modifier.width(460.dp).height(640.dp).padding(18.dp)) { chat(true, transcript, streaming = true)() }
+    }
 
-    private fun todayCard(ready: Boolean, state: AiRunState, text: String) = @Composable {
+    @Test
+    fun todayCardDisconnected() = shoot("today-card-disconnected") { todayCard(false)() }
+
+    @Test
+    fun todayCard() = shoot("today-card") { todayCard(true)() }
+
+    private fun todayCard(ready: Boolean) = @Composable {
         Box(Modifier.width(300.dp).padding(18.dp)) {
-            AskChatGptCardContent(
-                ready = ready, state = state, text = MutableStateFlow(text),
-                citations = if (state == AiRunState.Done) listOf(CitationChip("Lecture 7", 14, "l"), CitationChip("Lecture 7", 15, "l")) else emptyList(),
-                onAsk = {}, onStop = {}, onClose = {}, onOpenAt = { _, _ -> }, onSetup = {},
-                modifier = Modifier.fillMaxWidth(),
-            )
+            AskChatGptCardContent(ready = ready, onAsk = {}, onSetup = {}, modifier = Modifier.fillMaxWidth())
         }
     }
 }
