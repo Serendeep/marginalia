@@ -40,7 +40,6 @@ class UpdateDownloadWorker(context: Context, params: WorkerParameters) : Corouti
                     notify(pct)
                 }
             }
-            updates.maybeAutoInstall()
             Result.success()
         } catch (e: CancellationException) {
             throw e
@@ -76,6 +75,8 @@ class UpdateDownloadWorker(context: Context, params: WorkerParameters) : Corouti
             .setProgress(100, percent, percent == 0)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
+            .setSilent(true)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
             .setContentIntent(openAppIntent(applicationContext))
             .build()
         return ForegroundInfo(NOTIFICATION_PROGRESS, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)

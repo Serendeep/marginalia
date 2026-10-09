@@ -159,7 +159,6 @@ fun UpdatesSectionContent(vm: UpdateViewModel = hiltViewModel()) {
     ToggleRow("Check automatically", settings.checkAutomatically) { v -> vm.setSettings { it.copy(checkAutomatically = v) } }
     ToggleRow("Wi-Fi only", settings.wifiOnly) { v -> vm.setSettings { it.copy(wifiOnly = v) } }
     ToggleRow("Download automatically", settings.downloadAutomatically) { v -> vm.setSettings { it.copy(downloadAutomatically = v) } }
-    ToggleRow("Install when idle", settings.installWhenIdle) { v -> vm.setSettings { it.copy(installWhenIdle = v) } }
 }
 
 @Composable
