@@ -186,7 +186,7 @@ class AgentToolsTest {
             tools.label("read_pages", JSONObject("""{"document_id":"d1","from_page":3,"to_page":5}""")),
         )
         assertEquals("Reading Thermodynamics p.2", tools.label("read_pages", JSONObject("""{"document_id":"d2","from_page":2}""")))
-        assertEquals("Looking at p.4", tools.label("view_page", JSONObject("""{"document_id":"d1","page":4}""")))
+        assertEquals("Looking at Attention Is All You Need p.4", tools.label("view_page", JSONObject("""{"document_id":"d1","page":4}""")))
         assertEquals("Checking your highlights", tools.label("get_highlights", JSONObject()))
         assertEquals("Reading your handwritten notes", tools.label("get_notes", JSONObject()))
     }
