@@ -17,21 +17,29 @@ welcome, see [CONTRIBUTING.md](CONTRIBUTING.md).
 - [x] Refresh README screenshots with seeded course, lecture, and margin ink
 - [x] Empty notebooks: create a titled, blank pen-only notebook without a PDF
 
-## Now: notebooks and import flow
+## Done in 1.0: the study machine
 
 - [x] Register as a PDF handler: open PDFs from any app straight into Marginalia
-- [x] Ink on the page: highlighter and pen strokes directly on PDF pages,
-      not just the margin
+- [x] Ink on the page: highlighter and pen strokes directly on PDF pages
+- [x] Today dashboard, automatic study-time tracking, daily goal and streaks
+- [x] Reading status (to read / reading / done) and resume at the last page
+- [x] Full-text search across PDF text, highlights and handwriting
+- [x] Smart highlighter that captures the text under it; Markdown export
+- [x] Flashcards from lasso, highlights and typing; SM-2 spaced review; daily reminder
+- [x] Tags, arXiv/DOI detection, BibTeX citations, Stats screen
+- [x] Pencil tools: hold-to-shape, scratch-out, ink selection, laser, pen widths and colours, eraser sizes
+- [x] On-device handwriting recognition (convert to text, searchable notes)
+- [x] Optional ChatGPT features via "Sign in with ChatGPT", or any OpenAI-compatible endpoint
+- [x] Pen strokes on PDF pages no longer scroll the page
+- [x] Faster cold start (baseline profile) and R8-shrunk release builds
 
 ## Next
 
 - [ ] Backup & restore: safe database export with integrity checks
-- [ ] Pen customisation: nib styles, colors, stroke widths
-- [ ] Full-text search across all lectures
+- [ ] Light theme
+- [ ] Handwritten flashcard answers
 - [ ] Fix link taps on rotated PDF pages
 - [ ] Drag-to-reorder notebooks in the library
-- [ ] Light theme
-- [ ] Faster cold start (baseline profiles)
 
 ## Later
 
