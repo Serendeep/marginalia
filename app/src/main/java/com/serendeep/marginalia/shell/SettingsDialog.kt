@@ -22,6 +22,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.serendeep.marginalia.BuildConfig
 import com.serendeep.marginalia.handwriting.ModelState
 import com.serendeep.marginalia.handwriting.modelStatus
 import com.serendeep.marginalia.ink.PencilAction
@@ -31,6 +32,7 @@ import com.serendeep.marginalia.ui.components.PanelSection
 import com.serendeep.marginalia.ui.components.SidePanel
 import com.serendeep.marginalia.ui.components.GlassTextButton
 import com.serendeep.marginalia.ui.components.glassTextFieldColors
+import com.serendeep.marginalia.update.UpdatesSectionContent
 
 /** Daily goal and reminder; opened by long-pressing the sidebar goal card. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -112,6 +114,10 @@ fun SettingsDialog(
                 )
                 if (modelState == ModelState.NotDownloaded) GlassTextButton("Download model", onClick = onDownloadModel)
             }
+        }
+        if (BuildConfig.UPDATES_ENABLED) {
+            PanelDivider()
+            PanelSection("Updates") { UpdatesSectionContent() }
         }
     }
 }

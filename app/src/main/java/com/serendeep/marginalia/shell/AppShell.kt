@@ -199,6 +199,7 @@ private fun Sidebar(screen: Screen, onNavigate: (Screen) -> Unit, viewModel: She
                 ) { onNavigate(Screen.Library(LibraryFilter.Status(status))) }
             }
         }
+        com.serendeep.marginalia.update.UpdateSidebarRow()
         com.serendeep.marginalia.ai.ui.AiSidebarItem()
         GoalCard(viewModel)
     }
