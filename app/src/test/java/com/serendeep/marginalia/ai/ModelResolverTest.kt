@@ -76,4 +76,15 @@ class ModelResolverTest {
         assertEquals(AiTask.ASK, Prompts.askLibrary("q", emptyList()).task)
         assertEquals(AiTask.AUTO_SORT, Prompts.sortDocument(emptyList(), "t", "f.pdf", null, listOf("p")).task)
     }
+
+    @Test
+    fun fastModelIsPickedFromTheDescription() {
+        val plan = listOf(
+            ChatModel("gpt-6.1-sol", "GPT-6.1-Sol", description = "Latest workhorse model for coding and everyday work."),
+            ChatModel("gpt-6-astra", "GPT-6-Astra", description = "Frontier intelligence for the most demanding work."),
+            ChatModel("gpt-6-luna", "GPT-6-Luna", description = "Fast and affordable model for easier tasks."),
+            ChatModel("gpt-5.6-luna", "GPT-5.6-Luna", description = "Older fast and efficient model."),
+        )
+        assertEquals("gpt-6-luna", ModelResolver.fastModel(plan)?.slug)
+    }
 }

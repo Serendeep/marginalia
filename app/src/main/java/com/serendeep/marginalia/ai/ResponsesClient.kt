@@ -73,11 +73,13 @@ class ResponsesClient @Inject constructor(
             val arr = JSONObject(body).optJSONArray("models") ?: return emptyList()
             return (0 until arr.length()).mapNotNull { arr.optJSONObject(it) }
                 .filter { it.optString("visibility") == "list" && it.optString("slug").isNotEmpty() }
+                .sortedBy { it.optInt("priority", Int.MAX_VALUE) }
                 .map {
                     ChatModel(
                         it.optString("slug"),
                         it.optString("display_name").ifEmpty { it.optString("slug") },
                         parseEfforts(it.optJSONArray("supported_reasoning_levels")),
+                        it.optString("description"),
                     )
                 }
         }

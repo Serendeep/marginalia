@@ -3,7 +3,7 @@ package com.serendeep.marginalia.ai
 enum class AiTask { ASK, EXPLAIN, SUMMARIZE, CARDS, AUTO_SORT }
 
 enum class Effort {
-    MINIMAL, LOW, MEDIUM, HIGH;
+    MINIMAL, LOW, MEDIUM, HIGH, XHIGH, MAX, ULTRA;
 
     val wire: String get() = name.lowercase()
 
@@ -25,7 +25,12 @@ class AiRequest(
 )
 
 /** [efforts] is empty when the provider doesn't say which reasoning levels the model supports. */
-data class ChatModel(val slug: String, val displayName: String, val efforts: List<Effort> = emptyList())
+data class ChatModel(
+    val slug: String,
+    val displayName: String,
+    val efforts: List<Effort> = emptyList(),
+    val description: String = "",
+)
 
 enum class AiErrorKind { NOT_CONNECTED, UNAUTHORIZED, USAGE_LIMIT, USAGE_UNAVAILABLE, NO_MODEL, HTTP, NETWORK, SERVER, PROTOCOL }
 
