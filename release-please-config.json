@@ -9,8 +9,7 @@
           "type": "generic",
           "path": "app/build.gradle.kts"
         }
-      ],
-      "release-as": "1.0.0"
+      ]
     }
   }
 }
