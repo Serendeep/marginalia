@@ -99,6 +99,17 @@ class TextIndexer @Inject constructor(
         }
     }
 
+    /** Text line boxes touching [area] of a PDF page; empty on any failure. */
+    suspend fun textLineRects(path: String, page: Int, area: RectF): List<RectF> = withContext(Dispatchers.IO) {
+        val source = runCatching { PdfDocumentSource.open(context, File(path)) }.getOrNull()
+            ?: return@withContext emptyList()
+        try {
+            source.textLineRects(page, area)
+        } finally {
+            source.close()
+        }
+    }
+
     private companion object {
         const val PREFS = "marginalia"
         const val VERSION_KEY = "text_index_version"

@@ -158,7 +158,7 @@ class MainActivity : ComponentActivity() {
             val elapsed = SystemClock.elapsedRealtime()
             if (elapsed - lastPencilToggleAt > 400) {
                 lastPencilToggleAt = elapsed
-                notebookViewModel.toggleTool()
+                notebookViewModel.onPencilDoubleTap()
             }
             return true
         }

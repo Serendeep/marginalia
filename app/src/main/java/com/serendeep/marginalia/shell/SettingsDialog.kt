@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
@@ -24,6 +25,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.serendeep.marginalia.ink.PencilAction
 import com.serendeep.marginalia.ui.components.GlassButton
 import com.serendeep.marginalia.ui.components.GlassDialog
 import com.serendeep.marginalia.ui.components.GlassTextButton
@@ -35,9 +37,11 @@ import com.serendeep.marginalia.ui.components.glassTextFieldColors
 fun SettingsDialog(
     goalMin: Int,
     reminder: ReminderSettings,
+    pencilAction: PencilAction,
     onDismiss: () -> Unit,
-    onSave: (goalMin: Int, reminder: ReminderSettings) -> Unit,
+    onSave: (goalMin: Int, reminder: ReminderSettings, pencilAction: PencilAction) -> Unit,
 ) {
+    var action by remember { mutableStateOf(pencilAction) }
     var goalText by remember { mutableStateOf(goalMin.toString()) }
     var enabled by remember { mutableStateOf(reminder.enabled) }
     val time = rememberTimePickerState(reminder.minuteOfDay / 60, reminder.minuteOfDay % 60, is24Hour = true)
@@ -65,11 +69,22 @@ fun SettingsDialog(
             Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { TimePicker(state = time) }
         }
         Spacer(Modifier.height(16.dp))
+        Text("Pencil double-tap", style = MaterialTheme.typography.labelLarge)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            PencilAction.entries.forEach { option ->
+                FilterChip(
+                    selected = option == action,
+                    onClick = { action = option },
+                    label = { Text(option.label, maxLines = 1) },
+                )
+            }
+        }
+        Spacer(Modifier.height(16.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
             GlassTextButton("Cancel", onClick = onDismiss)
             Spacer(Modifier.width(8.dp))
             GlassButton("Save", enabled = goal != null, onClick = {
-                onSave(goal ?: goalMin, ReminderSettings(enabled, time.hour * 60 + time.minute))
+                onSave(goal ?: goalMin, ReminderSettings(enabled, time.hour * 60 + time.minute), action)
             })
         }
     }

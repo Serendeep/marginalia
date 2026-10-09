@@ -87,7 +87,9 @@ import com.serendeep.marginalia.ui.components.GlassTextButton
 import com.serendeep.marginalia.ui.components.MarginLabel
 import com.serendeep.marginalia.ui.components.glassBorder
 import com.serendeep.marginalia.cards.CardEditorSheet
+import com.serendeep.marginalia.data.InkSurface
 import com.serendeep.marginalia.ink.InkCanvas
+import com.serendeep.marginalia.ink.PenColors
 import com.serendeep.marginalia.ink.InkTool
 import com.serendeep.marginalia.ink.Pen
 import com.serendeep.marginalia.ink.Pens
@@ -177,9 +179,35 @@ fun NotebookScreen(
     val pdfSyncTarget by viewModel.pdfScrollTarget.collectAsStateWithLifecycle()
     val currentPage by viewModel.currentPage.collectAsStateWithLifecycle()
     val pageCount by viewModel.pageCount.collectAsStateWithLifecycle()
-    val strokeList = remember(strokes) { strokes.map { it.stroke } }
-    val pageStrokeMap = remember(pageStrokes) {
-        pageStrokes.groupBy { it.record.pdfPage }.mapValues { (_, items) -> items.map { it.stroke } }
+    val penWidth by viewModel.penWidth.collectAsStateWithLifecycle()
+    val swatches by viewModel.swatches.collectAsStateWithLifecycle()
+    val selection by viewModel.selection.collectAsStateWithLifecycle()
+    // Picked-up ink is drawn by the selection layer, so the sheet underneath skips it.
+    val strokeList = remember(strokes, selection) {
+        val held = selection?.takeIf { it.surface == InkSurface.MARGIN }?.ids.orEmpty()
+        strokes.filterNot { it.record.id in held }.map { it.stroke }
+    }
+    val pageStrokeMap = remember(pageStrokes, selection) {
+        val held = selection?.takeIf { it.surface == InkSurface.PAGE }?.ids.orEmpty()
+        pageStrokes.filterNot { it.record.id in held }
+            .groupBy { it.record.pdfPage }.mapValues { (_, items) -> items.map { it.stroke } }
+    }
+    val palette = LocalPenPalette.current
+    val themed = remember(palette) { intArrayOf(palette.graphite.toArgb(), palette.indigo.toArgb(), palette.rust.toArgb()) }
+    val choiceColors = remember(themed) { List(PenColors.choiceCount) { PenColors.resolve(it, themed) } }
+    val swatchArgb = remember(swatches, themed) { swatches.map { PenColors.resolve(it, themed) } }
+    val trails = remember { LaserTrails() }
+    val selectionActions = remember(viewModel) {
+        SelectionActions(
+            onLasso = { page, polygon ->
+                viewModel.selectInside(if (page == null) InkSurface.MARGIN else InkSurface.PAGE, page, polygon)
+            },
+            onTransform = viewModel::transformSelection,
+            onRecolor = viewModel::recolorSelection,
+            onDuplicate = viewModel::duplicateSelection,
+            onDelete = viewModel::deleteSelection,
+            onClear = viewModel::clearSelection,
+        )
     }
     val pageAnchors = remember(anchors) {
         anchors.map { PageAnchor(it.id, it.pdfPage, it.pageXFraction, it.pageYFraction, it.label) }
@@ -197,6 +225,7 @@ fun NotebookScreen(
         )
     }
     val pdfHaze = remember { HazeState() }
+    Box(Modifier.fillMaxSize()) {
     Row(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).statusBarsPadding()) {
         if (current != null) {
         Box(
@@ -230,15 +259,15 @@ fun NotebookScreen(
                     onScrollPos = viewModel::onPdfScrollPos,
                     pageStrokes = pageStrokeMap,
                     inkTool = tool,
-                    inkColor = when (selectedPen) {
-                        Pen.GRAPHITE -> LocalPenPalette.current.graphite
-                        Pen.INDIGO -> LocalPenPalette.current.indigo
-                        Pen.RUST -> LocalPenPalette.current.rust
-                    }.toArgb(),
-                    inkSizePx = Pens.DEFAULT_SIZE_PX,
+                    inkColor = swatchArgb[selectedPen.ordinal],
+                    inkSizePx = penWidth.px,
                     eraserRadiusPx = eraserSize.radiusPx,
                     onPageStrokeFinished = viewModel::onPageStrokeFinished,
                     onPageErase = viewModel::erasePageAt,
+                    onLaser = trails::touch,
+                    selection = selection,
+                    selectionActions = selectionActions,
+                    selectionColors = choiceColors,
                     onLasso = { region ->
                         viewModel.stageLassoCard(region.page) {
                             current.renderRegion(
@@ -386,17 +415,12 @@ fun NotebookScreen(
                         }
                     },
             ) {
-                val penPalette = LocalPenPalette.current
-                val penColor = when (selectedPen) {
-                    Pen.GRAPHITE -> penPalette.graphite
-                    Pen.INDIGO -> penPalette.indigo
-                    Pen.RUST -> penPalette.rust
-                }
                 InkCanvas(
                     strokes = strokeList,
                     tool = tool,
-                    penColor = penColor.toArgb(),
-                    penSizePx = Pens.DEFAULT_SIZE_PX,
+                    penColor = swatchArgb[selectedPen.ordinal],
+                    penSizePx = penWidth.px,
+                    onLaser = trails::touch,
                     eraserRadiusPx = eraserSize.radiusPx,
                     canvasOffset = canvasOffset,
                     onStrokeFinished = viewModel::onStrokeFinished,
@@ -405,6 +429,20 @@ fun NotebookScreen(
                     modifier = Modifier.fillMaxSize(),
                     onPenActive = viewModel::setPenActive,
                 )
+                if (tool == InkTool.SELECT) {
+                    SelectionLayer(
+                        selection = selection?.takeIf { it.surface == InkSurface.MARGIN },
+                        page = null,
+                        offsetY = { canvasOffset },
+                        colors = choiceColors,
+                        actions = selectionActions,
+                        onCard = { box ->
+                            viewModel.stageLassoCard(null) {
+                                renderMarginCrop(strokes, Rect(box.left, box.top, box.right, box.bottom), sheetColor)
+                            }
+                        },
+                    )
+                }
                 if (tool == InkTool.LASSO) {
                     LassoOverlay(Modifier.fillMaxSize()) { area ->
                         // The sheet scrolls; the crop is taken in note-canvas space.
@@ -419,14 +457,21 @@ fun NotebookScreen(
             ToolRail(
                 tool = tool,
                 selectedPen = selectedPen,
+                swatchColors = swatchArgb.map { Color(it) },
+                choiceColors = choiceColors,
+                penWidth = penWidth,
+                onPenWidth = viewModel::setPenWidth,
+                onSwatchChoice = viewModel::setSwatch,
                 penDown = penDown,
                 canUndo = canUndo,
                 canRedo = canRedo,
                 onSelectPen = viewModel::selectPen,
                 onHighlighter = viewModel::selectHighlighter,
+                onLaser = { viewModel.setTool(InkTool.LASER) },
                 onEraser = { viewModel.setTool(InkTool.ERASER) },
                 eraserSize = eraserSize,
                 onEraserSize = viewModel::setEraserSize,
+                onSelect = { viewModel.setTool(InkTool.SELECT) },
                 onLasso = viewModel::selectLasso,
                 onUndo = viewModel::undo,
                 onRedo = viewModel::redo,
@@ -446,6 +491,8 @@ fun NotebookScreen(
                 )
             }
         }
+    }
+    LaserOverlay(trails)
     }
 }
 
