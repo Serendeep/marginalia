@@ -330,6 +330,8 @@ fun LibraryScreen(
     renaming?.let { target ->
         NamePromptDialog(
             title = "Rename notebook",
+            initial = target.lecture.title,
+            confirmLabel = "Rename",
             onDismiss = { renaming = null },
             onConfirm = { name ->
                 viewModel.renameLecture(target.lecture.id, name)
@@ -437,15 +439,17 @@ private fun NamePromptDialog(
     title: String,
     onDismiss: () -> Unit,
     onConfirm: (String) -> Unit,
+    initial: String = "",
+    confirmLabel: String = "Create",
 ) {
-    var text by remember { mutableStateOf("") }
+    var text by remember { mutableStateOf(initial) }
     CenterPanel(
         onDismiss = onDismiss,
         title = title,
         eyebrow = "Library",
         footer = {
             GlassTextButton("Cancel", onDismiss)
-            GlassButton("Create", { onConfirm(text) }, enabled = text.isNotBlank())
+            GlassButton(confirmLabel, { onConfirm(text.trim()) }, enabled = text.isNotBlank() && text.trim() != initial)
         },
     ) {
         OutlinedTextField(
