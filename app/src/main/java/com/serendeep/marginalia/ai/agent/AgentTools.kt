@@ -106,7 +106,7 @@ class AgentTools @Inject constructor(private val data: AgentData) : ToolExecutor
         }
         HIGHLIGHTS -> "Checking your highlights"
         NOTES -> "Reading your handwritten notes"
-        VIEW -> "Looking at p.${args.optInt("page", 1)}"
+        VIEW -> "Looking at ${titleOf(args)} p.${args.optInt("page", 1)}"
         DRAFT -> "Drafting flashcards"
         else -> name
     }
