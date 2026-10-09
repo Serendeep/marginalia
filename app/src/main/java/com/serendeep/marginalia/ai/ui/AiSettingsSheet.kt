@@ -1,5 +1,7 @@
 package com.serendeep.marginalia.ai.ui
 
+import androidx.compose.ui.text.TextStyle
+import com.serendeep.marginalia.ui.components.PrivateText
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
@@ -221,7 +223,17 @@ private fun ChatGptSection(
 ) {
     when (status) {
         is ChatGptStatus.Connected -> {
-            StatusLine(if (status.email.isNotEmpty()) "Connected as ${status.email}" else "Connected", Violet)
+            if (status.email.isNotEmpty()) {
+                PrivateText(
+                    text = status.email,
+                    label = "email",
+                    prefix = "Connected as ",
+                    style = TextStyle(fontFamily = BodyFamily, fontSize = 13.5.sp, lineHeight = 19.sp),
+                    color = Violet,
+                )
+            } else {
+                StatusLine("Connected", Violet)
+            }
             ModelPicker(models, selectedSlug, onSelectModel)
             GlassTextButton("Disconnect", onClick = onDisconnect)
         }
