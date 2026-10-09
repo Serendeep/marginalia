@@ -1,5 +1,51 @@
 # Changelog
 
+## [1.1.0](https://github.com/Serendeep/marginalia/compare/v1.0.0...v1.1.0) (2026-10-09)
+
+
+### Features
+
+* add a library agent with search, reading and flashcard tools ([b62fc77](https://github.com/Serendeep/marginalia/commit/b62fc770393d6bfb4b9b8f233bad4eef2c34bcba))
+* add a model picker to the ask surfaces ([2cff5f9](https://github.com/Serendeep/marginalia/commit/2cff5f9d286845621880593d8fd20e2d1a4dac35))
+* add a shared chat session with notebook and library context ([2ca8dc1](https://github.com/Serendeep/marginalia/commit/2ca8dc1cb3b62ab1277323977ebbf95ec1ac968d))
+* add an Ask screen with chat and page previews ([573cf7b](https://github.com/Serendeep/marginalia/commit/573cf7b301256659724f2ba12a6e3a6523ba2f5e))
+* add FORMAT_GUIDE to answer prompts ([1f38d03](https://github.com/Serendeep/marginalia/commit/1f38d03c53ce308fe99b2b0b2f769d4b9fef1369))
+* add shared side and center panels ([8c478c2](https://github.com/Serendeep/marginalia/commit/8c478c2c43fad0e64c12f73019807b9e0fdd8afc))
+* add tool calling to both AI providers ([169cd29](https://github.com/Serendeep/marginalia/commit/169cd29004650207ec52908e659cc3182568095a))
+* AI auto-sort for imported PDFs and a model picker ([a18e3c6](https://github.com/Serendeep/marginalia/commit/a18e3c6ca9987e16062d7ff80773f2f06f2bde58))
+* ask AI about a lasso selection ([87dc349](https://github.com/Serendeep/marginalia/commit/87dc349452377fff7204df7dc66044675fc9be08))
+* auto-sort imported PDFs with AI ([a1c8d26](https://github.com/Serendeep/marginalia/commit/a1c8d26fb6bda35d1c37400252234e84612011ad))
+* blur the connected account email with a reveal toggle ([688d845](https://github.com/Serendeep/marginalia/commit/688d845a5ef84f77d96c4cd539413bfb1a34f6b8))
+* hide AI features until a provider is connected ([e16d28a](https://github.com/Serendeep/marginalia/commit/e16d28a8be9c91030998c50c7db804e7ab8eab13))
+* library agent with an Ask screen and notebook chat panel ([9a45494](https://github.com/Serendeep/marginalia/commit/9a454940b5a838056c65a0d56cc8950958740c1a))
+* move dialogs onto center panels ([a9b4f83](https://github.com/Serendeep/marginalia/commit/a9b4f83f28518c0084a9b417e2863abc038ef36b))
+* move sheets onto side panels ([113d04a](https://github.com/Serendeep/marginalia/commit/113d04ac2c24976af380a8c7a32b06004e45adab))
+* number citations and list sources at the end of each answer ([c75c1da](https://github.com/Serendeep/marginalia/commit/c75c1da37f2a12fdb2a01469393c713060fc895f))
+* per-action AI models and paragraph streaming ([1981c3a](https://github.com/Serendeep/marginalia/commit/1981c3a1008ef6dc2957b769d9d501920253e8ff))
+* pick a model and effort per AI action ([f322c65](https://github.com/Serendeep/marginalia/commit/f322c6526f05d5efee8502e083fa7c5425d4a898))
+* pick model and effort from inside the composer ([1889985](https://github.com/Serendeep/marginalia/commit/1889985fac3e2c0109a496fec143488c1f19bd77))
+* put the model picker inside every ask box and tailor the notebook prompts ([9ceefeb](https://github.com/Serendeep/marginalia/commit/9ceefebf4774cfa99b4295fa37eac4214bd39013))
+* render AI answers with math, tables and diagrams ([330ed64](https://github.com/Serendeep/marginalia/commit/330ed64f47ef650da7093e0aefa34f1a4ef4d2b1))
+* render AI answers with math, tables and diagrams ([5a1facf](https://github.com/Serendeep/marginalia/commit/5a1facfb89771491c12f477dc21f3efd2e1b6701))
+* replace the notebook AI sheet with a chat side panel ([9776459](https://github.com/Serendeep/marginalia/commit/9776459c8fb7059d50c18fe6d6b95604e4ac2271))
+* rework every sheet and dialog as side and center panels ([9561706](https://github.com/Serendeep/marginalia/commit/9561706e516737aa5d03f85e38d572c55be1bc22))
+* theme every dropdown menu with the app's panel style ([a7ed062](https://github.com/Serendeep/marginalia/commit/a7ed062ac06eb6653348b4889346d333a0bfaf77))
+* turn the Today ask card into an entry point ([5718d9f](https://github.com/Serendeep/marginalia/commit/5718d9fecb6028aa4e65c2085e4503ad56602c1f))
+
+
+### Bug Fixes
+
+* AI polish: blurred email, quote rendering, pinned save button ([71fe968](https://github.com/Serendeep/marginalia/commit/71fe968fcbd7b45391a77972d52c7303acedbdce))
+* end AI answers when the text is done and stream by paragraph ([ce9a625](https://github.com/Serendeep/marginalia/commit/ce9a6256e850a64563d66c2da914a7105b3e7777))
+* keep finished answers on late drops and skip effort on non-reasoning models ([51321c2](https://github.com/Serendeep/marginalia/commit/51321c23156f689a83bcbda0cd80ac17e84abbf6))
+* keep the save button visible above drafted cards ([697e8cc](https://github.com/Serendeep/marginalia/commit/697e8cce238aea0dea6c6e52455a72be9d7e27ed))
+* mark a chat turn finished before clearing the streaming flag ([c4aecd5](https://github.com/Serendeep/marginalia/commit/c4aecd547461a5eab3bf40c2ad844cb79e26631d))
+* name the document in page-view status lines ([45ce00d](https://github.com/Serendeep/marginalia/commit/45ce00d6cbee3ace0117d8df837c25f5cf089c8f))
+* never auto-rename or sort notebooks the user named themselves ([478357a](https://github.com/Serendeep/marginalia/commit/478357af9bc35d433cd7ef20650bd68dad649d65))
+* pick the fast model from its description and accept every effort level ([59567b2](https://github.com/Serendeep/marginalia/commit/59567b2aeb467d625f2ab32fa72116b4dd706b20))
+* render quoted lines in AI answers ([2311b0c](https://github.com/Serendeep/marginalia/commit/2311b0c6b0b1e39bef91c4cb7a093a81ed358bd8))
+* shorten citation pills and collapse tool steps into one line ([242675e](https://github.com/Serendeep/marginalia/commit/242675e223cf1a87e5eda87392a3b0188a6421ea))
+
 ## [1.0.0](https://github.com/Serendeep/marginalia/compare/v0.5.0...v1.0.0) (2026-10-09)
 
 
