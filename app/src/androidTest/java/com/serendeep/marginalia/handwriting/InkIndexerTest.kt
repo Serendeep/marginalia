@@ -56,12 +56,18 @@ class InkIndexerTest {
 
     private suspend fun lecture(): String = repo.createLecture(repo.createCourse("C", 0, null).id, "Thermo notes").id
 
-    private fun stroke(id: String, lectureId: String, top: Float, surface: InkSurface = InkSurface.MARGIN): InkStroke {
+    private fun stroke(
+        id: String,
+        lectureId: String,
+        top: Float,
+        surface: InkSurface = InkSurface.MARGIN,
+        color: Long = 0xFF000000,
+    ): InkStroke {
         val points = listOf(InkPt(10f, top, 0), InkPt(60f, top + 30f, 40), InkPt(110f, top + 5f, 80))
         return InkStroke(
             id = id, lectureId = lectureId, documentId = "", pdfPage = 0,
             viewport = Box(0f, 0f, 0f, 0f), bounds = Box(10f, top, 110f, top + 30f),
-            startedAt = 1_000, endedAt = 1_100, brushColor = 0xFF000000, brushSizeDp = 3f,
+            startedAt = 1_000, endedAt = 1_100, brushColor = color, brushSizeDp = 3f,
             batch = points.toBatch(0.5f), surface = surface,
         )
     }
@@ -69,18 +75,28 @@ class InkIndexerTest {
     @Test
     fun indexesChangedLecturesOnlyAndReplacesOldRows() = runBlocking {
         val id = lecture()
-        repo.saveStrokes(listOf(stroke("s1", id, 0f), stroke("s2", id, 10f), stroke("page", id, 0f, InkSurface.PAGE)))
+        // Pen ink on a PDF page is handwriting too; a translucent highlighter swipe is not.
+        repo.saveStrokes(
+            listOf(
+                stroke("s1", id, 0f),
+                stroke("s2", id, 10f),
+                stroke("page", id, 0f, InkSurface.PAGE),
+                stroke("highlight", id, 300f, InkSurface.PAGE, color = 0x99F2C84B),
+            ),
+        )
         val fake = FakeRecognizer("entropy never decreases")
         val indexer = InkIndexer(context, repo, fake)
 
         indexer.indexStale()
-        val hit = repo.search("entrop").ink.single()
+        val hits = repo.search("entrop").ink
+        assertEquals("one margin block and one page block", 2, hits.size)
+        val hit = hits.first()
         assertEquals(id, hit.lectureId)
         assertEquals("Thermo notes", hit.title)
         assertEquals(null, hit.page)
         assertTrue(hit.snippet.contains("${SNIPPET_OPEN}entropy"))
         val firstCalls = fake.calls
-        assertEquals(1, firstCalls)
+        assertEquals(2, firstCalls)
 
         indexer.indexStale()
         assertEquals("unchanged strokes are not re-read", firstCalls, fake.calls)
@@ -88,7 +104,7 @@ class InkIndexerTest {
         repo.saveStrokes(listOf(stroke("s3", id, 400f)))
         indexer.indexStale()
         assertTrue(fake.calls > firstCalls)
-        assertEquals("old rows were replaced, not duplicated", 2, repo.search("entropy").ink.size)
+        assertEquals("old rows were replaced, not duplicated", 3, repo.search("entropy").ink.size)
     }
 
     @Test
