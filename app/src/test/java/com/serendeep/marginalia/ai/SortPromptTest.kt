@@ -66,5 +66,7 @@ class SortPromptTest {
         assertTrue(looksLikeFilename("my-notes"))
         assertTrue(looksLikeFilename("lecture3.PDF"))
         assertTrue(!looksLikeFilename("Attention Is All You Need"))
+        assertTrue(!looksLikeFilename("xai"))
+        assertTrue(!looksLikeFilename("Thermodynamics"))
     }
 }

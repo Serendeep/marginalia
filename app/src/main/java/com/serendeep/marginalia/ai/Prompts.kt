@@ -23,7 +23,9 @@ private val arxivTitle = Regex("""(?i)(arxiv[:\s-]*)?\d{4}\.\d{4,5}(v\d+)?""")
 /** True when [title] reads like a file name rather than a human title. */
 fun looksLikeFilename(title: String): Boolean {
     val t = title.trim()
-    return t.isEmpty() || t.endsWith(".pdf", ignoreCase = true) || arxivTitle.matches(t) || t.none { it.isWhitespace() }
+    // A single plain word ("xai", "Thermo") is a name someone chose; only machine-looking tokens count.
+    return t.isEmpty() || t.endsWith(".pdf", ignoreCase = true) || arxivTitle.matches(t) ||
+        (t.none { it.isWhitespace() } && t.any { it == '_' || it == '-' || it == '.' || it.isDigit() })
 }
 
 object Prompts {

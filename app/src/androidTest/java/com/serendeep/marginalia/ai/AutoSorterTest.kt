@@ -52,6 +52,7 @@ class AutoSorterTest {
     fun sortsIntoNewCourseThenUndoRestoresEverything() = runBlocking {
         val unsorted = repo.createCourse(LibraryViewModel.UNSORTED_NAME, 0, null)
         val lecture = repo.createLecture(unsorted.id, "attention_is_all_you_need")
+        repo.importDocument(lecture.id, "paper.pdf", "/nonexistent/paper.pdf", 4)
         reply = """{"course":null,"newCourse":{"name":"Deep Learning","emoji":"🧠"},"tags":["transformers"],"title":"Attention Is All You Need"}"""
         val sorter = sorter()
 
@@ -78,6 +79,7 @@ class AutoSorterTest {
         val unsorted = repo.createCourse(LibraryViewModel.UNSORTED_NAME, 0, null)
         val algo = repo.createCourse("Algorithms", 1, null)
         val lecture = repo.createLecture(unsorted.id, "Graph Theory Notes")
+        repo.importDocument(lecture.id, "paper.pdf", "/nonexistent/paper.pdf", 4)
         reply = "```json\n{\"course\":\"algorithms\",\"newCourse\":null,\"tags\":[],\"title\":\"Something Else\"}\n```"
         val sorter = sorter()
 
@@ -93,6 +95,7 @@ class AutoSorterTest {
     fun attemptedLectureIsSkippedUnlessForced() = runBlocking {
         val unsorted = repo.createCourse(LibraryViewModel.UNSORTED_NAME, 0, null)
         val lecture = repo.createLecture(unsorted.id, "x")
+        repo.importDocument(lecture.id, "paper.pdf", "/nonexistent/paper.pdf", 4)
         reply = "no idea"
         val sorter = sorter()
         assertNull(sorter.sort(lecture.id))
@@ -105,6 +108,7 @@ class AutoSorterTest {
     fun garbageReplyLeavesLectureInUnsorted() = runBlocking {
         val unsorted = repo.createCourse(LibraryViewModel.UNSORTED_NAME, 0, null)
         val lecture = repo.createLecture(unsorted.id, "x")
+        repo.importDocument(lecture.id, "paper.pdf", "/nonexistent/paper.pdf", 4)
         reply = "no idea"
         assertNull(sorter().sort(lecture.id))
         assertEquals(unsorted.id, repo.getLecture(lecture.id)!!.courseId)

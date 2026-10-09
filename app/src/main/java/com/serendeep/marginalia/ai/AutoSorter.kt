@@ -140,7 +140,9 @@ class AutoSorter internal constructor(
         if (lecture.courseId != unsorted.id) return null
         markAttempted(lectureId)
 
-        val fileName = repository.latestDocument(lectureId)?.fileName.orEmpty()
+        // Notebooks without a PDF are the user's own; there is nothing to read and nothing to sort.
+        val document = repository.latestDocument(lectureId) ?: return null
+        val fileName = document.fileName
         val pages = listOfNotNull(repository.indexedPageText(lectureId, 0), repository.indexedPageText(lectureId, 1))
         val request = Prompts.sortDocument(
             courses = courses.filter { it.id != unsorted.id }.map { it.name },
