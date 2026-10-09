@@ -1,5 +1,8 @@
 package com.serendeep.marginalia.stats
 
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -55,9 +58,12 @@ fun StatsScreen(viewModel: StatsViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val surface = MaterialTheme.colorScheme.surface
     val hairline = MaterialTheme.colorScheme.outline
+    // Zeros before the first load would read as "you studied nothing"; fade in once real numbers exist.
+    val shown by animateFloatAsState(if (state.loaded) 1f else 0f, tween(180), label = "statsIn")
     Column(
         Modifier
             .fillMaxSize()
+            .graphicsLayer { alpha = shown }
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 22.dp, vertical = 18.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
