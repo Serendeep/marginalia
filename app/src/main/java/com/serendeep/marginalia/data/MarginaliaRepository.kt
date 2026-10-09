@@ -142,6 +142,8 @@ class MarginaliaRepository @Inject constructor(
     suspend fun renameLecture(lectureId: String, title: String) =
         lectureDao.rename(lectureId, title)
 
+    suspend fun reorderLectures(ids: List<String>) = lectureDao.reorder(ids)
+
     suspend fun moveLecture(lectureId: String, courseId: String) =
         lectureDao.move(lectureId, courseId)
 
@@ -176,6 +178,7 @@ class MarginaliaRepository @Inject constructor(
         frontText: String? = null,
         frontImagePath: String? = null,
         backText: String? = null,
+        backInk: ByteArray? = null,
         highlightId: String? = null,
         id: String = newId(),
     ): CardEntity {
@@ -187,6 +190,7 @@ class MarginaliaRepository @Inject constructor(
             frontText = frontText,
             frontImagePath = frontImagePath,
             backText = backText,
+            backInk = backInk,
             source = source.name,
             highlightId = highlightId,
             dueAt = now(),

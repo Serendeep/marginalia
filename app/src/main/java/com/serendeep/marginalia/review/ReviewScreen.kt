@@ -46,6 +46,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.ImageLoader
 import coil3.compose.AsyncImage
+import com.serendeep.marginalia.cards.InkAnswerView
 import com.serendeep.marginalia.cards.TypedCardSheet
 import com.serendeep.marginalia.study.Grade
 import com.serendeep.marginalia.ui.components.GlassButton
@@ -234,7 +235,10 @@ private fun CardFaces(card: ReviewCard, imageLoader: ImageLoader, rotation: Anim
                 .padding(28.dp),
             contentAlignment = Alignment.Center,
         ) {
-            CardText(card.backText.orEmpty())
+            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                if (!card.backText.isNullOrBlank()) CardText(card.backText)
+                if (card.backInk != null) InkAnswerView(card.backInk, Modifier.fillMaxWidth().weight(1f))
+            }
         }
     }
 }
