@@ -15,6 +15,7 @@ import com.serendeep.marginalia.ai.ChatGptAuth
 import com.serendeep.marginalia.ai.ChatGptStatus
 import com.serendeep.marginalia.ai.ChatModel
 import com.serendeep.marginalia.ai.ProviderChoice
+import com.serendeep.marginalia.update.RemoteConfigStore
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -25,6 +26,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -45,7 +47,12 @@ class AiSettingsViewModel @Inject constructor(
     private val catalog: ModelCatalog,
     private val sorter: AutoSorter,
     private val resolver: ModelResolver,
+    remote: RemoteConfigStore,
 ) : ViewModel() {
+
+    /** False while the remote config switches AI off. */
+    val aiAllowed: StateFlow<Boolean> = remote.config.map { it.aiAllowed }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, remote.config.value.aiAllowed)
 
     val config: StateFlow<AiConfig> = settings.config
     val status: StateFlow<ChatGptStatus> = auth.status

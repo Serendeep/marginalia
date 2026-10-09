@@ -6,6 +6,7 @@ import com.serendeep.marginalia.data.InkBlockText
 import com.serendeep.marginalia.data.InkSurface
 import com.serendeep.marginalia.data.MarginaliaRepository
 import com.serendeep.marginalia.shell.PREFS
+import com.serendeep.marginalia.update.RemoteConfig
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -71,7 +72,7 @@ class InkIndexer @Inject constructor(
     }
 
     suspend fun indexStale() {
-        if (notebookOpen || !enabled() || recognizer.refresh() != ModelState.Ready) return
+        if (notebookOpen || !enabled() || !RemoteConfig.cached(prefs()).flags.handwritingSearch || recognizer.refresh() != ModelState.Ready) return
         val strokeIds = repository.handwritingStrokeIds()
         val indexed = repository.inkIndexHashes()
         for (lectureId in strokeIds.keys + indexed.keys) {
@@ -82,8 +83,9 @@ class InkIndexer @Inject constructor(
         }
     }
 
-    private fun enabled() =
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(HANDWRITING_SEARCH_KEY, true)
+    private fun prefs() = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+
+    private fun enabled() = prefs().getBoolean(HANDWRITING_SEARCH_KEY, true)
 
     /** False when recognition stopped working part-way, so the lecture is left to retry later. */
     private suspend fun index(lectureId: String, hash: String): Boolean {

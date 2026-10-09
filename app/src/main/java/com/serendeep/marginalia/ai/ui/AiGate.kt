@@ -10,5 +10,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 fun rememberAiReady(viewModel: AiSettingsViewModel = hiltViewModel()): Boolean {
     val config by viewModel.config.collectAsStateWithLifecycle()
     val status by viewModel.status.collectAsStateWithLifecycle()
-    return aiReady(config, status)
+    val allowed by viewModel.aiAllowed.collectAsStateWithLifecycle()
+    return aiReady(config, status, allowed)
 }
