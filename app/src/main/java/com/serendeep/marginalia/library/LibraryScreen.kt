@@ -15,7 +15,10 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarResult
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
@@ -96,6 +99,8 @@ fun LibraryScreen(
         data?.courses.orEmpty().filter { it.name != LibraryViewModel.UNSORTED_NAME }
     }
     val error by viewModel.error.collectAsStateWithLifecycle()
+    val canSort by viewModel.canSort.collectAsStateWithLifecycle()
+    val sorting by viewModel.sorting.collectAsStateWithLifecycle()
     var showNewCourse by remember { mutableStateOf(false) }
     var showNewNotebook by remember { mutableStateOf(false) }
     var renaming by remember { mutableStateOf<RowModel?>(null) }
@@ -113,6 +118,18 @@ fun LibraryScreen(
                     else -> "No DOI or arXiv ID — copied title only"
                 },
             )
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        viewModel.sorted.collect { batch ->
+            val message = if (batch.size == 1) {
+                "Sorted ‘${batch[0].title}’ into ${batch[0].courseName}"
+            } else {
+                "Sorted ${batch.size} PDFs into ${batch.map { it.courseId }.distinct().size} courses"
+            }
+            val outcome = snackbar.showSnackbar(message, actionLabel = "Undo", duration = SnackbarDuration.Long)
+            if (outcome == SnackbarResult.ActionPerformed) viewModel.undoSort(batch)
         }
     }
 
@@ -180,7 +197,14 @@ fun LibraryScreen(
                 }
                 sections.forEach { section ->
                     item(key = "hdr:${section.course?.id ?: "unsorted"}", contentType = "header") {
-                        CourseHeader(section)
+                        CourseHeader(
+                            section,
+                            sortLabel = when {
+                                section.course != null || !canSort || section.items.isEmpty() -> null
+                                else -> sorting?.let { (done, total) -> "Sorting $done of $total…" } ?: "Sort with AI"
+                            },
+                            onSort = if (sorting == null) viewModel::sortUnsorted else null,
+                        )
                     }
                     items(section.items, key = { it.lecture.id }, contentType = { "row" }) { item ->
                         LectureRow(
@@ -343,12 +367,12 @@ fun LibraryScreen(
 }
 
 @Composable
-private fun CourseHeader(section: ShelfSection) {
+private fun CourseHeader(section: ShelfSection, sortLabel: String?, onSort: (() -> Unit)?) {
     val color = CoursePalette.color(section.course?.colorIndex ?: 0)
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
-        modifier = Modifier.padding(top = 26.dp, bottom = 6.dp),
+        modifier = Modifier.fillMaxWidth().padding(top = 26.dp, bottom = 6.dp),
     ) {
         Box(Modifier.size(8.dp).clip(RoundedCornerShape(2.dp)).background(color))
         section.course?.emoji?.let { Text(it, fontSize = 14.sp) }
@@ -359,6 +383,12 @@ private fun CourseHeader(section: ShelfSection) {
             letterSpacing = 2.2.sp,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        if (sortLabel != null) {
+            Spacer(Modifier.weight(1f))
+            TextButton(onClick = { onSort?.invoke() }, enabled = onSort != null) {
+                Text(sortLabel, fontFamily = MonoFamily, fontSize = 11.sp, letterSpacing = 0.6.sp)
+            }
+        }
     }
 }
 

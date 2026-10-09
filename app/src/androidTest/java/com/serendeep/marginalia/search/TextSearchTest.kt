@@ -8,6 +8,7 @@ import androidx.core.net.toUri
 import androidx.room.Room
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import com.serendeep.marginalia.ai.AutoSorter
 import com.serendeep.marginalia.data.MarginaliaDatabase
 import com.serendeep.marginalia.data.MarginaliaRepository
 import com.serendeep.marginalia.data.SNIPPET_OPEN
@@ -52,7 +53,7 @@ class TextSearchTest {
     @Test
     fun importedPdfIsIndexedOnceAndSearchableByPage() = runBlocking {
         val lecture = importFixture("Thermodynamics")
-        val indexer = TextIndexer(context, repo)
+        val indexer = TextIndexer(context, repo, AutoSorter(repo, context.getSharedPreferences("test", 0)) { null })
 
         indexer.indexPending()
         indexer.indexPending()
@@ -71,7 +72,7 @@ class TextSearchTest {
     @Test
     fun deletingLectureDropsItsIndexedText() = runBlocking {
         val lecture = importFixture("Thermodynamics")
-        TextIndexer(context, repo).indexPending()
+        TextIndexer(context, repo, AutoSorter(repo, context.getSharedPreferences("test", 0)) { null }).indexPending()
         assertEquals(1, repo.search("entropy").pages.size)
 
         repo.deleteLecture(lecture)
