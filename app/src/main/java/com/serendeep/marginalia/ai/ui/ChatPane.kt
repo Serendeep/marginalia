@@ -1,5 +1,15 @@
 package com.serendeep.marginalia.ai.ui
 
+import com.serendeep.marginalia.ui.components.glassBorder
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.graphics.Color
+import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.material3.TextField
+import androidx.compose.material3.LocalTextStyle
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -33,7 +43,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -82,7 +91,7 @@ fun ChatPane(
         onSetup = { settingsOpen = true },
         modifier = modifier,
         placeholder = placeholder,
-        modelChip = { ModelChip() },
+        modelChip = { ModelEffortChip() },
     )
 }
 
@@ -196,37 +205,63 @@ private fun Composer(
     onStop: () -> Unit,
     modelChip: @Composable () -> Unit,
 ) {
+    val shape = RoundedCornerShape(14.dp)
+    val send = { if (text.isNotBlank()) onSend() }
     Column(Modifier.fillMaxWidth().padding(top = 10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        OutlinedTextField(
-            value = text,
-            onValueChange = onText,
-            placeholder = { Text(placeholder, fontSize = 14.sp) },
-            minLines = 2,
-            maxLines = 6,
-            colors = glassTextFieldColors(),
-            trailingIcon = {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .clip(shape)
+                .background(MaterialTheme.colorScheme.surfaceVariant)
+                .border(1.dp, glassBorder(), shape),
+        ) {
+            TextField(
+                value = text,
+                onValueChange = onText,
+                placeholder = { Text(placeholder, fontFamily = BodyFamily, fontSize = 14.sp) },
+                textStyle = LocalTextStyle.current.copy(fontFamily = BodyFamily, fontSize = 14.sp, lineHeight = 21.sp),
+                minLines = 2,
+                maxLines = 6,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                keyboardActions = KeyboardActions(onSend = { send() }),
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = Color.Transparent,
+                    unfocusedContainerColor = Color.Transparent,
+                    disabledContainerColor = Color.Transparent,
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent,
+                    disabledIndicatorColor = Color.Transparent,
+                    cursorColor = Violet,
+                ),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Row(
+                Modifier.fillMaxWidth().padding(start = 12.dp, end = 6.dp, bottom = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                modelChip()
+                Spacer(Modifier.weight(1f))
                 if (streaming) {
                     IconButton(onClick = onStop) { Icon(Icons.Filled.Stop, "Stop", tint = Violet) }
                 } else {
-                    IconButton(onClick = onSend, enabled = text.isNotBlank()) {
-                        Icon(Icons.AutoMirrored.Filled.Send, "Send", tint = if (text.isNotBlank()) Violet else MaterialTheme.colorScheme.onSurfaceVariant)
+                    IconButton(onClick = send, enabled = text.isNotBlank()) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.Send,
+                            "Send",
+                            tint = if (text.isNotBlank()) Violet else MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
                 }
-            },
-            modifier = Modifier.fillMaxWidth(),
-        )
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            modelChip()
-            Text(
-                "Reads your library to answer. Saves only what you approve.",
-                fontFamily = MonoFamily,
-                fontSize = 10.sp,
-                letterSpacing = 0.3.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+            }
         }
+        Text(
+            "Reads your library to answer and cites the pages it used. Requests aren't stored, and nothing is saved to your notes unless you approve it.",
+            fontFamily = MonoFamily,
+            fontSize = 10.sp,
+            lineHeight = 15.sp,
+            letterSpacing = 0.3.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 

@@ -46,7 +46,7 @@ fun AskChatGptCard(
         onAsk = onAsk,
         onSetup = { settingsOpen = true },
         modifier = modifier,
-        modelChip = { ModelChip() },
+        modelChip = { ModelEffortChip() },
     )
 }
 
