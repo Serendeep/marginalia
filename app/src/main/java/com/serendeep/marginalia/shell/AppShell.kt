@@ -125,10 +125,12 @@ private fun Sidebar(screen: Screen, onNavigate: (Screen) -> Unit, viewModel: She
     val hairline = MaterialTheme.colorScheme.outline
     val filter = (screen as? Screen.Library)?.filter
     var settingsOpen by remember { mutableStateOf(false) }
+    val nightly = BuildConfig.CHANNEL == "nightly"
     Column(
         Modifier
             .width(SidebarWidth)
             .fillMaxHeight()
+            .then(if (nightly) Modifier.nightSky() else Modifier)
             .drawBehind {
                 drawRect(hairline, topLeft = Offset(size.width - 1.dp.toPx(), 0f), size = Size(1.dp.toPx(), size.height))
             }
@@ -140,7 +142,7 @@ private fun Sidebar(screen: Screen, onNavigate: (Screen) -> Unit, viewModel: She
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 modifier = Modifier.padding(start = 8.dp, end = 8.dp, top = 6.dp, bottom = 16.dp),
             ) {
-                Box(Modifier.size(10.dp).clip(RoundedCornerShape(3.dp)).background(Lime))
+                if (nightly) NightlyStar() else Box(Modifier.size(10.dp).clip(RoundedCornerShape(3.dp)).background(Lime))
                 Text(
                     "Marginalia",
                     fontFamily = DisplayFamily,
@@ -149,7 +151,7 @@ private fun Sidebar(screen: Screen, onNavigate: (Screen) -> Unit, viewModel: She
                     letterSpacing = (-0.34).sp,
                     modifier = Modifier.weight(1f),
                 )
-                if (BuildConfig.CHANNEL == "nightly") NightlyBrand()
+                if (nightly) NightlyMoon()
                 IconButton(onClick = { settingsOpen = true }, modifier = Modifier.size(32.dp)) {
                     Icon(Icons.Outlined.Settings, contentDescription = "Settings", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
                 }

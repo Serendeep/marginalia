@@ -51,6 +51,9 @@ android {
         buildConfigField("String", "NIGHTLY_FEED_URL", "\"$nightlyFeedUrl\"")
         buildConfigField("String", "NIGHTLY_REMOTE_CONFIG_URL", "\"$nightlyRemoteConfigUrl\"")
         buildConfigField("String", "CHANNEL", "\"$channel\"")
+        val icon = if (channel == "nightly") "ic_launcher_nightly" else "ic_launcher"
+        manifestPlaceholders["appIcon"] = "@mipmap/$icon"
+        manifestPlaceholders["appRoundIcon"] = "@mipmap/${icon}_round"
         buildConfigField("boolean", "UPDATES_ENABLED", "false")
         buildConfigField("String", "UPDATE_CERT_SHA256", "\"\"")
     }
