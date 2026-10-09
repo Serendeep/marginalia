@@ -1,5 +1,6 @@
 package com.serendeep.marginalia.library
 
+import com.serendeep.marginalia.ui.theme.marginalia
 import android.net.Uri
 import android.text.format.DateUtils
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -23,8 +24,6 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import com.serendeep.marginalia.data.TagEntity
-import com.serendeep.marginalia.ui.theme.OnViolet
-import com.serendeep.marginalia.ui.theme.Violet
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -82,7 +81,6 @@ import com.serendeep.marginalia.ui.components.GlassMenuEntry
 import com.serendeep.marginalia.ui.components.GlassTextButton
 import com.serendeep.marginalia.ui.components.glassTextFieldColors
 import com.serendeep.marginalia.ui.theme.CoursePalette
-import com.serendeep.marginalia.ui.theme.Danger
 import com.serendeep.marginalia.ui.theme.MonoFamily
 import kotlinx.coroutines.delay
 import java.util.Locale
@@ -385,7 +383,7 @@ fun LibraryScreen(
                         viewModel.deleteLecture(target.lecture.id)
                         deleting = null
                     },
-                    containerColor = Danger,
+                    containerColor = MaterialTheme.marginalia.danger,
                 )
             },
         ) {
@@ -523,11 +521,11 @@ private fun TagsDialog(
                     Text(
                         tag.name,
                         fontSize = 12.sp,
-                        color = if (on) OnViolet else MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = if (on) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier
                             .clip(RoundedCornerShape(6.dp))
-                            .background(if (on) Violet else Color.Transparent)
-                            .border(1.dp, if (on) Violet else MaterialTheme.colorScheme.outline, RoundedCornerShape(6.dp))
+                            .background(if (on) MaterialTheme.colorScheme.primary else Color.Transparent)
+                            .border(1.dp, if (on) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline, RoundedCornerShape(6.dp))
                             .clickable { onToggle(tag.id, !on) }
                             .padding(horizontal = 10.dp, vertical = 5.dp),
                     )

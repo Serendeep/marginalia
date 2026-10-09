@@ -1,5 +1,6 @@
 package com.serendeep.marginalia.highlights
 
+import com.serendeep.marginalia.ui.theme.marginalia
 import com.serendeep.marginalia.ui.components.GlassDropdownMenu
 import com.serendeep.marginalia.ui.components.GlassMenuItem
 import android.content.Intent
@@ -37,7 +38,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.serendeep.marginalia.cards.HighlightCardSheet
 import com.serendeep.marginalia.data.HighlightRow
 import com.serendeep.marginalia.ui.theme.BodyFamily
-import com.serendeep.marginalia.ui.theme.DimInkDark
 import com.serendeep.marginalia.ui.theme.DisplayFamily
 import com.serendeep.marginalia.ui.theme.MonoFamily
 import kotlinx.coroutines.launch
@@ -118,12 +118,12 @@ private fun GroupHeader(group: HighlightGroup, onExport: () -> Unit) {
                 "  ${group.items.size}",
                 fontFamily = MonoFamily,
                 fontSize = 11.sp,
-                color = DimInkDark,
+                color = MaterialTheme.marginalia.dimInk,
             )
         }
         Box {
             IconButton(onClick = { menuOpen = true }) {
-                Icon(Icons.Filled.MoreVert, contentDescription = "Document actions", tint = DimInkDark)
+                Icon(Icons.Filled.MoreVert, contentDescription = "Document actions", tint = MaterialTheme.marginalia.dimInk)
             }
             GlassDropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                 GlassMenuItem(

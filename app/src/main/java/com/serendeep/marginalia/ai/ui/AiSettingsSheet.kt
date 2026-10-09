@@ -1,5 +1,6 @@
 package com.serendeep.marginalia.ai.ui
 
+import com.serendeep.marginalia.ui.theme.marginalia
 import androidx.compose.ui.text.TextStyle
 import com.serendeep.marginalia.ui.components.PrivateText
 import android.content.ActivityNotFoundException
@@ -61,9 +62,7 @@ import com.serendeep.marginalia.ui.components.PanelSection
 import com.serendeep.marginalia.ui.components.SidePanel
 import com.serendeep.marginalia.ui.components.glassTextFieldColors
 import com.serendeep.marginalia.ui.theme.BodyFamily
-import com.serendeep.marginalia.ui.theme.DimInkDark
 import com.serendeep.marginalia.ui.theme.MonoFamily
-import com.serendeep.marginalia.ui.theme.Violet
 
 const val CUSTOM_URL_PLACEHOLDER = "https://cursedpc.tailbd2879.ts.net/v1"
 const val PRIVACY_NOTE = "Nothing is sent unless you tap an AI action or turn on the morning digest. Requests don't store your data (store:false)."
@@ -220,7 +219,7 @@ private fun Segmented(selected: ProviderChoice, onSelect: (ProviderChoice) -> Un
                 Modifier
                     .weight(1f)
                     .clip(RoundedCornerShape(9.dp))
-                    .background(if (on) Violet else Color.Transparent)
+                    .background(if (on) MaterialTheme.colorScheme.primary else Color.Transparent)
                     .clickable { onSelect(choice) }
                     .padding(vertical = 9.dp),
                 contentAlignment = Alignment.Center,
@@ -253,16 +252,16 @@ private fun ChatGptSection(
                     label = "email",
                     prefix = "Connected as ",
                     style = TextStyle(fontFamily = BodyFamily, fontSize = 13.5.sp, lineHeight = 19.sp),
-                    color = Violet,
+                    color = MaterialTheme.colorScheme.primary,
                 )
             } else {
-                StatusLine("Connected", Violet)
+                StatusLine("Connected", MaterialTheme.colorScheme.primary)
             }
             GlassTextButton("Disconnect", onClick = onDisconnect)
         }
         ChatGptStatus.Connecting -> {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = Violet)
+                CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.primary)
                 Text("Finish signing in in your browser…", fontFamily = BodyFamily, fontSize = 13.5.sp)
             }
             GlassTextButton("Cancel", onClick = onCancel)
@@ -270,7 +269,7 @@ private fun ChatGptSection(
         else -> {
             StatusLine(
                 (status as? ChatGptStatus.Error)?.message ?: notice ?: "Not connected",
-                if (status is ChatGptStatus.Error || notice != null) Color(0xFFFF8A80) else MaterialTheme.colorScheme.onSurfaceVariant,
+                if (status is ChatGptStatus.Error || notice != null) MaterialTheme.marginalia.errorInk else MaterialTheme.colorScheme.onSurfaceVariant,
             )
             GlassButton("Connect ChatGPT", onClick = onConnect)
         }
@@ -298,7 +297,7 @@ private fun CustomSection(
         value = url,
         onValueChange = { url = it },
         label = { Text("Base URL") },
-        placeholder = { Text(CUSTOM_URL_PLACEHOLDER, color = DimInkDark) },
+        placeholder = { Text(CUSTOM_URL_PLACEHOLDER, color = MaterialTheme.marginalia.dimInk) },
         singleLine = true,
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
         colors = glassTextFieldColors(),
@@ -316,8 +315,8 @@ private fun CustomSection(
     )
     GlassButton("Test & load models", enabled = url.isNotBlank() && models !is ModelsState.Loading, onClick = { onTest(url, key) })
     when (models) {
-        ModelsState.Loading -> CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = Violet)
-        is ModelsState.Failed -> StatusLine(models.message, Color(0xFFFF8A80))
+        ModelsState.Loading -> CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.primary)
+        is ModelsState.Failed -> StatusLine(models.message, MaterialTheme.marginalia.errorInk)
         else -> Unit
     }
 }
@@ -472,10 +471,10 @@ fun AiSidebarItem(viewModel: AiSettingsViewModel = hiltViewModel()) {
             .clickable { open = true }
             .padding(horizontal = 10.dp, vertical = 8.dp),
     ) {
-        Icon(Icons.Outlined.AutoAwesome, null, tint = Violet, modifier = Modifier.size(16.dp))
+        Icon(Icons.Outlined.AutoAwesome, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
         Column {
-            Text("AI", fontFamily = BodyFamily, fontSize = 13.5.sp, color = Color(0xFFA0A0AB))
-            Text(label, fontFamily = MonoFamily, fontSize = 10.5.sp, letterSpacing = 0.4.sp, color = DimInkDark, maxLines = 1)
+            Text("AI", fontFamily = BodyFamily, fontSize = 13.5.sp, color = MaterialTheme.marginalia.chipText)
+            Text(label, fontFamily = MonoFamily, fontSize = 10.5.sp, letterSpacing = 0.4.sp, color = MaterialTheme.marginalia.dimInk, maxLines = 1)
         }
     }
 }

@@ -1,5 +1,6 @@
 package com.serendeep.marginalia.today
 
+import com.serendeep.marginalia.ui.theme.marginalia
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
@@ -80,7 +81,6 @@ import com.serendeep.marginalia.ui.components.GlassButton
 import com.serendeep.marginalia.ui.components.glassBorder
 import com.serendeep.marginalia.ui.theme.BodyFamily
 import com.serendeep.marginalia.ui.theme.CoursePalette
-import com.serendeep.marginalia.ui.theme.DimInkDark
 import com.serendeep.marginalia.ui.theme.DisplayFamily
 import com.serendeep.marginalia.ui.theme.Lime
 import com.serendeep.marginalia.ui.theme.MonoFamily
@@ -92,7 +92,6 @@ import java.util.Locale
 
 private val TileShape = RoundedCornerShape(20.dp)
 private val FocusInk = Color(0xFF131600)
-private val HeatColors = listOf(Color(0xFF222227), Color(0xFF3D4A14), Color(0xFF6E8A1C), Lime)
 private val RingTrack = Color(0xFF2E2B45)
 private val ReviewInner = Color(0xFF1C1934)
 private val ReviewMuted = Color(0xFFA9A3D6)
@@ -106,6 +105,7 @@ fun TodayScreen(
     viewModel: TodayViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val hairline = MaterialTheme.colorScheme.outline
     val digest by viewModel.digest.collectAsStateWithLifecycle()
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     LaunchedEffect(lifecycle) { lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { viewModel.loadDigest() } }
@@ -155,7 +155,7 @@ fun TodayScreen(
                 .padding(top = 20.dp)
                 .drawBehind {
                     drawRect(
-                        Color(0xFF222227),
+                        hairline,
                         size = Size(1.dp.toPx(), size.height),
                     )
                 }
@@ -269,7 +269,7 @@ private fun SectionHeader(title: String, action: String, topPadding: androidx.co
             fontFamily = MonoFamily,
             fontSize = 11.sp,
             letterSpacing = 0.66.sp,
-            color = DimInkDark,
+            color = MaterialTheme.marginalia.dimInk,
             modifier = Modifier.clickable(onClick = onAction),
         )
     }
@@ -512,6 +512,7 @@ private fun StreakTile(state: TodayState, modifier: Modifier) {
 /** 14 columns by 3 rows in one canvas; no per-cell composables. */
 @Composable
 private fun Heatmap(levels: List<Int>, modifier: Modifier) {
+    val heat = MaterialTheme.marginalia.heat
     Canvas(modifier) {
         if (levels.isEmpty()) return@Canvas
         val cols = 14
@@ -520,7 +521,7 @@ private fun Heatmap(levels: List<Int>, modifier: Modifier) {
         val radius = CornerRadius(3.dp.toPx())
         levels.forEachIndexed { i, level ->
             drawRoundRect(
-                HeatColors[level.coerceIn(0, 3)],
+                heat[level.coerceIn(0, 3)],
                 topLeft = Offset((i % cols) * (cell + gap), (i / cols) * (cell + gap)),
                 size = Size(cell, cell),
                 cornerRadius = radius,

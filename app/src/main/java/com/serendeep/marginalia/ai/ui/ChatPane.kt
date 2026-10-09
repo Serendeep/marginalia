@@ -55,7 +55,6 @@ import com.serendeep.marginalia.ui.components.glassTextFieldColors
 import com.serendeep.marginalia.ui.theme.BodyFamily
 import com.serendeep.marginalia.ui.theme.DisplayFamily
 import com.serendeep.marginalia.ui.theme.MonoFamily
-import com.serendeep.marginalia.ui.theme.Violet
 
 /** The shared conversation: transcript, card drafts and composer. [onSend] decides what context a message carries. */
 @Composable
@@ -275,7 +274,7 @@ fun ComposerBox(
                 focusedIndicatorColor = Color.Transparent,
                 unfocusedIndicatorColor = Color.Transparent,
                 disabledIndicatorColor = Color.Transparent,
-                cursorColor = Violet,
+                cursorColor = MaterialTheme.colorScheme.primary,
             ),
             modifier = Modifier.fillMaxWidth(),
         )
@@ -286,13 +285,13 @@ fun ComposerBox(
             modelChip()
             Spacer(Modifier.weight(1f))
             if (streaming) {
-                IconButton(onClick = onStop) { Icon(Icons.Filled.Stop, "Stop", tint = Violet) }
+                IconButton(onClick = onStop) { Icon(Icons.Filled.Stop, "Stop", tint = MaterialTheme.colorScheme.primary) }
             } else {
                 IconButton(onClick = send, enabled = text.isNotBlank()) {
                     Icon(
                         Icons.AutoMirrored.Filled.Send,
                         "Send",
-                        tint = if (text.isNotBlank()) Violet else MaterialTheme.colorScheme.onSurfaceVariant,
+                        tint = if (text.isNotBlank()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }
@@ -304,7 +303,7 @@ fun ComposerBox(
 private fun Drafts(drafts: List<DraftCard>, savedCount: Int, onDraft: (Int, String?, String?, Boolean?) -> Unit, onSave: () -> Unit) {
     if (drafts.isEmpty()) {
         if (savedCount > 0) {
-            Text("Saved $savedCount cards", fontFamily = MonoFamily, fontSize = 12.sp, color = Violet, modifier = Modifier.padding(top = 8.dp))
+            Text("Saved $savedCount cards", fontFamily = MonoFamily, fontSize = 12.sp, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 8.dp))
         }
         return
     }
@@ -334,7 +333,7 @@ private fun Drafts(drafts: List<DraftCard>, savedCount: Int, onDraft: (Int, Stri
                     Checkbox(
                         checked = d.keep,
                         onCheckedChange = { onDraft(d.id, null, null, it) },
-                        colors = CheckboxDefaults.colors(checkedColor = Violet),
+                        colors = CheckboxDefaults.colors(checkedColor = MaterialTheme.colorScheme.primary),
                     )
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         OutlinedTextField(

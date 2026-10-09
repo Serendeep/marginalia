@@ -1,5 +1,6 @@
 package com.serendeep.marginalia.notebook
 
+import com.serendeep.marginalia.ui.theme.marginalia
 import com.serendeep.marginalia.ui.components.PILL_ALPHA
 import android.content.Intent
 import android.net.Uri
@@ -619,7 +620,7 @@ private fun FocusPill(viewModel: NotebookViewModel, modifier: Modifier = Modifie
     val state by viewModel.focus.collectAsStateWithLifecycle()
     if (!state.running && state.remainingSec == WORK_SECONDS && !state.onBreak) return
     val shape = RoundedCornerShape(14.dp)
-    val tint = if (state.running) Lime else MaterialTheme.colorScheme.onSurfaceVariant
+    val tint = if (state.running) MaterialTheme.marginalia.limeInk else MaterialTheme.colorScheme.onSurfaceVariant
     Text(
         "%02d:%02d".format(Locale.ROOT, state.remainingSec / 60, state.remainingSec % 60),
         fontFamily = MonoFamily,

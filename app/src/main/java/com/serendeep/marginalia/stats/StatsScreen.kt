@@ -1,5 +1,6 @@
 package com.serendeep.marginalia.stats
 
+import com.serendeep.marginalia.ui.theme.marginalia
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.animateFloatAsState
@@ -43,15 +44,11 @@ import com.serendeep.marginalia.today.Tile
 import com.serendeep.marginalia.today.TileLabel
 import com.serendeep.marginalia.ui.theme.BodyFamily
 import com.serendeep.marginalia.ui.theme.CoursePalette
-import com.serendeep.marginalia.ui.theme.DimInkDark
 import com.serendeep.marginalia.ui.theme.DisplayFamily
-import com.serendeep.marginalia.ui.theme.Lime
 import com.serendeep.marginalia.ui.theme.MonoFamily
-import com.serendeep.marginalia.ui.theme.Violet
 import java.time.format.TextStyle as DayStyle
 import java.util.Locale
 
-private val ReviewBorder = Color(0xFF2D2756)
 
 @Composable
 fun StatsScreen(viewModel: StatsViewModel = hiltViewModel()) {
@@ -74,7 +71,7 @@ fun StatsScreen(viewModel: StatsViewModel = hiltViewModel()) {
         }
         Row(Modifier.fillMaxWidth().height(232.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Tile(Modifier.weight(1.4f), Modifier.background(surface), hairline) { CoursePanel(state.courses) }
-            Tile(Modifier.weight(1f), Modifier.background(surface), ReviewBorder) { CardsPanel(state) }
+            Tile(Modifier.weight(1f), Modifier.background(surface), MaterialTheme.marginalia.cardsBorder) { CardsPanel(state) }
         }
     }
 }
@@ -83,9 +80,10 @@ fun StatsScreen(viewModel: StatsViewModel = hiltViewModel()) {
 private fun FocusChart(state: StatsState) {
     val measurer = rememberTextMeasurer()
     val top = remember(state.focus) { niceMax(state.focus.max()) }
-    val label = TextStyle(fontFamily = MonoFamily, fontSize = 9.5.sp, color = DimInkDark)
-    val todayLabel = label.copy(color = Lime, fontWeight = FontWeight.Medium)
+    val label = TextStyle(fontFamily = MonoFamily, fontSize = 9.5.sp, color = MaterialTheme.marginalia.dimInk)
+    val todayLabel = label.copy(color = MaterialTheme.marginalia.limeInk, fontWeight = FontWeight.Medium)
     val grid = MaterialTheme.colorScheme.outline
+    val lime = MaterialTheme.marginalia.limeInk
     val yLabels = remember(top) { listOf(0, top / 2, top).map { measurer.measure(if (it == 0) "0" else "${it}m", label) } }
     val xLabels = remember(state.focus, state.today) {
         state.focus.indices.map { i ->
@@ -95,7 +93,7 @@ private fun FocusChart(state: StatsState) {
         }
     }
     Column(Modifier.fillMaxSize()) {
-        TileLabel("Focus · 14 days", Lime)
+        TileLabel("Focus · 14 days", MaterialTheme.marginalia.limeInk)
         Canvas(Modifier.fillMaxWidth().weight(1f).padding(top = 12.dp)) {
             val axisW = 34.dp.toPx()
             val axisH = 18.dp.toPx()
@@ -117,7 +115,7 @@ private fun FocusChart(state: StatsState) {
                 val isToday = i == state.focus.lastIndex
                 if (h > 0f) {
                     drawRoundRect(
-                        Lime.copy(alpha = if (isToday) 1f else 0.38f),
+                        lime.copy(alpha = if (isToday) 1f else 0.38f),
                         Offset(x, plotH - h),
                         Size(barW, h),
                         CornerRadius(3.dp.toPx()),
@@ -135,7 +133,7 @@ private fun StreakPanel(state: StatsState) {
     Column(Modifier.fillMaxSize()) {
         TileLabel("Streak", MaterialTheme.colorScheme.onSurfaceVariant)
         Row(verticalAlignment = Alignment.Bottom, modifier = Modifier.padding(top = 8.dp)) {
-            Text("${state.streak}", fontFamily = DisplayFamily, fontWeight = FontWeight.SemiBold, fontSize = 44.sp, letterSpacing = (-1.3).sp, color = Lime)
+            Text("${state.streak}", fontFamily = DisplayFamily, fontWeight = FontWeight.SemiBold, fontSize = 44.sp, letterSpacing = (-1.3).sp, color = MaterialTheme.marginalia.limeInk)
             Text(
                 " days",
                 fontFamily = BodyFamily,
@@ -163,7 +161,7 @@ private fun StreakPanel(state: StatsState) {
 @Composable
 private fun CoursePanel(courses: List<CourseBar>) {
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        TileLabel("This week by course", Lime)
+        TileLabel("This week by course", MaterialTheme.marginalia.limeInk)
         if (courses.isEmpty()) {
             Text("No study time yet this week.", fontFamily = BodyFamily, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
@@ -191,7 +189,7 @@ private fun CoursePanel(courses: List<CourseBar>) {
                     "${bar.minutes}m",
                     fontFamily = MonoFamily,
                     fontSize = 11.sp,
-                    color = DimInkDark,
+                    color = MaterialTheme.marginalia.dimInk,
                     modifier = Modifier.width(44.dp),
                 )
             }
@@ -202,7 +200,7 @@ private fun CoursePanel(courses: List<CourseBar>) {
 @Composable
 private fun CardsPanel(state: StatsState) {
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        TileLabel("Cards", Violet)
+        TileLabel("Cards", MaterialTheme.colorScheme.primary)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             CardStat("${state.reviewed7}", "Reviewed · 7d", Modifier.weight(1f))
             CardStat(state.retention?.let { "$it%" } ?: "—", "Retention · 30d", Modifier.weight(1f))
@@ -214,7 +212,7 @@ private fun CardsPanel(state: StatsState) {
 @Composable
 private fun CardStat(value: String, caption: String, modifier: Modifier) {
     Column(modifier) {
-        Text(value, fontFamily = DisplayFamily, fontWeight = FontWeight.SemiBold, fontSize = 30.sp, letterSpacing = (-0.9).sp, color = Violet)
+        Text(value, fontFamily = DisplayFamily, fontWeight = FontWeight.SemiBold, fontSize = 30.sp, letterSpacing = (-0.9).sp, color = MaterialTheme.colorScheme.primary)
         TileLabel(caption, MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }

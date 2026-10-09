@@ -1,5 +1,6 @@
 package com.serendeep.marginalia.ai.ui
 
+import com.serendeep.marginalia.ui.theme.marginalia
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -28,10 +29,7 @@ import com.serendeep.marginalia.ai.AiError
 import com.serendeep.marginalia.ui.components.GlassButton
 import com.serendeep.marginalia.ui.theme.BodyFamily
 import com.serendeep.marginalia.ui.theme.MonoFamily
-import com.serendeep.marginalia.ui.theme.Violet
 
-private val CodeBg = Color(0x228B7CF6)
-private val ErrorInk = Color(0xFFFF8A80)
 
 @Composable
 internal fun ThinkingLabel(modifier: Modifier = Modifier) {
@@ -46,7 +44,7 @@ internal fun ThinkingLabel(modifier: Modifier = Modifier) {
         fontFamily = MonoFamily,
         fontSize = 12.sp,
         letterSpacing = 0.6.sp,
-        color = Violet,
+        color = MaterialTheme.colorScheme.primary,
         modifier = modifier.alpha(alpha),
     )
 }
@@ -54,7 +52,7 @@ internal fun ThinkingLabel(modifier: Modifier = Modifier) {
 @Composable
 fun AiErrorBlock(error: AiError, onSetup: () -> Unit, modifier: Modifier = Modifier) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text(error.message, fontFamily = BodyFamily, fontSize = 13.sp, lineHeight = 19.sp, color = ErrorInk)
+        Text(error.message, fontFamily = BodyFamily, fontSize = 13.sp, lineHeight = 19.sp, color = MaterialTheme.marginalia.errorInk)
         if (error.needsSetup()) GlassButton("Open AI settings", onClick = onSetup)
     }
 }
@@ -62,12 +60,12 @@ fun AiErrorBlock(error: AiError, onSetup: () -> Unit, modifier: Modifier = Modif
 @Composable
 fun AiChip(label: String, onClick: () -> Unit, modifier: Modifier = Modifier, selected: Boolean = false, enabled: Boolean = true) {
     val shape = RoundedCornerShape(18.dp)
-    val ink = if (selected) Violet else MaterialTheme.colorScheme.onSurface
+    val ink = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
     Row(
         modifier
             .clip(shape)
-            .background(if (selected) CodeBg else Color.Transparent)
-            .border(1.dp, if (selected) Violet else MaterialTheme.colorScheme.outline, shape)
+            .background(if (selected) MaterialTheme.marginalia.codeBg else Color.Transparent)
+            .border(1.dp, if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline, shape)
             .clickable(enabled = enabled, onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 8.dp),
     ) {

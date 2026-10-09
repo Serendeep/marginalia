@@ -1,5 +1,6 @@
 package com.serendeep.marginalia.update
 
+import com.serendeep.marginalia.ui.theme.marginalia
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -50,9 +51,7 @@ import com.serendeep.marginalia.ui.components.GlassButton
 import com.serendeep.marginalia.ui.components.GlassTextButton
 import com.serendeep.marginalia.ui.components.WebPopup
 import com.serendeep.marginalia.ui.theme.BodyFamily
-import com.serendeep.marginalia.ui.theme.DimInkDark
 import com.serendeep.marginalia.ui.theme.MonoFamily
-import com.serendeep.marginalia.ui.theme.Violet
 import kotlinx.coroutines.delay
 
 /** The one-line summary shown under the version in settings. */
@@ -129,21 +128,21 @@ private fun SidebarRow(label: String, action: String, act: () -> Unit) {
             .fillMaxWidth()
             .padding(bottom = 6.dp)
             .clip(shape)
-            .border(1.dp, Violet.copy(alpha = 0.5f), shape)
+            .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f), shape)
             .clickable(onClick = act)
             .padding(horizontal = 10.dp, vertical = 8.dp),
     ) {
-        Icon(Icons.Outlined.SystemUpdateAlt, null, tint = Violet, modifier = Modifier.size(16.dp))
+        Icon(Icons.Outlined.SystemUpdateAlt, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
         Text(
             label,
             fontFamily = BodyFamily,
             fontSize = 12.5.sp,
-            color = Color(0xFFA0A0AB),
+            color = MaterialTheme.marginalia.chipText,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
         )
-        Text(action, fontFamily = MonoFamily, fontSize = 10.5.sp, letterSpacing = 0.4.sp, color = Violet)
+        Text(action, fontFamily = MonoFamily, fontSize = 10.5.sp, letterSpacing = 0.4.sp, color = MaterialTheme.colorScheme.primary)
     }
 }
 
@@ -271,7 +270,7 @@ fun UpdateBanners(modifier: Modifier = Modifier, vm: UpdateViewModel = hiltViewM
             Banner {
                 Text("This version has a known problem — update now", modifier = Modifier.weight(1f), fontWeight = FontWeight.Medium)
                 if (busy) {
-                    Text(statusLine(status), style = MaterialTheme.typography.bodySmall, color = DimInkDark)
+                    Text(statusLine(status), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.marginalia.dimInk)
                 } else {
                     GlassButton(primaryLabel(status.phase), onClick = act)
                 }
@@ -298,7 +297,7 @@ private fun Banner(content: @Composable androidx.compose.foundation.layout.RowSc
         modifier = Modifier
             .fillMaxWidth()
             .clip(shape)
-            .border(1.dp, Violet.copy(alpha = 0.5f), shape)
+            .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f), shape)
             .padding(horizontal = 16.dp, vertical = 10.dp),
         content = content,
     )

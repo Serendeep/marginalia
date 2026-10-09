@@ -2,6 +2,7 @@
 
 package com.serendeep.marginalia.ink
 
+import com.serendeep.marginalia.ui.theme.LocalDarkTheme
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Matrix
@@ -29,6 +30,7 @@ import androidx.input.motionprediction.MotionEventPredictor
 const val LASER_DOWN = 0
 const val LASER_MOVE = 1
 const val LASER_UP = 2
+const val ERASER_RING_LIGHT: Int = 0xFF55555E.toInt()
 const val LASER_ARGB: Int = 0xFFFF4D4D.toInt()
 
 enum class InkTool { PEN, HIGHLIGHTER, ERASER, LASSO, SELECT, LASER }
@@ -66,6 +68,7 @@ fun InkCanvas(
     val currentPenColor by rememberUpdatedState(penColor)
     val currentPenSize by rememberUpdatedState(penSizePx)
     val currentEraserRadius by rememberUpdatedState(eraserRadiusPx)
+    val eraserRing = if (LocalDarkTheme.current) android.graphics.Color.WHITE else ERASER_RING_LIGHT
 
     AndroidView(
         modifier = modifier,
@@ -126,7 +129,7 @@ fun InkCanvas(
                             touch.stylusNearUntil =
                                 SystemClock.uptimeMillis() + InkTouchHandler.STYLUS_NEAR_MS
                             if (currentTool == InkTool.ERASER) {
-                                container.hoverView.showRing(e.x, e.y, android.graphics.Color.WHITE, currentEraserRadius)
+                                container.hoverView.showRing(e.x, e.y, eraserRing, currentEraserRadius)
                             } else if (currentTool == InkTool.LASER) {
                                 container.hoverView.showRing(e.x, e.y, LASER_ARGB, 10f * context.resources.displayMetrics.density)
                             } else {

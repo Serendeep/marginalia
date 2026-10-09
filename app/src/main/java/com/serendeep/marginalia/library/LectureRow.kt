@@ -1,5 +1,6 @@
 package com.serendeep.marginalia.library
 
+import com.serendeep.marginalia.ui.theme.marginalia
 import android.text.format.DateUtils
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -40,14 +41,9 @@ import com.serendeep.marginalia.data.ReadingStatus
 import com.serendeep.marginalia.sharedCover
 import com.serendeep.marginalia.ui.theme.BodyFamily
 import com.serendeep.marginalia.ui.theme.CoursePalette
-import com.serendeep.marginalia.ui.theme.DimInkDark
 import com.serendeep.marginalia.ui.theme.MonoFamily
-import com.serendeep.marginalia.ui.theme.Violet
 import java.util.Locale
 
-private val RowDivider = Color(0xFF18181C)
-private val ChipBorder = Color(0xFF2A2A30)
-private val ChipText = Color(0xFFA0A0AB)
 private const val MAX_ROW_TAGS = 2
 
 /** Dense list row: thumbnail, title with mono meta, a chip, reading progress. */
@@ -63,6 +59,7 @@ fun LectureRow(
     showProgress: Boolean = true,
     menu: (@Composable () -> Unit)? = null,
 ) {
+    val divider = MaterialTheme.marginalia.rowDivider
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(14.dp),
@@ -70,7 +67,7 @@ fun LectureRow(
             .fillMaxWidth()
             .clickable(onClick = onClick)
             .drawBehind {
-                drawRect(RowDivider, topLeft = androidx.compose.ui.geometry.Offset(0f, size.height - 1.dp.toPx()), size = Size(size.width, 1.dp.toPx()))
+                drawRect(divider, topLeft = androidx.compose.ui.geometry.Offset(0f, size.height - 1.dp.toPx()), size = Size(size.width, 1.dp.toPx()))
             }
             .padding(horizontal = 8.dp, vertical = 9.dp),
     ) {
@@ -89,7 +86,7 @@ fun LectureRow(
                 fontFamily = MonoFamily,
                 fontSize = 11.sp,
                 letterSpacing = 0.44.sp,
-                color = DimInkDark,
+                color = MaterialTheme.marginalia.dimInk,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.padding(top = 3.dp),
@@ -119,7 +116,7 @@ fun LectureRow(
                         "$page/$pages",
                         fontFamily = MonoFamily,
                         fontSize = 11.5.sp,
-                        color = DimInkDark,
+                        color = MaterialTheme.marginalia.dimInk,
                         textAlign = TextAlign.End,
                         maxLines = 1,
                         modifier = Modifier.width(64.dp),
@@ -149,11 +146,11 @@ private fun Chip(label: String, dot: Color? = null) {
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         modifier = Modifier
             .clip(RoundedCornerShape(6.dp))
-            .border(1.dp, ChipBorder, RoundedCornerShape(6.dp))
+            .border(1.dp, MaterialTheme.marginalia.chipBorder, RoundedCornerShape(6.dp))
             .padding(horizontal = 8.dp, vertical = 2.dp),
     ) {
         if (dot != null) Box(Modifier.size(8.dp).clip(RoundedCornerShape(3.dp)).background(dot))
-        Text(label, fontFamily = BodyFamily, fontWeight = FontWeight.Medium, fontSize = 11.sp, color = ChipText, maxLines = 1)
+        Text(label, fontFamily = BodyFamily, fontWeight = FontWeight.Medium, fontSize = 11.sp, color = MaterialTheme.marginalia.chipText, maxLines = 1)
     }
 }
 
@@ -166,7 +163,7 @@ private fun ProgressBar(fraction: Float) {
             .clip(RoundedCornerShape(2.dp))
             .background(MaterialTheme.colorScheme.outline),
     ) {
-        Box(Modifier.fillMaxHeight().fillMaxWidth(fraction.coerceIn(0f, 1f)).background(Violet))
+        Box(Modifier.fillMaxHeight().fillMaxWidth(fraction.coerceIn(0f, 1f)).background(MaterialTheme.colorScheme.primary))
     }
 }
 
