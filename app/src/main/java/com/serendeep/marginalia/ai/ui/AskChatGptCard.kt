@@ -25,6 +25,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
@@ -164,6 +165,7 @@ fun AskChatGptCard(
         onOpenAt = onOpenAt,
         onSetup = { settingsOpen = true },
         modifier = modifier,
+        modelChip = { ModelChip() },
     )
 }
 
@@ -180,6 +182,7 @@ fun AskChatGptCardContent(
     onOpenAt: (String, Int) -> Unit,
     onSetup: () -> Unit,
     modifier: Modifier = Modifier,
+    modelChip: @Composable () -> Unit = {},
 ) {
     var question by remember { mutableStateOf("") }
     val shape = RoundedCornerShape(14.dp)
@@ -191,14 +194,17 @@ fun AskChatGptCardContent(
             .padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Text(
-            "ASK CHATGPT",
-            fontFamily = MonoFamily,
-            fontWeight = FontWeight.Medium,
-            fontSize = 10.5.sp,
-            letterSpacing = 1.26.sp,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+            Text(
+                "ASK CHATGPT",
+                fontFamily = MonoFamily,
+                fontWeight = FontWeight.Medium,
+                fontSize = 10.5.sp,
+                letterSpacing = 1.26.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            if (ready) modelChip()
+        }
         Text(
             "Ask a question across your notes and PDFs. Answers cite the pages. Uses your ChatGPT plan.",
             fontFamily = BodyFamily,
