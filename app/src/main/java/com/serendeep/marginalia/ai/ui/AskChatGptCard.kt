@@ -1,11 +1,7 @@
 package com.serendeep.marginalia.ai.ui
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -50,7 +46,6 @@ import com.serendeep.marginalia.ui.components.GlassTextButton
 import com.serendeep.marginalia.ui.components.glassTextFieldColors
 import com.serendeep.marginalia.ui.theme.BodyFamily
 import com.serendeep.marginalia.ui.theme.MonoFamily
-import com.serendeep.marginalia.ui.theme.Violet
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -59,7 +54,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import java.util.Locale
 import javax.inject.Inject
 
 private const val TOP_PAGES = 6
@@ -169,7 +163,6 @@ fun AskChatGptCard(
     )
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun AskChatGptCardContent(
     ready: Boolean,
@@ -236,36 +229,17 @@ fun AskChatGptCardContent(
                             .fillMaxWidth()
                             .heightIn(max = 320.dp)
                             .verticalScroll(rememberScrollState()),
+                        onCitation = { title, page ->
+                            citations.firstOrNull { it.page == page && it.title.equals(title, ignoreCase = true) }
+                                ?.lectureId?.let { onOpenAt(it, page - 1) }
+                        },
                     )
                 }
                 if (state is AiRunState.Failed) AiErrorBlock(state.error, onSetup)
-                if (citations.isNotEmpty()) {
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        citations.forEach { c -> CitationPill(c, onOpenAt) }
-                    }
-                }
                 Row {
                     if (busy) GlassTextButton("Stop", onClick = onStop) else GlassTextButton("Clear", onClick = onClose)
                 }
             }
         }
     }
-}
-
-@Composable
-private fun CitationPill(c: CitationChip, onOpenAt: (String, Int) -> Unit) {
-    val shape = RoundedCornerShape(10.dp)
-    Text(
-        c.label.uppercase(Locale.ROOT),
-        fontFamily = MonoFamily,
-        fontSize = 10.5.sp,
-        letterSpacing = 0.5.sp,
-        color = Violet,
-        maxLines = 1,
-        modifier = Modifier
-            .clip(shape)
-            .background(Violet.copy(alpha = 0.13f))
-            .clickable(enabled = c.lectureId != null) { c.lectureId?.let { onOpenAt(it, c.page - 1) } }
-            .padding(horizontal = 8.dp, vertical = 4.dp),
-    )
 }
