@@ -55,6 +55,7 @@ android {
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             if (hasReleaseSigning) signingConfig = signingConfigs.getByName("release")
+            ndk { abiFilters += "arm64-v8a" }
         }
         // A release-like build that installs beside the real app, for recording demos with sample data.
         // -PdemoDebuggable makes it inspectable so sample data can be seeded; reinstall without it to record.
@@ -64,6 +65,7 @@ android {
             signingConfig = signingConfigs.getByName(if (hasReleaseSigning) "release" else "debug")
             isDebuggable = project.hasProperty("demoDebuggable")
             matchingFallbacks += listOf("release")
+            ndk { abiFilters.clear(); abiFilters += "arm64-v8a" }
         }
     }
 
