@@ -62,8 +62,15 @@ section:has(> eqn) { margin: 8px 0; overflow-x: auto; }
 .mmd { margin: 0 0 10px; }
 .mmd svg { max-width: 100%; height: auto; }
 
-button.cite { font: 500 10.5px/14px var(--mono); letter-spacing: 0.5px; text-transform: uppercase; color: var(--violet); background: var(--code-bg); border: 0; border-radius: 8px; padding: 2px 7px; margin: 0 1px; vertical-align: 1px; }
+button.cite { font: 600 10px/16px var(--mono); color: var(--violet); background: var(--code-bg); border: 0; border-radius: 6px; min-width: 18px; height: 16px; padding: 0 4px; margin: 0 1px; vertical-align: 2px; text-align: center; }
 button.cite:active { opacity: 0.6; }
+.sources { margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--outline); }
+.sources-label { font: 500 10px/14px var(--mono); letter-spacing: 1.2px; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+.source { display: flex; align-items: baseline; gap: 8px; padding: 3px 0; font-size: 13px; line-height: 19px; }
+.source-body { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 6px; flex: 1; min-width: 0; }
+.source-n { font: 600 10px/16px var(--mono); color: var(--violet); min-width: 16px; }
+.source-title { color: var(--ink); margin-right: 2px; }
+.source button.cite.page { font-weight: 500; height: 18px; line-height: 18px; padding: 0 6px; vertical-align: 0; }
 
 .hljs-comment, .hljs-quote { color: var(--muted); font-style: italic; }
 .hljs-keyword, .hljs-selector-tag, .hljs-built_in, .hljs-literal, .hljs-type { color: var(--violet); }

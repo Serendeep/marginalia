@@ -44,10 +44,37 @@
     state.pos = CITE.lastIndex;
     return true;
   });
-  md.renderer.rules.citation = function (tokens, idx) {
+  // Citations number by document in order of first mention; the inline pill keeps the exact page for the preview.
+  function sourceNumber(env, title, page) {
+    env.sources = env.sources || [];
+    var src = env.sources.find(function (x) { return x.title.toLowerCase() === title.toLowerCase(); });
+    if (!src) {
+      src = { n: env.sources.length + 1, title: title, pages: [] };
+      env.sources.push(src);
+    }
+    if (src.pages.indexOf(page) < 0) src.pages.push(page);
+    return src.n;
+  }
+
+  md.renderer.rules.citation = function (tokens, idx, options, env) {
     var c = tokens[idx].meta;
-    return '<button class="cite" data-title="' + esc(c.title) + '" data-page="' + c.page + '">' + esc(c.title) + " p." + c.page + "</button>";
+    var n = sourceNumber(env, c.title, c.page);
+    // Back-to-back citations of the same document show one number; the Sources list keeps every page.
+    var j = idx - 1;
+    while (j >= 0 && tokens[j].type === "text" && !tokens[j].content.trim()) j--;
+    if (j >= 0 && tokens[j].type === "citation" && tokens[j].meta.title.toLowerCase() === c.title.toLowerCase()) return "";
+    return '<button class="cite" data-title="' + esc(c.title) + '" data-page="' + c.page + '" aria-label="' + esc(c.title) + ", page " + c.page + '">' + n + "</button>";
   };
+
+  function sourcesHtml(sources) {
+    if (!sources || !sources.length) return "";
+    return '<div class="sources"><div class="sources-label">Sources</div>' + sources.map(function (s) {
+      var pages = s.pages.slice().sort(function (x, y) { return x - y; }).map(function (p) {
+        return '<button class="cite page" data-title="' + esc(s.title) + '" data-page="' + p + '">p.' + p + "</button>";
+      }).join("");
+      return '<div class="source"><span class="source-n">' + s.n + '</span><div class="source-body"><span class="source-title">' + esc(s.title) + "</span>" + pages + "</div></div>";
+    }).join("") + "</div>";
+  }
 
   function messageNode(m, live) {
     var key = m.role + "|" + (live ? 1 : 0) + "|" + m.markdown;
@@ -56,7 +83,8 @@
     var node = rec ? rec.node : document.createElement("div");
     node.className = "msg " + m.role + (live ? " live" : "");
     if (m.role === "assistant") {
-      node.innerHTML = md.render(m.markdown, { final: !live });
+      var env = { final: !live };
+      node.innerHTML = md.render(m.markdown, env) + sourcesHtml(env.sources);
       renderDiagrams(node);
     } else {
       node.textContent = m.markdown;

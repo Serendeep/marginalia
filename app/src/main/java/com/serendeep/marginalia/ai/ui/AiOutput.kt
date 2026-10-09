@@ -11,16 +11,12 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
@@ -28,45 +24,17 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.serendeep.marginalia.ai.AiError
 import com.serendeep.marginalia.ui.components.GlassButton
-import com.serendeep.marginalia.ui.components.WebPopup
 import com.serendeep.marginalia.ui.theme.BodyFamily
 import com.serendeep.marginalia.ui.theme.MonoFamily
 import com.serendeep.marginalia.ui.theme.Violet
-import kotlinx.coroutines.flow.StateFlow
 
 private val CodeBg = Color(0x228B7CF6)
 private val ErrorInk = Color(0xFFFF8A80)
 
-/** One streamed answer, sized to its content. Reads [text] itself, so a token flush recomposes only this view. */
 @Composable
-fun StreamingText(
-    text: StateFlow<String>,
-    streaming: Boolean,
-    modifier: Modifier = Modifier,
-    onCitation: (title: String, page: Int) -> Unit = { _, _ -> },
-) {
-    val value by text.collectAsStateWithLifecycle()
-    if (value.isEmpty() && streaming) {
-        ThinkingLabel(modifier)
-        return
-    }
-    var popup by remember { mutableStateOf<String?>(null) }
-    AnswerView(
-        messages = remember(value) { listOf(AnswerMessage("answer", AnswerRole.ASSISTANT, value)) },
-        streaming = streaming,
-        onCitation = onCitation,
-        onLink = { popup = it },
-        modifier = modifier.fillMaxWidth(),
-        wrapContent = true,
-    )
-    popup?.let { WebPopup(it) { popup = null } }
-}
-
-@Composable
-private fun ThinkingLabel(modifier: Modifier = Modifier) {
+internal fun ThinkingLabel(modifier: Modifier = Modifier) {
     val alpha by rememberInfiniteTransition(label = "thinking").animateFloat(
         initialValue = 0.35f,
         targetValue = 1f,

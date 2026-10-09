@@ -115,12 +115,16 @@ fun NotebookScreen(
     viewModel: NotebookViewModel = hiltViewModel(),
     lectureId: String,
     onBack: () -> Unit,
+    onOpenAt: (lectureId: String, page: Int) -> Unit,
     startPage: Int? = null,
 ) {
     val context = LocalContext.current
     var source by remember { mutableStateOf<PdfDocumentSource?>(null) }
     var pendingWebLink by remember { mutableStateOf<String?>(null) }
     var outlineOpen by remember { mutableStateOf(false) }
+    var askOpen by remember { mutableStateOf(false) }
+    val aiReady = com.serendeep.marginalia.ai.ui.rememberAiReady()
+    var askSelection by remember { mutableStateOf<ByteArray?>(null) }
 
     LaunchedEffect(lectureId) { viewModel.openLecture(lectureId, startPage) }
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -212,6 +216,16 @@ fun NotebookScreen(
             onDismiss = viewModel::cancelLassoCard,
             initialBack = draft.back,
             onSave = { _, back, _ -> viewModel.saveLassoCard(back) },
+            onAskAi = if (aiReady) {
+                {
+                    viewModel.askAboutLasso {
+                        askSelection = it
+                        askOpen = true
+                    }
+                }
+            } else {
+                null
+            },
         )
     }
     val textDraft by viewModel.textDraft.collectAsStateWithLifecycle()
@@ -291,14 +305,7 @@ fun NotebookScreen(
                         PageIndicator(page = currentPage + 1, pageCount = pageCount)
                     }
                     FocusPill(viewModel)
-                    com.serendeep.marginalia.ai.ui.NotebookAskPill(
-                        lectureId = lectureId,
-                        documentId = document?.id,
-                        title = lectureTitle,
-                        page = currentPage,
-                        pageCount = pageCount,
-                        source = source,
-                    )
+                    if (aiReady) com.serendeep.marginalia.ai.ui.NotebookAskPill(onClick = { askOpen = true })
                 }
             }
         }
@@ -468,7 +475,7 @@ fun NotebookScreen(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     FocusPill(viewModel)
-                    com.serendeep.marginalia.ai.ui.NotebookAskPill(lectureId, null, lectureTitle, currentPage, pageCount, null)
+                    if (aiReady) com.serendeep.marginalia.ai.ui.NotebookAskPill(onClick = { askOpen = true })
                 }
             }
 
@@ -480,6 +487,23 @@ fun NotebookScreen(
                 )
             }
         }
+    }
+    if (askOpen && aiReady) {
+        com.serendeep.marginalia.ai.ui.NotebookAskPanel(
+            lectureId = lectureId,
+            documentId = document?.id,
+            title = lectureTitle,
+            page = currentPage,
+            pageCount = pageCount,
+            source = source,
+            selectionPng = askSelection,
+            onJump = viewModel::requestPdfPage,
+            onOpenAt = onOpenAt,
+            onDismiss = {
+                askOpen = false
+                askSelection = null
+            },
+        )
     }
     LaserOverlay(trails)
     }

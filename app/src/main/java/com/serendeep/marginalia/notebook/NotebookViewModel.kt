@@ -169,6 +169,17 @@ class NotebookViewModel @Inject constructor(
         }
     }
 
+    /** Hands the staged crop to [onCrop] on the main thread and drops the card draft. */
+    fun askAboutLasso(onCrop: (ByteArray) -> Unit) {
+        val draft = _lassoDraft.value ?: return
+        _lassoDraft.value = null
+        viewModelScope.launch(Dispatchers.IO) {
+            val bytes = runCatching { File(draft.imagePath).readBytes() }.getOrNull()
+            File(draft.imagePath).delete()
+            if (bytes != null) withContext(Dispatchers.Main) { onCrop(bytes) }
+        }
+    }
+
     fun cancelLassoCard() {
         val draft = _lassoDraft.value ?: return
         _lassoDraft.value = null
