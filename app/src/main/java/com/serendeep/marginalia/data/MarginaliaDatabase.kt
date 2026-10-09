@@ -22,8 +22,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         LectureTagEntity::class,
         InkTextEntity::class,
         InkIndexStateEntity::class,
+        ChatEntity::class,
+        ChatTurnEntity::class,
     ],
-    version = 9,
+    version = 10,
     exportSchema = true,
 )
 abstract class MarginaliaDatabase : RoomDatabase() {
@@ -37,6 +39,7 @@ abstract class MarginaliaDatabase : RoomDatabase() {
     abstract fun highlightDao(): HighlightDao
     abstract fun cardDao(): CardDao
     abstract fun tagDao(): TagDao
+    abstract fun chatDao(): ChatDao
 
     companion object {
         val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -202,6 +205,20 @@ abstract class MarginaliaDatabase : RoomDatabase() {
                             ON UPDATE NO ACTION ON DELETE CASCADE
                     )
                     """.trimIndent(),
+                )
+            }
+        }
+
+        val MIGRATION_9_10 = object : Migration(9, 10) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `chats` (`id` TEXT NOT NULL, `title` TEXT NOT NULL, `scope` TEXT NOT NULL, " +
+                        "`createdAt` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_chats_scope_updatedAt` ON `chats` (`scope`, `updatedAt`)")
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `chat_turns` (`chatId` TEXT NOT NULL, `idx` INTEGER NOT NULL, " +
+                        "`json` TEXT NOT NULL, PRIMARY KEY(`chatId`, `idx`))",
                 )
             }
         }

@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Room
 import com.serendeep.marginalia.data.AnchorDao
 import com.serendeep.marginalia.data.CardDao
+import com.serendeep.marginalia.data.ChatDao
 import com.serendeep.marginalia.data.CourseDao
 import com.serendeep.marginalia.data.DocumentDao
 import com.serendeep.marginalia.data.HighlightDao
@@ -37,6 +38,7 @@ object DatabaseModule {
                 MarginaliaDatabase.MIGRATION_6_7,
                 MarginaliaDatabase.MIGRATION_7_8,
                 MarginaliaDatabase.MIGRATION_8_9,
+                MarginaliaDatabase.MIGRATION_9_10,
             )
             .build()
 
@@ -69,4 +71,7 @@ object DatabaseModule {
 
     @Provides
     fun provideTagDao(db: MarginaliaDatabase): TagDao = db.tagDao()
+
+    @Provides
+    fun provideChatDao(db: MarginaliaDatabase): ChatDao = db.chatDao()
 }
