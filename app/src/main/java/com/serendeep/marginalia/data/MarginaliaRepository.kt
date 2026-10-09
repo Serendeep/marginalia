@@ -176,6 +176,7 @@ class MarginaliaRepository @Inject constructor(
         frontText: String? = null,
         frontImagePath: String? = null,
         backText: String? = null,
+        backInk: ByteArray? = null,
         highlightId: String? = null,
         id: String = newId(),
     ): CardEntity {
@@ -187,6 +188,7 @@ class MarginaliaRepository @Inject constructor(
             frontText = frontText,
             frontImagePath = frontImagePath,
             backText = backText,
+            backInk = backInk,
             source = source.name,
             highlightId = highlightId,
             dueAt = now(),
