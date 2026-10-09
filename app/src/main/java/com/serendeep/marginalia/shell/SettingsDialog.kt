@@ -24,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.serendeep.marginalia.BuildConfig
+import com.serendeep.marginalia.backup.BackupSectionContent
 import com.serendeep.marginalia.handwriting.ModelState
 import com.serendeep.marginalia.handwriting.modelStatus
 import com.serendeep.marginalia.ink.PencilAction
@@ -116,6 +117,8 @@ fun SettingsDialog(
                 if (modelState == ModelState.NotDownloaded) GlassTextButton("Download model", onClick = onDownloadModel)
             }
         }
+        PanelDivider()
+        PanelSection("Backup") { BackupSectionContent() }
         if (BuildConfig.UPDATES_ENABLED) {
             PanelDivider()
             PanelSection("Updates") { UpdatesSectionContent() }
