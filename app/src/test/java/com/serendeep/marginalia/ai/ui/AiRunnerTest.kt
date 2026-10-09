@@ -66,15 +66,42 @@ class AiRunnerTest {
     @Test
     fun stopCancelsTheStreamAndKeepsText() = runBlocking {
         val gate = CompletableDeferred<Unit>()
-        val r = runner { flow { emit(AiEvent.Delta("abc")); gate.await(); emit(AiEvent.Delta("never")); emit(AiEvent.Completed) } }
+        val r = runner { flow { emit(AiEvent.Delta("abc\n\ndef")); gate.await(); emit(AiEvent.Delta("never")); emit(AiEvent.Completed) } }
         r.start { request }
-        withTimeout(5_000) { r.text.first { it == "abc" } }
+        withTimeout(5_000) { r.text.first { it == "abc\n\n" } }
         r.stop()
         gate.complete(Unit)
         assertEquals(AiRunState.Stopped, r.state.value)
         Thread.sleep(50)
-        assertEquals("abc", r.text.value)
+        assertEquals("abc\n\ndef", r.text.value)
         assertEquals(AiRunState.Stopped, r.state.value)
+    }
+
+    @Test
+    fun textDoneEndsTheRunBeforeCompleted() = runBlocking {
+        val gate = CompletableDeferred<Unit>()
+        val r = runner { flow { emit(AiEvent.Delta("answer")); emit(AiEvent.TextDone); gate.await(); emit(AiEvent.Completed) } }
+        r.start { request }
+        assertEquals(AiRunState.Done, r.settled())
+        assertEquals("answer", r.text.value)
+        gate.complete(Unit)
+        Thread.sleep(50)
+        assertEquals(AiRunState.Done, r.state.value)
+    }
+
+    @Test
+    fun holdsBackTheOpenParagraphUntilItsBoundaryOrTimeout() = runBlocking {
+        val gate = CompletableDeferred<Unit>()
+        var clock = 0L
+        val r = AiRunner(scope, { FakeProvider { flow { emit(AiEvent.Delta("one\n\ntw")); gate.await(); emit(AiEvent.Completed) } } }, flushMs = 5, now = { clock })
+        r.start { request }
+        withTimeout(5_000) { r.text.first { it == "one\n\n" } }
+        Thread.sleep(30)
+        assertEquals("one\n\n", r.text.value)
+        clock += PUBLISH_TIMEOUT_MS
+        withTimeout(5_000) { r.text.first { it == "one\n\ntw" } }
+        gate.complete(Unit)
+        assertEquals(AiRunState.Done, r.settled())
     }
 
     @Test
