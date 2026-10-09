@@ -35,26 +35,33 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        if (hasReleaseSigning) {
+            create("release") {
+                storeFile = file(signingStorePath!!)
+                storePassword = signingStorePassword
+                keyAlias = signingKeyAlias
+                keyPassword = signingKeyPassword
+                // v3 carries a signing lineage, so the key can be rotated later without breaking updates.
+                enableV2Signing = true
+                enableV3Signing = true
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            if (hasReleaseSigning) {
-                signingConfig = signingConfigs.create("release") {
-                    storeFile = file(signingStorePath!!)
-                    storePassword = signingStorePassword
-                    keyAlias = signingKeyAlias
-                    keyPassword = signingKeyPassword
-                }
-            }
+            if (hasReleaseSigning) signingConfig = signingConfigs.getByName("release")
         }
         // A release-like build that installs beside the real app, for recording demos with sample data.
         // -PdemoDebuggable makes it inspectable so sample data can be seeded; reinstall without it to record.
         create("demo") {
             initWith(getByName("release"))
             applicationIdSuffix = ".demo"
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName(if (hasReleaseSigning) "release" else "debug")
             isDebuggable = project.hasProperty("demoDebuggable")
             matchingFallbacks += listOf("release")
         }

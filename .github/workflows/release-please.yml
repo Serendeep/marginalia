@@ -71,4 +71,13 @@ jobs:
         if: ${{ steps.release.outputs.release_created }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release upload "${{ steps.release.outputs.tag_name }}" app/build/outputs/apk/release/app-release.apk --clobber
+        run: |
+          APK=app/build/outputs/apk/release/app-release.apk
+          BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          SHA=$(sha256sum "$APK" | cut -d' ' -f1)
+          CERT=$("$BT/apksigner" verify --print-certs "$APK" | sed -n 's/.*certificate SHA-256 digest: //p' | head -1)
+          echo "$SHA  app-release.apk" > app-release.apk.sha256
+          gh release upload "${{ steps.release.outputs.tag_name }}" "$APK" app-release.apk.sha256 --clobber
+          gh release view "${{ steps.release.outputs.tag_name }}" --json body -q .body > notes.md
+          printf '\n\n### Verify this download\n\n- APK SHA-256: `%s`\n- Signing certificate SHA-256: `%s`\n\n`sha256sum app-release.apk` and `apksigner verify --print-certs app-release.apk` should print the same values.\n' "$SHA" "$CERT" >> notes.md
+          gh release edit "${{ steps.release.outputs.tag_name }}" --notes-file notes.md
