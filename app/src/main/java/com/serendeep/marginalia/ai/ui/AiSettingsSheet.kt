@@ -12,30 +12,22 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -64,7 +56,9 @@ import com.serendeep.marginalia.ai.ChatGptStatus
 import com.serendeep.marginalia.ai.ProviderChoice
 import com.serendeep.marginalia.ui.components.GlassButton
 import com.serendeep.marginalia.ui.components.GlassTextButton
-import com.serendeep.marginalia.ui.components.MarginLabel
+import com.serendeep.marginalia.ui.components.PanelDivider
+import com.serendeep.marginalia.ui.components.PanelSection
+import com.serendeep.marginalia.ui.components.SidePanel
 import com.serendeep.marginalia.ui.components.glassTextFieldColors
 import com.serendeep.marginalia.ui.theme.BodyFamily
 import com.serendeep.marginalia.ui.theme.DimInkDark
@@ -74,7 +68,6 @@ import com.serendeep.marginalia.ui.theme.Violet
 const val CUSTOM_URL_PLACEHOLDER = "https://cursedpc.tailbd2879.ts.net/v1"
 const val PRIVACY_NOTE = "Nothing is sent unless you tap an AI action. Requests don't store your data (store:false)."
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AiSettingsSheet(onDismiss: () -> Unit, viewModel: AiSettingsViewModel = hiltViewModel()) {
     val config by viewModel.config.collectAsStateWithLifecycle()
@@ -94,11 +87,7 @@ fun AiSettingsSheet(onDismiss: () -> Unit, viewModel: AiSettingsViewModel = hilt
         ProviderChoice.CHATGPT -> (status as? ChatGptStatus.Connected)?.model
         ProviderChoice.COMPATIBLE -> config.model.ifEmpty { null }
     }
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        containerColor = MaterialTheme.colorScheme.surface,
-    ) {
+    SidePanel(onDismiss = onDismiss, title = "AI", eyebrow = "Settings") {
         AiSettingsContent(
             config = config,
             status = status,
@@ -149,46 +138,51 @@ fun AiSettingsContent(
     defaultModelFor: (AiTask) -> String? = { null },
     onTaskModel: (AiTask, TaskModel) -> Unit = { _, _ -> },
 ) {
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .imePadding()
-            .navigationBarsPadding()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 24.dp, vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
-    ) {
-        MarginLabel("AI")
-        Segmented(config.provider, onProvider)
-        if (config.provider == ProviderChoice.CHATGPT) {
-            ChatGptSection(status, models, selectedSlug, notice, onConnect, onCancelSignIn, onDisconnect, onSelectModel)
-        } else {
-            CustomSection(config, models, selectedSlug, onTest, onCustomEdited, onSelectModel)
-        }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text("Auto-sort imported PDFs", fontFamily = BodyFamily, fontSize = 14.sp)
-                Text(
-                    "Files new PDFs into a course with a short request to your model.",
-                    fontFamily = BodyFamily,
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+    val showModel = if (config.provider == ProviderChoice.CHATGPT) {
+        status is ChatGptStatus.Connected
+    } else {
+        models is ModelsState.Loaded || selectedSlug != null
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
+        PanelSection("Connection") {
+            Segmented(config.provider, onProvider)
+            if (config.provider == ProviderChoice.CHATGPT) {
+                ChatGptSection(status, notice, onConnect, onCancelSignIn, onDisconnect)
+            } else {
+                CustomSection(config, models, onTest, onCustomEdited)
             }
-            Switch(checked = autoSort, onCheckedChange = onAutoSort)
+        }
+        if (showModel) {
+            PanelDivider()
+            PanelSection("Default model") { ModelPicker(models, selectedSlug, onSelectModel) }
         }
         if (config.provider == ProviderChoice.COMPATIBLE || status is ChatGptStatus.Connected) {
-            TaskModelsSection(models, taskModels, defaultModelFor, onTaskModel)
+            PanelDivider()
+            PanelSection("Models per action") { TaskModelsSection(models, taskModels, defaultModelFor, onTaskModel) }
         }
-        Text(
-            PRIVACY_NOTE,
-            fontFamily = MonoFamily,
-            fontSize = 10.5.sp,
-            lineHeight = 16.sp,
-            letterSpacing = 0.4.sp,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Spacer(Modifier.padding(bottom = 8.dp))
+        PanelDivider()
+        PanelSection("Privacy") {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Auto-sort imported PDFs", fontFamily = BodyFamily, fontSize = 14.sp)
+                    Text(
+                        "Files new PDFs into a course with a short request to your model.",
+                        fontFamily = BodyFamily,
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Switch(checked = autoSort, onCheckedChange = onAutoSort)
+            }
+            Text(
+                PRIVACY_NOTE,
+                fontFamily = MonoFamily,
+                fontSize = 10.5.sp,
+                lineHeight = 16.sp,
+                letterSpacing = 0.4.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
 
@@ -229,13 +223,10 @@ private fun Segmented(selected: ProviderChoice, onSelect: (ProviderChoice) -> Un
 @Composable
 private fun ChatGptSection(
     status: ChatGptStatus,
-    models: ModelsState,
-    selectedSlug: String?,
     notice: String?,
     onConnect: () -> Unit,
     onCancel: () -> Unit,
     onDisconnect: () -> Unit,
-    onSelectModel: (String) -> Unit,
 ) {
     when (status) {
         is ChatGptStatus.Connected -> {
@@ -250,7 +241,6 @@ private fun ChatGptSection(
             } else {
                 StatusLine("Connected", Violet)
             }
-            ModelPicker(models, selectedSlug, onSelectModel)
             GlassTextButton("Disconnect", onClick = onDisconnect)
         }
         ChatGptStatus.Connecting -> {
@@ -279,10 +269,8 @@ private fun StatusLine(text: String, color: Color) {
 private fun CustomSection(
     config: AiConfig,
     models: ModelsState,
-    selectedSlug: String?,
     onTest: (String, String) -> Unit,
     onEdited: (String, String) -> Unit,
-    onSelectModel: (String) -> Unit,
 ) {
     var url by remember { mutableStateOf(config.baseUrl) }
     var key by remember { mutableStateOf(config.apiKey) }
@@ -315,7 +303,6 @@ private fun CustomSection(
         is ModelsState.Failed -> StatusLine(models.message, Color(0xFFFF8A80))
         else -> Unit
     }
-    if (models is ModelsState.Loaded || selectedSlug != null) ModelPicker(models, selectedSlug, onSelectModel)
 }
 
 @Composable
@@ -324,7 +311,6 @@ private fun ModelPicker(models: ModelsState, selectedSlug: String?, onSelect: (S
     val list = (models as? ModelsState.Loaded)?.models.orEmpty()
     val shape = RoundedCornerShape(12.dp)
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text("MODEL", fontFamily = MonoFamily, fontSize = 10.5.sp, letterSpacing = 1.26.sp, color = DimInkDark)
         Box {
             Row(
                 Modifier
@@ -371,7 +357,6 @@ private fun TaskModelsSection(
 ) {
     val list = (models as? ModelsState.Loaded)?.models.orEmpty()
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text("MODELS PER ACTION", fontFamily = MonoFamily, fontSize = 10.5.sp, letterSpacing = 1.26.sp, color = DimInkDark)
         TASK_LABELS.forEach { (task, label) ->
             val current = overrides[task] ?: TaskModel()
             val defaultSlug = defaultModelFor(task)
