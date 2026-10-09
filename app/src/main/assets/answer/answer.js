@@ -44,9 +44,18 @@
     state.pos = CITE.lastIndex;
     return true;
   });
+  // Long paper titles would turn every pill into a full-width block; the subtitle after a colon goes first.
+  function shortTitle(t) {
+    var head = t.split(":")[0].trim();
+    if (head.length <= 30) return head;
+    var cut = head.slice(0, 30);
+    var space = cut.lastIndexOf(" ");
+    return (space > 12 ? cut.slice(0, space) : cut) + "…";
+  }
+
   md.renderer.rules.citation = function (tokens, idx) {
     var c = tokens[idx].meta;
-    return '<button class="cite" data-title="' + esc(c.title) + '" data-page="' + c.page + '">' + esc(c.title) + " p." + c.page + "</button>";
+    return '<button class="cite" data-title="' + esc(c.title) + '" data-page="' + c.page + '">' + esc(shortTitle(c.title)) + " · p." + c.page + "</button>";
   };
 
   function messageNode(m, live) {

@@ -47,18 +47,28 @@ class NotebookTarget(
 internal fun answerMessages(turns: List<ChatTurn>): List<AnswerMessage> = turns.flatMap { turn ->
     buildList {
         add(AnswerMessage("${turn.id}-u", AnswerRole.USER, turn.user))
+        // A run of tool steps reads as one line: the current step while working, a count once the answer follows.
+        var steps = 0
         turn.entries.forEachIndexed { index, entry ->
-            val id = "${turn.id}-$index"
-            add(
-                when (entry) {
-                    is ChatEntry.Text -> AnswerMessage(id, AnswerRole.ASSISTANT, entry.markdown)
-                    is ChatEntry.Status -> AnswerMessage(id, AnswerRole.STATUS, entry.label)
-                },
-            )
+            when (entry) {
+                is ChatEntry.Text -> {
+                    if (steps > 0) add(AnswerMessage("${turn.id}-s$index", AnswerRole.STATUS, researched(steps)))
+                    steps = 0
+                    add(AnswerMessage("${turn.id}-$index", AnswerRole.ASSISTANT, entry.markdown))
+                }
+                is ChatEntry.Status -> {
+                    steps++
+                    val last = index == turn.entries.lastIndex
+                    if (last && turn.streaming) add(AnswerMessage("${turn.id}-s$index", AnswerRole.STATUS, entry.label))
+                    else if (last) add(AnswerMessage("${turn.id}-s$index", AnswerRole.STATUS, researched(steps)))
+                }
+            }
         }
         turn.error?.let { add(AnswerMessage("${turn.id}-e", AnswerRole.ASSISTANT, "**Couldn't finish:** ${it.message}")) }
     }
 }
+
+private fun researched(steps: Int) = if (steps == 1) "Researched in 1 step" else "Researched in $steps steps"
 
 /** Exact title first, then ignoring case. */
 internal fun resolveLecture(title: String, lectureByTitle: Map<String, String>): String? =

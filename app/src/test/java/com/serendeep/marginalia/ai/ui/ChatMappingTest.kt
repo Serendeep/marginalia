@@ -21,9 +21,18 @@ class ChatMappingTest {
             ChatTurn(1, "Why?"),
         )
         val messages = answerMessages(turns)
-        assertEquals(listOf("0-u", "0-0", "0-1", "1-u"), messages.map { it.id })
+        assertEquals(listOf("0-u", "0-s1", "0-1", "1-u"), messages.map { it.id })
         assertEquals(listOf(AnswerRole.USER, AnswerRole.STATUS, AnswerRole.ASSISTANT, AnswerRole.USER), messages.map { it.role })
-        assertEquals("Searching", messages[1].markdown)
+        assertEquals("Researched in 1 step", messages[1].markdown)
+    }
+
+    @Test
+    fun toolStepsCollapseToTheCurrentStepThenACount() {
+        val steps = listOf(ChatEntry.Status("Searching", "search_library"), ChatEntry.Status("Reading A p.2", "read_pages"))
+        val live = answerMessages(listOf(ChatTurn(0, "Q", entries = steps)))
+        assertEquals(listOf("Q", "Reading A p.2"), live.map { it.markdown })
+        val done = answerMessages(listOf(ChatTurn(0, "Q", entries = steps + ChatEntry.Text("Answer."), streaming = false)))
+        assertEquals(listOf("Q", "Researched in 2 steps", "Answer."), done.map { it.markdown })
     }
 
     @Test
