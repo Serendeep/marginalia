@@ -126,8 +126,8 @@ class ChatSession internal constructor(
         flush(id)
         remember()
         live = null
-        _streaming.value = false
         update(id) { it.copy(streaming = false, error = error) }
+        _streaming.value = false
     }
 
     private fun flush(id: Int) {
