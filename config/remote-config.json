@@ -1,0 +1,10 @@
+{
+  "minSupportedVersionCode": 0,
+  "knownBadVersionCodes": [],
+  "flags": {
+    "ai": true,
+    "agent": true,
+    "autoSort": true,
+    "handwritingSearch": true
+  }
+}

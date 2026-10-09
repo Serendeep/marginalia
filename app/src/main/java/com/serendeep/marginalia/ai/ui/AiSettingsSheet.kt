@@ -440,7 +440,9 @@ private fun <T> SettingsDropdown(
 @Composable
 fun AiSidebarItem(viewModel: AiSettingsViewModel = hiltViewModel()) {
     val label by viewModel.label.collectAsStateWithLifecycle()
+    val allowed by viewModel.aiAllowed.collectAsStateWithLifecycle()
     var open by remember { mutableStateOf(false) }
+    if (!allowed) return
     if (open) AiSettingsSheet(onDismiss = { open = false }, viewModel = viewModel)
     Row(
         verticalAlignment = Alignment.CenterVertically,

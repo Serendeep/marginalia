@@ -9,6 +9,7 @@ import com.serendeep.marginalia.data.MarginaliaRepository
 import com.serendeep.marginalia.library.LibraryViewModel
 import com.serendeep.marginalia.shell.PREFS
 import com.serendeep.marginalia.ui.theme.CoursePalette
+import com.serendeep.marginalia.update.RemoteConfig
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -132,6 +133,7 @@ class AutoSorter internal constructor(
     }
 
     private suspend fun sortLocked(lectureId: String, force: Boolean): SortResult? {
+        if (!RemoteConfig.cached(prefs).flags.autoSort) return null
         val ai = provider() ?: return null
         if (!force && lectureId in attempted()) return null
         val lecture = repository.getLecture(lectureId) ?: return null

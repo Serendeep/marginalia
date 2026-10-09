@@ -1,5 +1,7 @@
 package com.serendeep.marginalia.shell
 
+import androidx.compose.material3.IconButton
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
@@ -121,6 +123,7 @@ private fun Sidebar(screen: Screen, onNavigate: (Screen) -> Unit, viewModel: She
     val state by viewModel.sidebar.collectAsStateWithLifecycle()
     val hairline = MaterialTheme.colorScheme.outline
     val filter = (screen as? Screen.Library)?.filter
+    var settingsOpen by remember { mutableStateOf(false) }
     Column(
         Modifier
             .width(SidebarWidth)
@@ -143,7 +146,11 @@ private fun Sidebar(screen: Screen, onNavigate: (Screen) -> Unit, viewModel: She
                     fontWeight = FontWeight.Bold,
                     fontSize = 17.sp,
                     letterSpacing = (-0.34).sp,
+                    modifier = Modifier.weight(1f),
                 )
+                IconButton(onClick = { settingsOpen = true }, modifier = Modifier.size(32.dp)) {
+                    Icon(Icons.Outlined.Settings, contentDescription = "Settings", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
+                }
             }
             NavItem("Today", Icons.Outlined.Home, screen == Screen.Today) { onNavigate(Screen.Today) }
             NavItem(
@@ -199,8 +206,9 @@ private fun Sidebar(screen: Screen, onNavigate: (Screen) -> Unit, viewModel: She
                 ) { onNavigate(Screen.Library(LibraryFilter.Status(status))) }
             }
         }
+        com.serendeep.marginalia.update.UpdateSidebarRow()
         com.serendeep.marginalia.ai.ui.AiSidebarItem()
-        GoalCard(viewModel)
+        GoalCard(viewModel, settingsOpen) { settingsOpen = it }
     }
 }
 
@@ -278,22 +286,21 @@ private fun NavItem(
 /** Minutes today against the daily goal. Reads its own state, so a ticking counter never recomposes the sidebar. */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun GoalCard(viewModel: ShellViewModel) {
+private fun GoalCard(viewModel: ShellViewModel, settingsOpen: Boolean, onSettingsOpen: (Boolean) -> Unit) {
     val minutes by viewModel.minutesToday.collectAsStateWithLifecycle()
     val goal by viewModel.goalMin.collectAsStateWithLifecycle()
     val reminder by viewModel.reminder.collectAsStateWithLifecycle()
     val pencilAction by viewModel.pencilAction.collectAsStateWithLifecycle()
     val handwritingSearch by viewModel.handwritingSearch.collectAsStateWithLifecycle()
     val modelState by viewModel.modelState.collectAsStateWithLifecycle()
-    var settingsOpen by remember { mutableStateOf(false) }
     if (settingsOpen) {
         LaunchedEffect(Unit) { viewModel.refreshModel() }
         SettingsDialog(
             goal, reminder, pencilAction, handwritingSearch, modelState,
             onDownloadModel = viewModel::downloadModel,
-            onDismiss = { settingsOpen = false },
+            onDismiss = { onSettingsOpen(false) },
             onSave = { g, r, a, h ->
-                settingsOpen = false
+                onSettingsOpen(false)
                 viewModel.saveSettings(g, r, a, h)
             },
         )
@@ -307,7 +314,7 @@ private fun GoalCard(viewModel: ShellViewModel) {
             .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(12.dp))
             .combinedClickable(
                 onClick = { viewModel.setGoal(nextGoal(goal)) },
-                onLongClick = { settingsOpen = true },
+                onLongClick = { onSettingsOpen(true) },
             )
             .padding(12.dp),
     ) {

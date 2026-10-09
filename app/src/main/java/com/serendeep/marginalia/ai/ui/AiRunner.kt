@@ -28,7 +28,7 @@ sealed interface AiRunState {
     data class Failed(val error: AiError) : AiRunState
 }
 
-fun aiReady(config: AiConfig, status: ChatGptStatus): Boolean = when (config.provider) {
+fun aiReady(config: AiConfig, status: ChatGptStatus, allowed: Boolean = true): Boolean = allowed && when (config.provider) {
     ProviderChoice.CHATGPT -> status is ChatGptStatus.Connected
     ProviderChoice.COMPATIBLE -> config.baseUrl.isNotBlank()
 }

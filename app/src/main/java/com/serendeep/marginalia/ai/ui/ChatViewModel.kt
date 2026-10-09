@@ -17,6 +17,7 @@ import com.serendeep.marginalia.ai.agent.ContextBuilder
 import com.serendeep.marginalia.data.CardSource
 import com.serendeep.marginalia.data.MarginaliaRepository
 import com.serendeep.marginalia.pdf.PdfDocumentSource
+import com.serendeep.marginalia.update.RemoteConfigStore
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
@@ -88,6 +89,7 @@ class ChatViewModel @Inject constructor(
     private val repository: MarginaliaRepository,
     settings: AiSettings,
     auth: ChatGptAuth,
+    remote: RemoteConfigStore,
     @ApplicationContext private val appContext: Context,
 ) : ViewModel() {
 
@@ -98,7 +100,7 @@ class ChatViewModel @Inject constructor(
 
     val streaming: StateFlow<Boolean> = session.streaming
 
-    val ready: StateFlow<Boolean> = combine(settings.config, auth.status, ::aiReady)
+    val ready: StateFlow<Boolean> = combine(settings.config, auth.status, remote.config) { c, s, r -> aiReady(c, s, r.aiAllowed) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
     val needsSetup: StateFlow<Boolean> = session.turns.map { it.lastOrNull()?.error?.needsSetup() == true }

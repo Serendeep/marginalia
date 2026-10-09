@@ -105,6 +105,7 @@ fun TodayScreen(
     cardFor?.let { HighlightCardSheet(it, onDismiss = { cardFor = null }) }
     // The bento spans the full width: beside the highlights column it gets too narrow on 1120dp tablets.
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+        com.serendeep.marginalia.update.UpdateBanners(Modifier.padding(start = 22.dp, end = 22.dp, top = 18.dp))
         Row(
             Modifier.fillMaxWidth().padding(start = 22.dp, end = 22.dp, top = 18.dp).height(232.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
