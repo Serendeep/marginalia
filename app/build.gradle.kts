@@ -17,6 +17,12 @@ val updateFeedUrl = providers.gradleProperty("updateFeedUrl")
     .getOrElse("https://github.com/Serendeep/marginalia/releases/latest/download/latest.json")
 val remoteConfigUrl = providers.gradleProperty("remoteConfigUrl")
     .getOrElse("https://github.com/Serendeep/marginalia/releases/latest/download/remote-config.json")
+val nightlyFeedUrl = providers.gradleProperty("nightlyFeedUrl")
+    .getOrElse("https://github.com/Serendeep/marginalia/releases/download/nightly/latest.json")
+val nightlyRemoteConfigUrl = providers.gradleProperty("nightlyRemoteConfigUrl")
+    .getOrElse("https://github.com/Serendeep/marginalia/releases/download/nightly/remote-config.json")
+val channel = providers.gradleProperty("channel").getOrElse("stable")
+require(channel == "stable" || channel == "nightly") { "-Pchannel must be stable or nightly" }
 // SHA-256 of the release signing certificate; updates must be signed with it.
 val releaseCertSha256 = "690fcd5c1db0e9bc62ad7f695d1409db1d99a25cb306d65c564be04b94e3da7d"
 val hasReleaseSigning = listOf(
@@ -34,13 +40,17 @@ android {
         applicationId = "com.serendeep.marginalia"
         minSdk = 29
         targetSdk = 35
-        // GitHub run numbers are monotonic, so each CI-built release can update
-        // an installed APK. Local builds retain the initial version code.
-        versionCode = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 1
-        versionName = appVersion
+        // CI passes 10 * commit count (+5 for stable), so both channels share one monotonic sequence.
+        // Without the override, run numbers or the initial code keep local builds working.
+        versionCode = providers.gradleProperty("versionCodeOverride").orNull?.toIntOrNull()
+            ?: System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 1
+        versionName = providers.gradleProperty("versionNameOverride").getOrElse(appVersion)
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "UPDATE_FEED_URL", "\"$updateFeedUrl\"")
         buildConfigField("String", "REMOTE_CONFIG_URL", "\"$remoteConfigUrl\"")
+        buildConfigField("String", "NIGHTLY_FEED_URL", "\"$nightlyFeedUrl\"")
+        buildConfigField("String", "NIGHTLY_REMOTE_CONFIG_URL", "\"$nightlyRemoteConfigUrl\"")
+        buildConfigField("String", "CHANNEL", "\"$channel\"")
         buildConfigField("boolean", "UPDATES_ENABLED", "false")
         buildConfigField("String", "UPDATE_CERT_SHA256", "\"\"")
     }
