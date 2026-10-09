@@ -53,6 +53,10 @@ private const val KEY_AUTO_DOWNLOAD = "update_auto_download"
 private const val KEY_LAST_CHECK = "update_last_check"
 private const val KEY_ETAG = "update_feed_etag"
 private const val KEY_LATEST = "update_latest_json"
+private const val KEY_LAST_SEEN = "update_last_seen_code"
+private const val KEY_WHATS_NEW_UNTIL = "update_whats_new_until"
+private const val WHATS_NEW_MS = 24 * 60 * 60 * 1000L
+private const val RELEASES_URL = "https://github.com/Serendeep/marginalia/releases/tag/v"
 
 data class UpdateSettings(
     val checkAutomatically: Boolean = true,
@@ -69,6 +73,13 @@ data class UpdateStatus(
     val checkedAt: Long = 0,
     val error: String? = null,
 )
+
+/** Whether this launch is the first of a version newer than the one last seen; a fresh install has nothing to announce. */
+internal fun justUpdated(lastSeen: Long, installed: Long): Boolean = lastSeen in 1 until installed
+
+/** Release notes for [versionName]: the feed's link when the feed describes that version, else its GitHub release page. */
+internal fun whatsNewUrl(feed: UpdateInfo?, installed: Long, versionName: String): String =
+    feed?.takeIf { it.versionCode == installed }?.notesUrl ?: (RELEASES_URL + versionName)
 
 /** The download was fetched but must not be installed; retrying will not help. */
 class UpdateRejected(message: String) : Exception(message)
@@ -94,6 +105,19 @@ class UpdateManager @Inject constructor(
         ),
     )
     val settings: StateFlow<UpdateSettings> = _settings.asStateFlow()
+
+    private val _whatsNewUntil = MutableStateFlow(0L)
+
+    /** Until when the sidebar offers the notes of the version that was just installed; 0 when it does not. */
+    val whatsNewUntil: StateFlow<Long> = _whatsNewUntil.asStateFlow()
+
+    init {
+        val lastSeen = prefs.getLong(KEY_LAST_SEEN, 0)
+        val now = System.currentTimeMillis()
+        if (justUpdated(lastSeen, installedVersionCode)) prefs.edit().putLong(KEY_WHATS_NEW_UNTIL, now + WHATS_NEW_MS).apply()
+        if (lastSeen != installedVersionCode) prefs.edit().putLong(KEY_LAST_SEEN, installedVersionCode).apply()
+        _whatsNewUntil.value = prefs.getLong(KEY_WHATS_NEW_UNTIL, 0).takeIf { it > now } ?: 0
+    }
 
     private val _status = MutableStateFlow(UpdateStatus(checkedAt = prefs.getLong(KEY_LAST_CHECK, 0)))
     val status: StateFlow<UpdateStatus> = _status.asStateFlow()
@@ -258,6 +282,14 @@ class UpdateManager @Inject constructor(
         } finally {
             refresh(error = null)
         }
+    }
+
+    fun whatsNewUrl(): String =
+        whatsNewUrl(prefs.getString(KEY_LATEST, null)?.let(UpdateInfo::parse), installedVersionCode, installedVersionName)
+
+    fun dismissWhatsNew() {
+        prefs.edit().remove(KEY_WHATS_NEW_UNTIL).apply()
+        _whatsNewUntil.value = 0
     }
 
     fun fail(message: String) = refresh(error = message)

@@ -93,13 +93,27 @@ private fun primaryLabel(phase: UpdatePhase) = when (phase) {
     else -> "Check now"
 }
 
-/** Sidebar row shown once an update is downloaded and verified. */
+/** Sidebar row: the ready update, or a quiet note on what changed in the version that was just installed. */
 @Composable
 fun UpdateSidebarRow(vm: UpdateViewModel = hiltViewModel()) {
     if (!vm.enabled) return
     val status by vm.status.collectAsStateWithLifecycle()
-    if (status.phase != UpdatePhase.READY) return
+    val whatsNewUntil by vm.whatsNewUntil.collectAsStateWithLifecycle()
+    var notes by remember { mutableStateOf<String?>(null) }
     val act = rememberPrimaryAction(vm)
+    notes?.let { WebPopup(it) { notes = null } }
+    if (status.phase == UpdatePhase.READY) {
+        SidebarRow("Update ${status.info?.versionName.orEmpty()} ready", "Restart", act)
+    } else if (whatsNewUntil > System.currentTimeMillis()) {
+        SidebarRow("Updated to ${vm.versionName}", "What's new") {
+            notes = vm.whatsNewUrl()
+            vm.dismissWhatsNew()
+        }
+    }
+}
+
+@Composable
+private fun SidebarRow(label: String, action: String, act: () -> Unit) {
     val shape = RoundedCornerShape(9.dp)
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -114,7 +128,7 @@ fun UpdateSidebarRow(vm: UpdateViewModel = hiltViewModel()) {
     ) {
         Icon(Icons.Outlined.SystemUpdateAlt, null, tint = Violet, modifier = Modifier.size(16.dp))
         Text(
-            "Update ${status.info?.versionName.orEmpty()} ready",
+            label,
             fontFamily = BodyFamily,
             fontSize = 12.5.sp,
             color = Color(0xFFA0A0AB),
@@ -122,7 +136,7 @@ fun UpdateSidebarRow(vm: UpdateViewModel = hiltViewModel()) {
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
         )
-        Text("Restart", fontFamily = MonoFamily, fontSize = 10.5.sp, letterSpacing = 0.4.sp, color = Violet)
+        Text(action, fontFamily = MonoFamily, fontSize = 10.5.sp, letterSpacing = 0.4.sp, color = Violet)
     }
 }
 
