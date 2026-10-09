@@ -2,7 +2,6 @@ package com.serendeep.marginalia.notebook
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.AnimatedVisibility
 import com.serendeep.marginalia.ink.EraserSize
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -15,6 +14,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -149,25 +149,6 @@ fun ToolRail(
                 onPick = { onSwatchChoice(pen.ordinal, it) },
             ) { selectPen(pen) }
         }
-        AnimatedVisibility(visible = tool == InkTool.PEN) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                PenWidth.entries.forEach { width ->
-                    SizeDot(
-                        dot = when (width) {
-                            PenWidth.FINE -> 4.dp
-                            PenWidth.MEDIUM -> 8.dp
-                            PenWidth.BOLD -> 13.dp
-                        },
-                        selected = width == penWidth,
-                        iconColor = iconColor,
-                        description = "Pen width ${width.name.lowercase()}",
-                    ) {
-                        haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
-                        onPenWidth(width)
-                    }
-                }
-            }
-        }
         HighlighterButton(selected = tool == InkTool.HIGHLIGHTER, iconColor = iconColor) {
             haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
             onHighlighter()
@@ -183,25 +164,6 @@ fun ToolRail(
         EraserButton(selected = tool == InkTool.ERASER, iconColor = iconColor) {
             haptics.performHapticFeedback(HapticFeedbackType.ToggleOn)
             onEraser()
-        }
-        AnimatedVisibility(visible = tool == InkTool.ERASER) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                EraserSize.entries.forEach { size ->
-                    SizeDot(
-                        dot = when (size) {
-                            EraserSize.SMALL -> 6.dp
-                            EraserSize.MEDIUM -> 11.dp
-                            EraserSize.LARGE -> 18.dp
-                        },
-                        selected = size == eraserSize,
-                        iconColor = iconColor,
-                        description = "Eraser size ${size.name.lowercase()}",
-                    ) {
-                        haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
-                        onEraserSize(size)
-                    }
-                }
-            }
         }
         SelectButton(selected = tool == InkTool.SELECT, iconColor = iconColor) {
             haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
@@ -219,8 +181,54 @@ fun ToolRail(
             haptics.performHapticFeedback(HapticFeedbackType.Confirm)
             onRedo()
         }
+        HorizontalDivider(
+            Modifier.width(24.dp).padding(vertical = 4.dp),
+            color = iconColor.copy(alpha = 0.16f),
+        )
+        // One fixed slot for the active tool's sizes, so no rail button ever moves.
+        Column(Modifier.height(SIZE_SLOT_DP.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            when (tool) {
+                InkTool.PEN -> {
+                PenWidth.entries.forEach { width ->
+                    SizeDot(
+                        dot = when (width) {
+                            PenWidth.FINE -> 4.dp
+                            PenWidth.MEDIUM -> 8.dp
+                            PenWidth.BOLD -> 13.dp
+                        },
+                        selected = width == penWidth,
+                        iconColor = iconColor,
+                        description = "Pen width ${width.name.lowercase()}",
+                    ) {
+                        haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                        onPenWidth(width)
+                    }
+                }
+                }
+                InkTool.ERASER -> {
+                EraserSize.entries.forEach { size ->
+                    SizeDot(
+                        dot = when (size) {
+                            EraserSize.SMALL -> 6.dp
+                            EraserSize.MEDIUM -> 11.dp
+                            EraserSize.LARGE -> 18.dp
+                        },
+                        selected = size == eraserSize,
+                        iconColor = iconColor,
+                        description = "Eraser size ${size.name.lowercase()}",
+                    ) {
+                        haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                        onEraserSize(size)
+                    }
+                }
+                }
+                else -> Unit
+            }
+        }
     }
 }
+
+private const val SIZE_SLOT_DP = 108
 
 @Composable
 private fun HighlighterButton(selected: Boolean, iconColor: Color, onClick: () -> Unit) {
