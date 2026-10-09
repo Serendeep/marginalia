@@ -1,5 +1,46 @@
 # Changelog
 
+## [1.3.0](https://github.com/Serendeep/marginalia/compare/v1.2.0...v1.3.0) (2026-10-09)
+
+
+### Features
+
+* add Backup section to settings ([28e8cdf](https://github.com/Serendeep/marginalia/commit/28e8cdf8a1a7a9356cc65fa494da800f01cad6ed))
+* back up and restore the library ([7997e11](https://github.com/Serendeep/marginalia/commit/7997e11ae3369e7b372213d211dcb8ea47c677cb))
+* chat history panel with resume, rename and delete ([1fa261e](https://github.com/Serendeep/marginalia/commit/1fa261ef2467854c45fac8584447c7bae14201cd))
+* choose between stable and nightly update channels ([190a236](https://github.com/Serendeep/marginalia/commit/190a236b418b36e8c4866696dcbb00bcd1732e91))
+* download small delta patches for updates ([1226d12](https://github.com/Serendeep/marginalia/commit/1226d12cb4ac7cd861b4230f0154cfcc1ab9a3ad))
+* drag notebooks to reorder within a course ([f760392](https://github.com/Serendeep/marginalia/commit/f760392d022787d783b555f96e051ed311c828c7))
+* export and restore the library as a verified zip ([47b9384](https://github.com/Serendeep/marginalia/commit/47b938405a434771a9a87d7ab6fbbc6a0841bc98))
+* handwritten card answers, drag-to-reorder and aligned library columns ([da3321e](https://github.com/Serendeep/marginalia/commit/da3321ee9cb70daae3b14ac156079b533c42d35a))
+* night sky with tonight's moon and a constellation icon on Nightly builds ([57c1ddf](https://github.com/Serendeep/marginalia/commit/57c1ddf697b4f72775f4bbc32ca6432fe943a1cb))
+* nightly backups by default, safety snapshots and a recent backups list ([ca2cecc](https://github.com/Serendeep/marginalia/commit/ca2cecc9e8acadb3c584adc7e2aa27fcfca702ce))
+* nightly backups on by default with labelled safety snapshots ([5086910](https://github.com/Serendeep/marginalia/commit/5086910727a7a636ab428a12da543250702bba87))
+* note the install confirmation on Huawei and Honor tablets ([812471f](https://github.com/Serendeep/marginalia/commit/812471fc0c1bcc16d1f5c93bd715089f87da9ced))
+* opt-in morning digest of yesterday on Today ([5702656](https://github.com/Serendeep/marginalia/commit/5702656f12568f1068d6b2973bbf64837d8dd562))
+* persist chats in Room and restore them in ChatSession ([e7f3372](https://github.com/Serendeep/marginalia/commit/e7f337286721f828396f479d6c24ca0bac55a26d))
+* recent backups list and schedule settings ([7a5891b](https://github.com/Serendeep/marginalia/commit/7a5891b8098b2d769f5ab24177a287f7d89f043d))
+* saved chat history and an opt-in morning digest ([a8176e9](https://github.com/Serendeep/marginalia/commit/a8176e9ce8b2f9167f380ef19ec2e405907d8190))
+* show release notes inside the app ([ade961c](https://github.com/Serendeep/marginalia/commit/ade961c10e53ba79aefb42c85c16aa615a441d08))
+* show what's new after an update ([7a64968](https://github.com/Serendeep/marginalia/commit/7a6496803e7a5a560441a9382c163c536f12efb1))
+* silent scheduled backups into a chosen folder ([bc55d4e](https://github.com/Serendeep/marginalia/commit/bc55d4ebe6cd3dadff461f8f5b1db66086ede7f0))
+* Stable and Nightly channels, in-app release notes and the Nightly night sky ([2071b45](https://github.com/Serendeep/marginalia/commit/2071b451a16bb16eaba3ea6167dcd803cea95ec1))
+* tap-only installs, what's new and delta updates ([edfbd33](https://github.com/Serendeep/marginalia/commit/edfbd33e871ab6cf13c85d970b92426d8d38f7a2))
+* write card answers with the pen ([e7cb191](https://github.com/Serendeep/marginalia/commit/e7cb191d54d05acf96589a4bb21d6388d26360c4))
+
+
+### Bug Fixes
+
+* install updates only when the user taps ([9c1f42f](https://github.com/Serendeep/marginalia/commit/9c1f42f6a32e4aab63712f729b47a1d98ec985aa))
+* keep progress, pages and the row menu in fixed library columns ([fe175a9](https://github.com/Serendeep/marginalia/commit/fe175a91b6c4634be716ef37f84e3b25ef8d323f))
+* keep the current database until the restored one is in place ([0a8eeac](https://github.com/Serendeep/marginalia/commit/0a8eeac1acbf3e085e2c560c0355c03b38694519))
+* open the reminder time only when tapped so the keyboard stays down ([cebc30c](https://github.com/Serendeep/marginalia/commit/cebc30c169fa790efda442513d1f0fef2868b65d))
+* prefill the rename field and use a compact reminder time input ([8c0c8c8](https://github.com/Serendeep/marginalia/commit/8c0c8c80c28eb09d575b1aa559e591455850f1b5))
+* recover from an abandoned install confirmation and rename automatic backups ([eee12af](https://github.com/Serendeep/marginalia/commit/eee12af53518301f1dc8bfcd48edce693d98e4f8))
+* say just now for changes under a minute old ([e18d164](https://github.com/Serendeep/marginalia/commit/e18d164fe2edbe2f646b5c50aef6103b7494bc71))
+* schedule backups as one-shot runs aimed at the chosen time ([4e1404e](https://github.com/Serendeep/marginalia/commit/4e1404e02100a2b97757840fef8fc19c7aa5a6d5))
+* show notebooks in their saved order after a reload ([8332382](https://github.com/Serendeep/marginalia/commit/833238241f4ea8e4efdddbecbbb3a59831bf8c82))
+
 ## [1.2.0](https://github.com/Serendeep/marginalia/compare/v1.1.0...v1.2.0) (2026-10-09)
 
 
