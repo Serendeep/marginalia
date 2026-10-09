@@ -27,13 +27,18 @@ class ModelResolver @Inject constructor(
     }
 
     companion object {
-        private val FAST_MARKERS = listOf("mini", "nano", "flash")
+        private val FAST_SLUG = Regex("""mini|nano|flash|luna|haiku""", RegexOption.IGNORE_CASE)
+        private val FAST_DESCRIPTION = Regex("""\b(fast|affordable|efficient|lightweight|cheap)""", RegexOption.IGNORE_CASE)
+
+        /** Lists put newer models first, so the first match is the newest fast one. */
+        fun fastModel(models: List<ChatModel>): ChatModel? =
+            models.firstOrNull { FAST_DESCRIPTION.containsMatchIn(it.description) } ?: models.firstOrNull { FAST_SLUG.containsMatchIn(it.slug) }
 
         private val AiTask.fast: Boolean get() = this == AiTask.AUTO_SORT
 
         fun resolve(task: AiTask, override: TaskModel, global: String?, models: List<ChatModel>): ResolvedModel {
             val model = override.model
-                ?: if (task.fast) models.firstOrNull { m -> FAST_MARKERS.any { m.slug.contains(it, ignoreCase = true) } }?.slug else null
+                ?: if (task.fast) fastModel(models)?.slug else null
             val chosen = model ?: global
             // Non-reasoning models reject the parameter, so the default only applies where LOW is known to work.
             val supportsLow = models.firstOrNull { it.slug == chosen }?.efforts?.contains(Effort.LOW) == true
