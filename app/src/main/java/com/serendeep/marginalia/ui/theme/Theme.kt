@@ -43,7 +43,7 @@ data class MarginaliaColors(
     val cardsBorder: Color,
 )
 
-private val DarkExtras = MarginaliaColors(
+internal val DarkExtras = MarginaliaColors(
     dimInk = DimInkDark,
     chipText = Color(0xFFA0A0AB),
     rowDivider = Color(0xFF18181C),
@@ -57,16 +57,16 @@ private val DarkExtras = MarginaliaColors(
     cardsBorder = Color(0xFF2D2756),
 )
 
-private val LightExtras = MarginaliaColors(
+internal val LightExtras = MarginaliaColors(
     dimInk = DimInkLight,
-    chipText = Color(0xFF62616C),
+    chipText = Color(0xFF626170),
     rowDivider = Color(0xFFECE8DF),
     chipBorder = Color(0xFFDDD8CD),
     limeInk = LimeInkLight,
     danger = Color(0xFFC62F3E),
     errorInk = Color(0xFFB3261E),
     codeBg = Color(0x1A6A58E0),
-    heat = listOf(Color(0xFFE8E4DA), Color(0xFFD9E8A6), Color(0xFFA6C93A), Color(0xFF7FA30E)),
+    heat = listOf(Color(0xFFE8E4DA), Color(0xFFD9E8A6), Color(0xFF9DBF2E), Color(0xFF6F9100)),
     goalTrack = Color(0xFFE4E0D6),
     cardsBorder = Color(0xFFD9D3F7),
 )
