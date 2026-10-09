@@ -57,7 +57,11 @@ private const val KEY_LATEST = "update_latest_json"
 private const val KEY_LAST_SEEN = "update_last_seen_code"
 private const val KEY_WHATS_NEW_UNTIL = "update_whats_new_until"
 private const val WHATS_NEW_MS = 24 * 60 * 60 * 1000L
-private const val RELEASES_URL = "https://github.com/Serendeep/marginalia/releases/tag/v"
+private const val KEY_LAST_SEEN_NAME = "update_last_seen_name"
+private const val KEY_PREV_NAME = "update_prev_name"
+private const val KEY_NOTES_CODE = "update_notes_code"
+private const val KEY_NOTES = "update_notes"
+private const val RELEASES_URL = "https://github.com/Serendeep/marginalia/releases"
 private const val NIGHTLY_RELEASE_URL = "https://github.com/Serendeep/marginalia/releases/tag/nightly"
 
 data class UpdateSettings(
@@ -79,10 +83,6 @@ data class UpdateStatus(
 
 /** Whether this launch is the first of a version newer than the one last seen; a fresh install has nothing to announce. */
 internal fun justUpdated(lastSeen: Long, installed: Long): Boolean = lastSeen in 1 until installed
-
-/** Release notes for [versionName]: the feed's link when the feed describes that version, else its GitHub release page. */
-internal fun whatsNewUrl(feed: UpdateInfo?, installed: Long, versionName: String, nightly: Boolean = false): String =
-    feed?.takeIf { it.versionCode == installed }?.notesUrl ?: if (nightly) NIGHTLY_RELEASE_URL else (RELEASES_URL + versionName)
 
 /** The download was fetched but must not be installed; retrying will not help. */
 class UpdateRejected(message: String) : Exception(message)
@@ -126,7 +126,13 @@ class UpdateManager @Inject constructor(
         val lastSeen = prefs.getLong(KEY_LAST_SEEN, 0)
         val now = System.currentTimeMillis()
         if (justUpdated(lastSeen, installedVersionCode)) prefs.edit().putLong(KEY_WHATS_NEW_UNTIL, now + WHATS_NEW_MS).apply()
-        if (lastSeen != installedVersionCode) prefs.edit().putLong(KEY_LAST_SEEN, installedVersionCode).apply()
+        if (lastSeen != installedVersionCode) {
+            prefs.edit()
+                .putLong(KEY_LAST_SEEN, installedVersionCode)
+                .putString(KEY_PREV_NAME, prefs.getString(KEY_LAST_SEEN_NAME, null))
+                .putString(KEY_LAST_SEEN_NAME, installedVersionName)
+                .apply()
+        }
         _whatsNewUntil.value = prefs.getLong(KEY_WHATS_NEW_UNTIL, 0).takeIf { it > now } ?: 0
     }
 
@@ -319,6 +325,7 @@ class UpdateManager @Inject constructor(
             if (!part.renameTo(final)) throw IOException("Could not store the update")
             etag.delete()
         } finally {
+            if (final.exists()) cacheNotes(info)
             refresh(error = null)
         }
     }
@@ -352,8 +359,27 @@ class UpdateManager @Inject constructor(
         }
     }
 
-    fun whatsNewUrl(): String =
-        whatsNewUrl(prefs.getString(KEY_LATEST, null)?.let(UpdateInfo::parse), installedVersionCode, installedVersionName, installedChannel == UpdateChannel.NIGHTLY)
+    /** The one web link left in the notes panels. */
+    val releasesUrl: String get() = if (installedChannel == UpdateChannel.NIGHTLY) NIGHTLY_RELEASE_URL else RELEASES_URL
+
+    /** The bundled release history, newest first. */
+    fun changelog(): List<VersionNotes> = try {
+        ReleaseNotes.parse(context.assets.open("CHANGELOG.md").bufferedReader().use { it.readText() })
+    } catch (e: IOException) {
+        emptyList()
+    }
+
+    /** What changed since the version last seen before this install. */
+    fun whatsNew(): List<VersionNotes> {
+        val cached = prefs.getString(KEY_NOTES, null)
+            ?.takeIf { prefs.getLong(KEY_NOTES_CODE, 0) == installedVersionCode }
+            ?.let { ReleaseNotes.parse(it).firstOrNull() }
+        return ReleaseNotes.sinceLastSeen(changelog(), prefs.getString(KEY_PREV_NAME, null), installedVersionName, cached)
+    }
+
+    private fun cacheNotes(info: UpdateInfo) {
+        if (info.notes != null) prefs.edit().putLong(KEY_NOTES_CODE, info.versionCode).putString(KEY_NOTES, info.notes).apply()
+    }
 
     fun dismissWhatsNew() {
         prefs.edit().remove(KEY_WHATS_NEW_UNTIL).apply()

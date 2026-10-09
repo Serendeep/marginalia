@@ -160,6 +160,20 @@ ksp {
     arg("room.schemaLocation", "$projectDir/schemas")
 }
 
+// Every build carries its own release history, readable offline.
+val bundleChangelog by tasks.registering(Copy::class) {
+    from(rootProject.file("CHANGELOG.md"))
+    into(layout.buildDirectory.dir("generated/changelog"))
+}
+
+android.sourceSets.getByName("main") {
+    assets.srcDir(layout.buildDirectory.dir("generated/changelog"))
+}
+
+tasks.configureEach {
+    if (name.startsWith("merge") && name.endsWith("Assets") || name.contains("lint", ignoreCase = true)) dependsOn(bundleChangelog)
+}
+
 android.sourceSets.getByName("androidTest") {
     assets.srcDir("$projectDir/schemas")
 }

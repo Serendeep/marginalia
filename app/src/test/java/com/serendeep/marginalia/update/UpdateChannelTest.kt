@@ -59,12 +59,4 @@ class UpdateChannelTest {
         assertTrue(isNewer(1975, 1970))
         assertEquals(false, isNewer(1960, 1970))
     }
-
-    @Test
-    fun nightlyBuildsFallBackToTheNightlyReleasePage() {
-        assertEquals(
-            "https://github.com/Serendeep/marginalia/releases/tag/nightly",
-            whatsNewUrl(null, 1970, "1.3.0-nightly.197+abc1234", nightly = true),
-        )
-    }
 }

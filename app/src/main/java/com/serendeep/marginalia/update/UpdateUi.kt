@@ -106,14 +106,14 @@ fun UpdateSidebarRow(vm: UpdateViewModel = hiltViewModel()) {
     if (!vm.enabled) return
     val status by vm.status.collectAsStateWithLifecycle()
     val whatsNewUntil by vm.whatsNewUntil.collectAsStateWithLifecycle()
-    var notes by remember { mutableStateOf<String?>(null) }
+    var notesOpen by remember { mutableStateOf(false) }
     val act = rememberPrimaryAction(vm)
-    notes?.let { WebPopup(it) { notes = null } }
+    if (notesOpen) WhatsNewPanel({ notesOpen = false }, vm)
     if (status.phase == UpdatePhase.READY) {
         SidebarRow("Update ${status.info?.versionName.orEmpty()} ready", "Restart", act)
     } else if (whatsNewUntil > System.currentTimeMillis()) {
         SidebarRow("Updated to ${vm.versionName}", "What's new") {
-            notes = vm.whatsNewUrl()
+            notesOpen = true
             vm.dismissWhatsNew()
         }
     }
@@ -153,13 +153,14 @@ fun UpdatesSectionContent(vm: UpdateViewModel = hiltViewModel()) {
     val status by vm.status.collectAsStateWithLifecycle()
     val settings by vm.settings.collectAsStateWithLifecycle()
     var canInstall by remember { mutableStateOf(vm.canInstall()) }
-    var notes by remember { mutableStateOf<String?>(null) }
+    var changelogOpen by remember { mutableStateOf(false) }
+    var readyNotesOpen by remember { mutableStateOf(false) }
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { canInstall = vm.canInstall() }
     val act = rememberPrimaryAction(vm)
     val context = LocalContext.current
     val busy = status.phase in setOf(UpdatePhase.CHECKING, UpdatePhase.DOWNLOADING, UpdatePhase.INSTALLING)
 
-    notes?.let { WebPopup(it) { notes = null } }
+    if (changelogOpen) ChangelogPanel({ changelogOpen = false }, vm)
     val channel by vm.channel.collectAsStateWithLifecycle()
     val clipboard = LocalClipboardManager.current
     var copied by remember { mutableStateOf(false) }
@@ -195,7 +196,15 @@ fun UpdatesSectionContent(vm: UpdateViewModel = hiltViewModel()) {
             GlassButton(primaryLabel(status.phase), onClick = act)
         }
         GlassTextButton("Check now", onClick = vm::checkNow, enabled = !busy)
-        status.info?.notesUrl?.let { url -> GlassTextButton("What's new", onClick = { notes = url }) }
+        GlassTextButton("Changelog", onClick = { changelogOpen = true })
+    }
+    val readyNotes = remember(status.info) { status.info?.notes?.let { ReleaseNotes.parse(it).firstOrNull() } }
+    if (status.phase == UpdatePhase.READY && readyNotes != null) {
+        GlassTextButton(
+            "What's in ${status.info?.versionName.orEmpty()}" + if (readyNotesOpen) " ▴" else " ▾",
+            onClick = { readyNotesOpen = !readyNotesOpen },
+        )
+        if (readyNotesOpen) ReleaseNotesBody(readyNotes)
     }
     if (!canInstall) {
         Text(

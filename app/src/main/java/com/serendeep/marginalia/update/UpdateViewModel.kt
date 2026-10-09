@@ -27,7 +27,11 @@ class UpdateViewModel @Inject constructor(
 
     val whatsNewUntil: StateFlow<Long> = manager.whatsNewUntil
 
-    fun whatsNewUrl(): String = manager.whatsNewUrl()
+    fun whatsNew(): List<VersionNotes> = manager.whatsNew()
+
+    fun changelog(): List<VersionNotes> = manager.changelog()
+
+    val releasesUrl: String get() = manager.releasesUrl
 
     fun dismissWhatsNew() = manager.dismissWhatsNew()
 

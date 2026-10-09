@@ -18,6 +18,7 @@ data class UpdateInfo(
     val publishedAt: String?,
     val patches: List<UpdatePatch> = emptyList(),
     val channel: String? = null,
+    val notes: String? = null,
 ) {
     /** The patch that applies to the installed version, if the feed has one. */
     fun patchFor(installed: Long): UpdatePatch? = patches.firstOrNull { it.fromVersionCode == installed }
@@ -35,6 +36,7 @@ data class UpdateInfo(
         .put("notesUrl", notesUrl ?: JSONObject.NULL)
         .put("publishedAt", publishedAt ?: JSONObject.NULL)
         .put("channel", channel ?: JSONObject.NULL)
+        .put("notes", notes ?: JSONObject.NULL)
         .put(
             "patches",
             JSONArray(
@@ -65,6 +67,7 @@ data class UpdateInfo(
                     publishedAt = o.optString("publishedAt").ifEmpty { null },
                     patches = parsePatches(o.optJSONArray("patches")),
                     channel = o.optString("channel").ifEmpty { null },
+                    notes = o.optString("notes").ifBlank { null },
                 )
             }
         } catch (_: Exception) {
