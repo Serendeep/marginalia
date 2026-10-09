@@ -32,11 +32,13 @@ object Prompts {
     const val CONTEXT_BUDGET = 12_000
     const val MAX_CARDS = 12
     const val SORT_BUDGET = 4_000
+    const val FORMAT_GUIDE = "Format with Markdown and use headings sparingly. Write math as \$...\$ inline or \$\$...\$\$ for display, " +
+        "use pipe tables for comparisons, and add a ```mermaid block only when a diagram genuinely helps."
     private const val MAX_SORT_TAGS = 3
 
     fun explainPage(pageText: String, imagePng: ByteArray? = null): AiRequest = AiRequest(
         instructions = "You are a patient tutor helping a student read a technical document. Explain the page clearly: " +
-            "state the main idea first, then unpack definitions, equations and steps in plain language. Be concise.",
+            "state the main idea first, then unpack definitions, equations and steps in plain language. Be concise. " + FORMAT_GUIDE,
         text = "Explain this page.\n\n" + fairTruncate(listOf(pageText), CONTEXT_BUDGET).first(),
         imagePng = imagePng,
     )
@@ -46,7 +48,7 @@ object Prompts {
         val body = texts.mapIndexedNotNull { i, t -> if (t.isBlank()) null else "[p.${i + 1}]\n$t" }.joinToString("\n\n")
         return AiRequest(
             instructions = "You summarize documents for students. Produce a short overview followed by a bulleted list of " +
-                "key points, and mention page numbers like p.4 where useful.",
+                "key points, and mention page numbers like p.4 where useful. " + FORMAT_GUIDE,
             text = "Summarize \"$title\".\n\n$body",
         )
     }
@@ -99,7 +101,7 @@ object Prompts {
         val context = hits.indices.joinToString("\n\n") { "[${hits[it].title} p.${hits[it].page}]\n${texts[it]}" }
         return AiRequest(
             instructions = "Answer the question using only the excerpts provided. Cite every claim with the source in the form " +
-                "[Title p.N], using the exact bracketed headers of the excerpts. If the excerpts don't contain the answer, say so.",
+                "[Title p.N], using the exact bracketed headers of the excerpts. If the excerpts don't contain the answer, say so. " + FORMAT_GUIDE,
             text = "Excerpts:\n\n$context\n\nQuestion: $question",
         )
     }

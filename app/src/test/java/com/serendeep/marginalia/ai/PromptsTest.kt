@@ -58,6 +58,13 @@ class PromptsTest {
     }
 
     @Test
+    fun answerPromptsCarryTheFormatGuide() {
+        assertTrue(Prompts.explainPage("p").instructions.contains(Prompts.FORMAT_GUIDE))
+        assertTrue(Prompts.summarizeDocument(listOf("p"), "T").instructions.contains(Prompts.FORMAT_GUIDE))
+        assertTrue(Prompts.askLibrary("q", listOf(PageHit("D", 1, "t"))).instructions.contains(Prompts.FORMAT_GUIDE))
+    }
+
+    @Test
     fun summarizeLabelsPages() {
         val req = Prompts.summarizeDocument(listOf("one", "", "three"), "T")
         assertTrue(req.text.contains("[p.1]\none"))
