@@ -152,6 +152,7 @@ dependencies {
     implementation(libs.material.icons.extended)
     implementation(libs.pdfium)
     implementation(libs.emoji2.emojipicker)
+    implementation(libs.androidx.webkit)
 
     implementation(libs.room.runtime)
     implementation(libs.room.ktx)
