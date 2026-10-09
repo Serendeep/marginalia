@@ -13,6 +13,12 @@ val signingStorePath = providers.environmentVariable("SIGNING_KEYSTORE_PATH").or
 val signingStorePassword = providers.environmentVariable("SIGNING_STORE_PASSWORD").orNull
 val signingKeyAlias = providers.environmentVariable("SIGNING_KEY_ALIAS").orNull
 val signingKeyPassword = providers.environmentVariable("SIGNING_KEY_PASSWORD").orNull
+val updateFeedUrl = providers.gradleProperty("updateFeedUrl")
+    .getOrElse("https://github.com/Serendeep/marginalia/releases/latest/download/latest.json")
+val remoteConfigUrl = providers.gradleProperty("remoteConfigUrl")
+    .getOrElse("https://github.com/Serendeep/marginalia/releases/latest/download/remote-config.json")
+// SHA-256 of the release signing certificate; updates must be signed with it.
+val releaseCertSha256 = "690fcd5c1db0e9bc62ad7f695d1409db1d99a25cb306d65c564be04b94e3da7d"
 val hasReleaseSigning = listOf(
     signingStorePath,
     signingStorePassword,
@@ -33,6 +39,10 @@ android {
         versionCode = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 1
         versionName = appVersion
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        buildConfigField("String", "UPDATE_FEED_URL", "\"$updateFeedUrl\"")
+        buildConfigField("String", "REMOTE_CONFIG_URL", "\"$remoteConfigUrl\"")
+        buildConfigField("boolean", "UPDATES_ENABLED", "false")
+        buildConfigField("String", "UPDATE_CERT_SHA256", "\"\"")
     }
 
     signingConfigs {
@@ -56,6 +66,8 @@ android {
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             if (hasReleaseSigning) signingConfig = signingConfigs.getByName("release")
             ndk { abiFilters += "arm64-v8a" }
+            buildConfigField("boolean", "UPDATES_ENABLED", "true")
+            buildConfigField("String", "UPDATE_CERT_SHA256", "\"$releaseCertSha256\"")
         }
         // A release-like build that installs beside the real app, for recording demos with sample data.
         // -PdemoDebuggable makes it inspectable so sample data can be seeded; reinstall without it to record.
@@ -66,6 +78,8 @@ android {
             isDebuggable = project.hasProperty("demoDebuggable")
             matchingFallbacks += listOf("release")
             ndk { abiFilters.clear(); abiFilters += "arm64-v8a" }
+            // Demo is signed with whatever key is local, so it trusts the key of the installed demo instead.
+            buildConfigField("String", "UPDATE_CERT_SHA256", "\"\"")
         }
     }
 
@@ -145,6 +159,8 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.activity.compose)
+    implementation(libs.androidx.lifecycle.process)
+    implementation(libs.androidx.work.runtime)
 
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.ui)
