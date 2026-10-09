@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.4.0](https://github.com/Serendeep/marginalia/compare/v0.3.0...v0.4.0) (2026-10-09)
+
+
+### Features
+
+* add ChatGPT sign-in and streaming client core ([368b572](https://github.com/Serendeep/marginalia/commit/368b5725a47c957bd37d89f4bd5a64d04c0d713a))
+* add hold-to-shape, smart highlighter, scratch-out, ink selection, laser pointer and pen widths and colours ([c7f2674](https://github.com/Serendeep/marginalia/commit/c7f2674f4c6f103935a871bb79e912d1ac3cea4a))
+* pencil tools and ChatGPT core ([42f9ad9](https://github.com/Serendeep/marginalia/commit/42f9ad9ce673b98ac7952b4f1e0589c8977d3751))
+
+
+### Bug Fixes
+
+* keep tool rail buttons in place by moving size dots to a fixed slot ([aa20296](https://github.com/Serendeep/marginalia/commit/aa2029671d592786d5cccb80742c4f91739e0af9))
+
 ## [0.3.0](https://github.com/Serendeep/marginalia/compare/v0.2.0...v0.3.0) (2026-10-08)
 
 
