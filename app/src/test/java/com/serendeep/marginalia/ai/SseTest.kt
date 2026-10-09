@@ -27,6 +27,20 @@ class SseTest {
     }
 
     @Test
+    fun textDoneIsEmittedAndStreamKeepsReading() {
+        val out = responses(
+            """
+            data: {"type":"response.output_text.delta","delta":"Hi"}
+
+            data: {"type":"response.output_text.done","text":"Hi"}
+
+            data: {"type":"response.completed","response":{}}
+            """,
+        )
+        assertEquals(listOf(AiEvent.Delta("Hi"), AiEvent.TextDone, AiEvent.Completed), out)
+    }
+
+    @Test
     fun eventNameWithoutTypeField() {
         val out = responses(
             """

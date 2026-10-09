@@ -41,6 +41,7 @@ object Prompts {
             "state the main idea first, then unpack definitions, equations and steps in plain language. Be concise. " + FORMAT_GUIDE,
         text = "Explain this page.\n\n" + fairTruncate(listOf(pageText), CONTEXT_BUDGET).first(),
         imagePng = imagePng,
+        task = AiTask.EXPLAIN,
     )
 
     fun summarizeDocument(pages: List<String>, title: String): AiRequest {
@@ -50,6 +51,7 @@ object Prompts {
             instructions = "You summarize documents for students. Produce a short overview followed by a bulleted list of " +
                 "key points, and mention page numbers like p.4 where useful. " + FORMAT_GUIDE,
             text = "Summarize \"$title\".\n\n$body",
+            task = AiTask.SUMMARIZE,
         )
     }
 
@@ -58,6 +60,7 @@ object Prompts {
             "[{\"front\": \"question\", \"back\": \"answer\"}]. At most $MAX_CARDS cards. Each card tests one atomic idea, " +
             "the front is a self-contained question, the back is short. Skip trivia, dates and anything not worth remembering.",
         text = fairTruncate(listOf(text), CONTEXT_BUDGET).first(),
+        task = AiTask.CARDS,
     )
 
     fun sortDocument(
@@ -77,6 +80,7 @@ object Prompts {
                 "suggest \"newCourse\" with a short name and one emoji. Set \"title\" only when the current title looks like a file name.",
             text = "Existing courses:\n$known\n\nCurrent title: $title\nFile name: $fileName\n" +
                 (identifier?.let { "Identifier: $it\n" } ?: "") + "\nFirst pages:\n$excerpt",
+            task = AiTask.AUTO_SORT,
         )
     }
 
@@ -103,6 +107,7 @@ object Prompts {
             instructions = "Answer the question using only the excerpts provided. Cite every claim with the source in the form " +
                 "[Title p.N], using the exact bracketed headers of the excerpts. If the excerpts don't contain the answer, say so. " + FORMAT_GUIDE,
             text = "Excerpts:\n\n$context\n\nQuestion: $question",
+            task = AiTask.ASK,
         )
     }
 

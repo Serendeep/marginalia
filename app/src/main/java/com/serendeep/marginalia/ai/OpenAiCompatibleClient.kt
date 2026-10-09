@@ -3,6 +3,7 @@ package com.serendeep.marginalia.ai
 import android.util.Base64
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -12,7 +13,10 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-class OpenAiCompatibleClient @Inject constructor(private val settings: AiSettings) {
+class OpenAiCompatibleClient @Inject constructor(
+    private val settings: AiSettings,
+    private val resolver: ModelResolver,
+) {
 
     suspend fun listModels(): List<ChatModel> {
         val cfg = settings.config.value
@@ -28,18 +32,24 @@ class OpenAiCompatibleClient @Inject constructor(private val settings: AiSetting
         }
     }
 
-    fun stream(request: AiRequest): Flow<AiEvent> {
+    fun stream(request: AiRequest): Flow<AiEvent> = flow {
         val cfg = settings.config.value
-        val model = request.model ?: cfg.model.ifBlank { null }
         if (cfg.baseUrl.isBlank()) {
-            return flow { emit(AiEvent.Failed(AiError(AiErrorKind.NOT_CONNECTED, "Enter a server address in settings"))) }
+            emit(AiEvent.Failed(AiError(AiErrorKind.NOT_CONNECTED, "Enter a server address in settings")))
+            return@flow
         }
+        val resolved = resolver.resolve(request.task)
+        val model = request.model ?: resolved.model
         if (model == null) {
-            return flow { emit(AiEvent.Failed(AiError(AiErrorKind.NO_MODEL, "Pick a model in settings"))) }
+            emit(AiEvent.Failed(AiError(AiErrorKind.NO_MODEL, "Pick a model in settings")))
+            return@flow
         }
-        return sseFlow(Sse::chatCompletions, retryOnUnauthorized = false) {
-            Http.postJson(baseOf(cfg.baseUrl) + "/chat/completions", cfg.apiKey, requestBody(model, request))
-        }
+        val effort = request.effort ?: resolved.effort
+        emitAll(
+            sseFlow(Sse::chatCompletions, retryOnUnauthorized = false) {
+                Http.postJson(baseOf(cfg.baseUrl) + "/chat/completions", cfg.apiKey, requestBody(model, request, effort))
+            },
+        )
     }
 
     companion object {
@@ -48,7 +58,7 @@ class OpenAiCompatibleClient @Inject constructor(private val settings: AiSetting
             return if (trimmed.endsWith("/v1")) trimmed else "$trimmed/v1"
         }
 
-        fun requestBody(model: String, r: AiRequest): JSONObject {
+        fun requestBody(model: String, r: AiRequest, effort: Effort? = r.effort): JSONObject {
             val user = if (r.imagePng == null) {
                 JSONObject().put("role", "user").put("content", r.text)
             } else {
@@ -62,12 +72,17 @@ class OpenAiCompatibleClient @Inject constructor(private val settings: AiSetting
                 .put("model", model)
                 .put("messages", JSONArray().put(JSONObject().put("role", "system").put("content", r.instructions)).put(user))
                 .put("stream", true)
+                .apply { if (effort != null) put("reasoning_effort", effort.wire) }
         }
 
         fun parseModels(body: String): List<ChatModel> {
             val arr = JSONObject(body).optJSONArray("data") ?: return emptyList()
-            return (0 until arr.length()).mapNotNull { arr.optJSONObject(it)?.optString("id")?.ifEmpty { null } }
-                .map { ChatModel(it, it) }
+            return (0 until arr.length()).mapNotNull { arr.optJSONObject(it) }
+                .filter { it.optString("id").isNotEmpty() }
+                .map {
+                    val id = it.optString("id")
+                    ChatModel(id, id, ResponsesClient.parseEfforts(it.optJSONArray("supported_reasoning_levels")))
+                }
         }
     }
 }

@@ -29,6 +29,27 @@ class AiSettings(context: Context) {
     private val _config = MutableStateFlow(load())
     val config: StateFlow<AiConfig> = _config.asStateFlow()
 
+    private val _tasks = MutableStateFlow(loadTasks())
+    val tasks: StateFlow<Map<AiTask, TaskModel>> = _tasks.asStateFlow()
+
+    @Synchronized
+    fun setTask(task: AiTask, value: TaskModel) {
+        prefs.edit().apply {
+            if (value.model != null) putString(taskKey(task, "model"), value.model) else remove(taskKey(task, "model"))
+            if (value.effort != null) putString(taskKey(task, "effort"), value.effort.name) else remove(taskKey(task, "effort"))
+        }.apply()
+        _tasks.value = _tasks.value + (task to value)
+    }
+
+    private fun loadTasks() = AiTask.entries.associateWith {
+        TaskModel(
+            model = prefs.getString(taskKey(it, "model"), null)?.takeIf(String::isNotEmpty),
+            effort = Effort.parse(prefs.getString(taskKey(it, "effort"), null)),
+        )
+    }
+
+    private fun taskKey(task: AiTask, field: String) = "ai_task_${task.name}_$field"
+
     @Synchronized
     fun update(transform: (AiConfig) -> AiConfig) {
         val next = transform(_config.value)

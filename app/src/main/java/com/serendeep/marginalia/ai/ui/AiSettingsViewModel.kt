@@ -8,6 +8,9 @@ import com.serendeep.marginalia.ai.AiException
 import com.serendeep.marginalia.ai.AutoSorter
 import com.serendeep.marginalia.ai.ModelCatalog
 import com.serendeep.marginalia.ai.AiSettings
+import com.serendeep.marginalia.ai.AiTask
+import com.serendeep.marginalia.ai.ModelResolver
+import com.serendeep.marginalia.ai.TaskModel
 import com.serendeep.marginalia.ai.ChatGptAuth
 import com.serendeep.marginalia.ai.ChatGptStatus
 import com.serendeep.marginalia.ai.ChatModel
@@ -41,6 +44,7 @@ class AiSettingsViewModel @Inject constructor(
     private val settings: AiSettings,
     private val catalog: ModelCatalog,
     private val sorter: AutoSorter,
+    private val resolver: ModelResolver,
 ) : ViewModel() {
 
     val config: StateFlow<AiConfig> = settings.config
@@ -56,6 +60,14 @@ class AiSettingsViewModel @Inject constructor(
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     fun setAutoSort(on: Boolean) = sorter.setEnabled(on)
+
+    val taskModels: StateFlow<Map<AiTask, TaskModel>> = settings.tasks
+
+    fun setTaskModel(task: AiTask, value: TaskModel) = settings.setTask(task, value)
+
+    /** The model [task] would use with no override, for the "Default" row of its picker. */
+    fun defaultFor(task: AiTask, models: List<ChatModel>): String? =
+        ModelResolver.resolve(task, TaskModel(), resolver.global(), models).model
 
     /** One-line state for the sidebar row. */
     val label: StateFlow<String> = combine(settings.config, auth.status) { c, s ->

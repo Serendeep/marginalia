@@ -162,6 +162,7 @@ class AutoSorter internal constructor(
             ai.stream(request).collect { event ->
                 when (event) {
                     is AiEvent.Delta -> text.append(event.text)
+                    AiEvent.TextDone -> Unit
                     AiEvent.Completed -> done = true
                     is AiEvent.Incomplete -> done = false
                     is AiEvent.Failed -> {

@@ -1,13 +1,36 @@
 package com.serendeep.marginalia.ai
 
+enum class AiTask { ASK, EXPLAIN, SUMMARIZE, CARDS, AUTO_SORT }
+
+enum class Effort {
+    MINIMAL, LOW, MEDIUM, HIGH, XHIGH, MAX, ULTRA;
+
+    val wire: String get() = name.lowercase()
+
+    companion object {
+        fun parse(raw: String?): Effort? = entries.firstOrNull { it.name.equals(raw, ignoreCase = true) }
+    }
+}
+
+/** A per-action override; null fields mean "use the default". */
+data class TaskModel(val model: String? = null, val effort: Effort? = null)
+
 class AiRequest(
     val instructions: String,
     val text: String,
     val imagePng: ByteArray? = null,
     val model: String? = null,
+    val task: AiTask = AiTask.ASK,
+    val effort: Effort? = null,
 )
 
-data class ChatModel(val slug: String, val displayName: String)
+/** [efforts] is empty when the provider doesn't say which reasoning levels the model supports. */
+data class ChatModel(
+    val slug: String,
+    val displayName: String,
+    val efforts: List<Effort> = emptyList(),
+    val description: String = "",
+)
 
 enum class AiErrorKind { NOT_CONNECTED, UNAUTHORIZED, USAGE_LIMIT, USAGE_UNAVAILABLE, NO_MODEL, HTTP, NETWORK, SERVER, PROTOCOL }
 
@@ -17,6 +40,7 @@ class AiException(val error: AiError) : Exception(error.message)
 
 sealed interface AiEvent {
     data class Delta(val text: String) : AiEvent
+    data object TextDone : AiEvent
     data object Completed : AiEvent
     data class Incomplete(val reason: String) : AiEvent
     data class Failed(val error: AiError) : AiEvent

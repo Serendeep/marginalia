@@ -1,5 +1,10 @@
 package com.serendeep.marginalia.ai.ui
 
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -17,6 +22,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -43,6 +49,10 @@ fun StreamingText(
     onCitation: (title: String, page: Int) -> Unit = { _, _ -> },
 ) {
     val value by text.collectAsStateWithLifecycle()
+    if (value.isEmpty() && streaming) {
+        ThinkingLabel(modifier)
+        return
+    }
     var popup by remember { mutableStateOf<String?>(null) }
     AnswerView(
         messages = remember(value) { listOf(AnswerMessage("answer", AnswerRole.ASSISTANT, value)) },
@@ -53,6 +63,24 @@ fun StreamingText(
         wrapContent = true,
     )
     popup?.let { WebPopup(it) { popup = null } }
+}
+
+@Composable
+private fun ThinkingLabel(modifier: Modifier = Modifier) {
+    val alpha by rememberInfiniteTransition(label = "thinking").animateFloat(
+        initialValue = 0.35f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(800), RepeatMode.Reverse),
+        label = "thinking-alpha",
+    )
+    Text(
+        "Thinking…",
+        fontFamily = MonoFamily,
+        fontSize = 12.sp,
+        letterSpacing = 0.6.sp,
+        color = Violet,
+        modifier = modifier.alpha(alpha),
+    )
 }
 
 @Composable
