@@ -31,6 +31,7 @@ object Sse {
                     val d = json.optString("delta")
                     if (d.isNotEmpty()) yield(AiEvent.Delta(d))
                 }
+                "response.output_text.done" -> yield(AiEvent.TextDone)
                 "response.completed" -> {
                     yield(AiEvent.Completed)
                     return@sequence

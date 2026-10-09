@@ -1,5 +1,7 @@
 package com.serendeep.marginalia.ai.ui
 
+import android.util.Log
+import com.serendeep.marginalia.BuildConfig
 import com.serendeep.marginalia.ai.AiConfig
 import com.serendeep.marginalia.ai.AiError
 import com.serendeep.marginalia.ai.AiErrorKind
@@ -34,14 +36,44 @@ fun aiReady(config: AiConfig, status: ChatGptStatus): Boolean = when (config.pro
 fun AiError.needsSetup(): Boolean =
     kind == AiErrorKind.NOT_CONNECTED || kind == AiErrorKind.UNAUTHORIZED || kind == AiErrorKind.NO_MODEL
 
+const val PUBLISH_TIMEOUT_MS = 2_500L
+
+/**
+ * The part of [buffer] that is safe to show while streaming: everything up to and including the last blank line
+ * that isn't inside a code fence or a `$$` block. With no such boundary for [msSinceLastPublish] >= [PUBLISH_TIMEOUT_MS],
+ * the whole buffer is returned.
+ */
+fun publishable(buffer: String, msSinceLastPublish: Long): String {
+    var boundary = 0
+    var fenced = false
+    var math = false
+    var start = 0
+    while (true) {
+        val nl = buffer.indexOf('\n', start)
+        if (nl < 0) break
+        val line = buffer.substring(start, nl).trim()
+        when {
+            fenced -> if (line.startsWith("```")) fenced = false
+            line.startsWith("```") -> fenced = true
+            else -> {
+                if ((line.split("\$\$").size - 1) % 2 == 1) math = !math
+                if (line.isEmpty() && !math && start > 0) boundary = nl + 1
+            }
+        }
+        start = nl + 1
+    }
+    return if (boundary == 0 && msSinceLastPublish >= PUBLISH_TIMEOUT_MS) buffer else buffer.substring(0, boundary)
+}
+
 /**
  * Runs one AI request at a time. Streamed text is buffered and published to [text] at most every
- * [flushMs], so collectors recompose per frame rather than per token.
+ * [flushMs], and only up to a paragraph boundary, so collectors recompose per block rather than per token.
  */
 class AiRunner(
     private val scope: CoroutineScope,
     private val provider: () -> AiProvider,
     private val flushMs: Long = 33,
+    private val now: () -> Long = System::currentTimeMillis,
 ) {
     private val _state = MutableStateFlow<AiRunState>(AiRunState.Idle)
     val state: StateFlow<AiRunState> = _state.asStateFlow()
@@ -51,6 +83,8 @@ class AiRunner(
 
     private val buffer = StringBuilder()
     private var dirty = false
+    private var published = 0
+    private var lastPublishAt = 0L
     private var job: Job? = null
 
     /**
@@ -65,7 +99,7 @@ class AiRunner(
             val ticker = launch {
                 while (true) {
                     delay(flushMs)
-                    flush()
+                    flush(final = _state.value != AiRunState.Streaming)
                 }
             }
             try {
@@ -78,13 +112,27 @@ class AiRunner(
                     finish(AiRunState.Done)
                     return@launch
                 }
+                var lastDeltaAt = now()
+                var textDoneAt = 0L
                 provider().stream(request).collect { event ->
                     when (event) {
-                        is AiEvent.Delta -> synchronized(buffer) {
-                            buffer.append(event.text)
-                            dirty = true
+                        is AiEvent.Delta -> {
+                            lastDeltaAt = now()
+                            synchronized(buffer) {
+                                buffer.append(event.text)
+                                dirty = true
+                            }
                         }
-                        AiEvent.Completed, is AiEvent.Incomplete -> finish(AiRunState.Done)
+                        AiEvent.TextDone -> {
+                            textDoneAt = now()
+                            timing("last delta -> text done", textDoneAt - lastDeltaAt)
+                            finish(AiRunState.Done)
+                        }
+                        AiEvent.Completed, is AiEvent.Incomplete -> {
+                            if (textDoneAt != 0L) timing("text done -> completed", now() - textDoneAt)
+                            else timing("last delta -> completed", now() - lastDeltaAt)
+                            finish(AiRunState.Done)
+                        }
                         is AiEvent.Failed -> finish(AiRunState.Failed(event.error))
                     }
                 }
@@ -105,7 +153,7 @@ class AiRunner(
         job?.cancel()
         job = null
         if (_state.value == AiRunState.Streaming) {
-            flush()
+            flush(final = true)
             _state.value = AiRunState.Stopped
         }
     }
@@ -127,21 +175,40 @@ class AiRunner(
         synchronized(buffer) {
             buffer.setLength(0)
             dirty = false
+            published = 0
         }
+        lastPublishAt = now()
         _text.value = ""
     }
 
     private fun finish(state: AiRunState) {
-        flush()
+        // Once the text is complete, a dropped connection while draining must not replace the answer.
+        if (_state.value == AiRunState.Done && state is AiRunState.Failed) return
+        flush(final = true)
         _state.value = state
     }
 
-    private fun flush() {
+    private fun timing(label: String, ms: Long) {
+        if (BuildConfig.DEBUG) Log.d("AiTiming", "$label: $ms ms")
+    }
+
+    private fun flush(final: Boolean) {
         val snapshot = synchronized(buffer) {
             if (!dirty) return
-            dirty = false
-            buffer.toString()
+            val all = buffer.toString()
+            val next = if (final) {
+                all
+            } else {
+                val since = now() - lastPublishAt
+                val part = publishable(all, since)
+                if (part.length > published) part else if (since >= PUBLISH_TIMEOUT_MS) all else part
+            }
+            if (next.length <= published && !final) return
+            published = next.length
+            dirty = published < all.length
+            next
         }
+        lastPublishAt = now()
         _text.value = snapshot
     }
 }
