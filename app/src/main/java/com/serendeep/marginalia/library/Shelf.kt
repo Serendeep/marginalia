@@ -89,7 +89,8 @@ fun ShelfSection.reordered(order: Map<String, List<String>>): ShelfSection {
 }
 
 fun ShelfData.sections(filter: LibraryFilter): List<ShelfSection> {
-    val byCourse = rows.groupBy { it.lecture.courseId }
+    // Higher orderIndex first: new notebooks get the creation time, so they land on top until reordered.
+    val byCourse = rows.sortedByDescending { it.lecture.orderIndex }.groupBy { it.lecture.courseId }
     val unsorted = courses.firstOrNull { it.name == LibraryViewModel.UNSORTED_NAME }
     fun section(course: CourseEntity): ShelfSection? {
         val items = byCourse[course.id].orEmpty().filter {
