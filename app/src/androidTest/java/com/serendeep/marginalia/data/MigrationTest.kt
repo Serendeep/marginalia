@@ -278,6 +278,20 @@ class MigrationTest {
         }
     }
 
+    @Test
+    fun migrate9To10_addsChats() {
+        helper.createDatabase(DB, 9).close()
+
+        val migrated = helper.runMigrationsAndValidate(DB, 10, true, MarginaliaDatabase.MIGRATION_9_10)
+
+        migrated.execSQL("INSERT INTO chats (id, title, scope, createdAt, updatedAt) VALUES ('c1', 'Hello', 'library', 1, 2)")
+        migrated.execSQL("INSERT INTO chat_turns (chatId, idx, json) VALUES ('c1', 0, '{}')")
+        migrated.query("SELECT COUNT(*) FROM chat_turns WHERE chatId = 'c1'").use { c ->
+            assertTrue(c.moveToFirst())
+            assertEquals(1, c.getInt(0))
+        }
+    }
+
     private companion object {
         const val DB = "migration-test.db"
     }

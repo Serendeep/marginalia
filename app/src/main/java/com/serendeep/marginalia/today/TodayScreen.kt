@@ -27,9 +27,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -59,7 +61,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import com.serendeep.marginalia.cards.HighlightCardSheet
 import com.serendeep.marginalia.data.HighlightRow
 import com.serendeep.marginalia.highlights.HighlightItem
@@ -72,6 +77,7 @@ import com.serendeep.marginalia.shell.PREFS
 import com.serendeep.marginalia.shell.Screen
 import com.serendeep.marginalia.study.POMODORO_ROUNDS
 import com.serendeep.marginalia.ui.components.GlassButton
+import com.serendeep.marginalia.ui.components.glassBorder
 import com.serendeep.marginalia.ui.theme.BodyFamily
 import com.serendeep.marginalia.ui.theme.CoursePalette
 import com.serendeep.marginalia.ui.theme.DimInkDark
@@ -100,12 +106,16 @@ fun TodayScreen(
     viewModel: TodayViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val digest by viewModel.digest.collectAsStateWithLifecycle()
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    LaunchedEffect(lifecycle) { lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { viewModel.loadDigest() } }
     var cardFor by remember { mutableStateOf<HighlightRow?>(null) }
     AskNotificationPermissionOnce()
     cardFor?.let { HighlightCardSheet(it, onDismiss = { cardFor = null }) }
     // The bento spans the full width: beside the highlights column it gets too narrow on 1120dp tablets.
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         com.serendeep.marginalia.update.UpdateBanners(Modifier.padding(start = 22.dp, end = 22.dp, top = 18.dp))
+        DigestCard(digest, viewModel::dismissDigest, Modifier.padding(start = 22.dp, end = 22.dp, top = 18.dp))
         Row(
             Modifier.fillMaxWidth().padding(start = 22.dp, end = 22.dp, top = 18.dp).height(232.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -180,6 +190,45 @@ fun TodayScreen(
             }
         }
     }
+    }
+}
+
+/** Quiet recap of yesterday at the top of Today; absent unless the digest is on and has something to say. */
+@Composable
+private fun DigestCard(digest: DigestUi, onDismiss: () -> Unit, modifier: Modifier = Modifier) {
+    if (digest == DigestUi.Hidden) return
+    val shape = RoundedCornerShape(16.dp)
+    Row(
+        modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(MaterialTheme.colorScheme.surface)
+            .border(1.dp, glassBorder(), shape)
+            .padding(start = 20.dp, end = 8.dp, top = 14.dp, bottom = 14.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(
+                "YESTERDAY",
+                fontFamily = MonoFamily,
+                fontSize = 10.5.sp,
+                letterSpacing = 1.26.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(
+                if (digest is DigestUi.Ready) digest.text else "Writing your digest…",
+                fontFamily = BodyFamily,
+                fontSize = if (digest is DigestUi.Ready) 15.sp else 13.sp,
+                lineHeight = 23.sp,
+                color = if (digest is DigestUi.Ready) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 6.dp),
+            )
+        }
+        if (digest is DigestUi.Ready) {
+            IconButton(onClick = onDismiss) {
+                Icon(Icons.Filled.Close, "Dismiss digest", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
     }
 }
 

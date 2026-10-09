@@ -1,6 +1,6 @@
 package com.serendeep.marginalia.ai
 
-enum class AiTask { ASK, EXPLAIN, SUMMARIZE, CARDS, AUTO_SORT }
+enum class AiTask { ASK, EXPLAIN, SUMMARIZE, CARDS, AUTO_SORT, DIGEST }
 
 enum class Effort {
     MINIMAL, LOW, MEDIUM, HIGH, XHIGH, MAX, ULTRA;

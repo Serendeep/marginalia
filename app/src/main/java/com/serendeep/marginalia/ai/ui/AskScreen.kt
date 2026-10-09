@@ -33,6 +33,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.serendeep.marginalia.ai.agent.LIBRARY_SCOPE
 import com.serendeep.marginalia.ui.components.GlassButton
 import com.serendeep.marginalia.ui.components.glassBorder
 import com.serendeep.marginalia.ui.theme.BodyFamily
@@ -54,6 +55,7 @@ fun AskScreen(
     viewModel: ChatViewModel = hiltViewModel(),
 ) {
     var preview by remember { mutableStateOf<PagePreview?>(null) }
+    LaunchedEffect(Unit) { viewModel.enter(LIBRARY_SCOPE) }
     LaunchedEffect(pendingQuestion) {
         if (pendingQuestion != null) {
             viewModel.send(pendingQuestion)

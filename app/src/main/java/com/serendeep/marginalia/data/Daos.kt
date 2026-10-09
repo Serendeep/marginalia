@@ -68,6 +68,9 @@ interface LectureDao {
     @Query("SELECT * FROM lectures WHERE id = :id LIMIT 1")
     suspend fun getById(id: String): LectureEntity?
 
+    @Query("SELECT * FROM lectures WHERE lastOpenedAt >= :from AND lastOpenedAt < :to ORDER BY lastOpenedAt")
+    suspend fun openedBetween(from: Long, to: Long): List<LectureEntity>
+
     @Query(
         "UPDATE lectures SET lastOpenedAt = :at, " +
             "readingStatus = CASE WHEN readingStatus = 'TO_READ' THEN 'READING' ELSE readingStatus END " +
@@ -123,6 +126,9 @@ interface StudySessionDao {
 
     @Query("SELECT * FROM study_sessions ORDER BY startedAt")
     fun observeAll(): Flow<List<StudySessionEntity>>
+
+    @Query("SELECT * FROM study_sessions WHERE startedAt >= :from AND startedAt < :to ORDER BY startedAt")
+    suspend fun between(from: Long, to: Long): List<StudySessionEntity>
 }
 
 @Dao
@@ -338,6 +344,12 @@ interface HighlightDao {
 
     @Query(
         "SELECT h.*, l.title AS lectureTitle FROM highlights h " +
+            "JOIN lectures l ON l.id = h.lectureId WHERE h.createdAt >= :from AND h.createdAt < :to ORDER BY h.createdAt",
+    )
+    suspend fun between(from: Long, to: Long): List<HighlightRow>
+
+    @Query(
+        "SELECT h.*, l.title AS lectureTitle FROM highlights h " +
             "JOIN lectures l ON l.id = h.lectureId " +
             "WHERE h.text LIKE :pattern ESCAPE '\\' ORDER BY h.createdAt DESC LIMIT :limit",
     )
@@ -375,6 +387,18 @@ interface CardDao {
     @Query("SELECT frontImagePath FROM cards WHERE lectureId = :lectureId AND frontImagePath IS NOT NULL")
     suspend fun imagePathsForLecture(lectureId: String): List<String>
 
+    @Query("SELECT COUNT(*) FROM cards WHERE createdAt >= :from AND createdAt < :to")
+    suspend fun createdBetween(from: Long, to: Long): Int
+
+    @Query("SELECT COUNT(*) FROM review_log WHERE reviewedAt >= :from AND reviewedAt < :to")
+    suspend fun reviewsBetween(from: Long, to: Long): Int
+
+    @Query(
+        "SELECT COUNT(*) AS total, COALESCE(SUM(CASE WHEN grade >= 2 THEN 1 ELSE 0 END), 0) AS good " +
+            "FROM review_log WHERE prevIntervalDays IS NOT NULL AND reviewedAt >= :from AND reviewedAt < :to",
+    )
+    suspend fun retentionBetween(from: Long, to: Long): RetentionRow
+
     @Query("SELECT reviewedAt FROM review_log ORDER BY reviewedAt")
     fun observeReviewTimes(): Flow<List<Long>>
 
@@ -396,4 +420,49 @@ interface CardDao {
             "AND NOT EXISTS (SELECT 1 FROM review_log p WHERE p.cardId = r.cardId AND p.reviewedAt < :start)",
     )
     fun observeNewIntroducedSince(start: Long): Flow<Int>
+}
+
+@Dao
+interface ChatDao {
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun putChat(chat: ChatEntity)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun putTurn(turn: ChatTurnEntity)
+
+    @Transaction
+    suspend fun save(chat: ChatEntity, turn: ChatTurnEntity) {
+        putChat(chat)
+        putTurn(turn)
+    }
+
+    @Query("SELECT * FROM chats WHERE id = :id")
+    suspend fun chat(id: String): ChatEntity?
+
+    @Query("SELECT * FROM chats WHERE scope = :scope ORDER BY updatedAt DESC LIMIT 1")
+    suspend fun latest(scope: String): ChatEntity?
+
+    @Query("SELECT * FROM chats WHERE scope = :scope ORDER BY updatedAt DESC")
+    fun observeScope(scope: String): Flow<List<ChatEntity>>
+
+    @Query("SELECT * FROM chats ORDER BY updatedAt DESC")
+    fun observeAll(): Flow<List<ChatEntity>>
+
+    @Query("SELECT * FROM chat_turns WHERE chatId = :chatId ORDER BY idx")
+    suspend fun turns(chatId: String): List<ChatTurnEntity>
+
+    @Query("UPDATE chats SET title = :title WHERE id = :id")
+    suspend fun rename(id: String, title: String)
+
+    @Query("DELETE FROM chat_turns WHERE chatId = :id")
+    suspend fun deleteTurns(id: String)
+
+    @Query("DELETE FROM chats WHERE id = :id")
+    suspend fun deleteChat(id: String)
+
+    @Transaction
+    suspend fun delete(id: String) {
+        deleteTurns(id)
+        deleteChat(id)
+    }
 }
