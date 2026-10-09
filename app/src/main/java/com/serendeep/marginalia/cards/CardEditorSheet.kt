@@ -46,7 +46,7 @@ import java.io.File
 
 /**
  * Panel for writing a card. With [frontImagePath] the front is that picture;
- * otherwise it is an editable text field. [lectures] non-null adds a lecture picker.
+ * otherwise it is an editable text field. [lectures] non-null adds a lecture picker. [onAskAi] adds an "Ask AI" action beside the image.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -59,6 +59,7 @@ fun CardEditorSheet(
     initialFront: String = "",
     initialBack: String = "",
     lectures: List<LectureEntity>? = null,
+    onAskAi: (() -> Unit)? = null,
 ) {
     var front by remember { mutableStateOf(initialFront) }
     var back by remember { mutableStateOf(initialBack) }
@@ -85,6 +86,7 @@ fun CardEditorSheet(
         maxWidth = if (frontImagePath != null) 760.dp else 600.dp,
         footer = {
             GlassTextButton("Cancel", onClick = onDismiss)
+            if (onAskAi != null && frontImagePath != null) GlassTextButton("Ask AI", onClick = onAskAi)
             GlassButton("Save", enabled = canSave, onClick = { onSave(front.trim(), back.trim(), lectureId) })
         },
     ) {
