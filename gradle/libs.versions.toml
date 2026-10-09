@@ -25,6 +25,7 @@ uiautomator = "2.3.0"
 digitalInk = "19.0.0"
 webkit = "1.12.1"
 work = "2.10.0"
+zstdJni = "1.5.7-12"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -62,6 +63,7 @@ emoji2-emojipicker = { group = "androidx.emoji2", name = "emoji2-emojipicker", v
 coil-compose = { group = "io.coil-kt.coil3", name = "coil-compose", version.ref = "coil" }
 graphics-shapes = { group = "androidx.graphics", name = "graphics-shapes", version.ref = "graphicsShapes" }
 mlkit-digital-ink = { group = "com.google.mlkit", name = "digital-ink-recognition", version.ref = "digitalInk" }
+zstd-jni = { group = "com.github.luben", name = "zstd-jni", version.ref = "zstdJni" }
 androidx-webkit = { group = "androidx.webkit", name = "webkit", version.ref = "webkit" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "androidxJunit" }

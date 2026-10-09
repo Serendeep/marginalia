@@ -72,6 +72,7 @@ data class UpdateStatus(
     val progress: Int = 0,
     val checkedAt: Long = 0,
     val error: String? = null,
+    val fullFallback: Boolean = false,
 )
 
 /** Whether this launch is the first of a version newer than the one last seen; a fresh install has nothing to announce. */
@@ -93,6 +94,7 @@ class UpdateManager @Inject constructor(
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val checkLock = Mutex()
     @Volatile private var inForeground = false
+    @Volatile private var patchFailedFor = 0L
 
     val installedVersionCode: Long by lazy { context.packageManager.getPackageInfo(context.packageName, 0).longVersionCode }
     val installedVersionName: String by lazy { BuildConfig.VERSION_NAME }
@@ -250,23 +252,31 @@ class UpdateManager @Inject constructor(
         )
     }
 
-    /** Fetches [info] into place; the file only gets its final name once every check passed. */
+    /** Fetches [info] into place, as a small patch when the feed has one for this install; the file only gets its final name once every check passed. */
     fun download(info: UpdateInfo, cancelled: () -> Boolean, onPercent: (Int) -> Unit) {
         val final = apkFile(info)
         if (final.exists()) return
         val part = File(final.path + ".part")
         val etag = File(final.path + ".part.etag")
         var last = -1
+        val progress = { done: Long, total: Long ->
+            val pct = if (total > 0) (done * 100 / total).toInt() else 0
+            if (pct != last) {
+                last = pct
+                _status.update { it.copy(progress = pct) }
+                onPercent(pct)
+            }
+        }
         try {
-            _status.update { it.copy(phase = UpdatePhase.DOWNLOADING, info = info, progress = 0, error = null) }
-            val sha = UpdateHttp.download(info.apkUrl, part, etag, { done, total ->
-                val pct = if (total > 0) (done * 100 / total).toInt() else 0
-                if (pct != last) {
-                    last = pct
-                    _status.update { it.copy(progress = pct) }
-                    onPercent(pct)
-                }
-            }, cancelled)
+            _status.update { it.copy(phase = UpdatePhase.DOWNLOADING, info = info, progress = 0, error = null, fullFallback = false) }
+            val patch = info.patchFor(installedVersionCode)?.takeIf { !part.exists() && patchFailedFor != info.versionCode }
+            if (patch != null) {
+                if (applyPatch(info, patch, part, final, progress, cancelled)) return
+                patchFailedFor = info.versionCode
+                last = -1
+                _status.update { it.copy(progress = 0, fullFallback = true) }
+            }
+            val sha = UpdateHttp.download(info.apkUrl, part, etag, progress, cancelled)
             val problem = if (!sha.equals(info.sha256, ignoreCase = true)) {
                 "The download is corrupt (checksum mismatch)"
             } else {
@@ -281,6 +291,35 @@ class UpdateManager @Inject constructor(
             etag.delete()
         } finally {
             refresh(error = null)
+        }
+    }
+
+    /** Downloads [patch], rebuilds the APK into [part] and stores it as [final]; false means nothing usable was left and the full APK should be fetched. */
+    private fun applyPatch(
+        info: UpdateInfo,
+        patch: UpdatePatch,
+        part: File,
+        final: File,
+        progress: (Long, Long) -> Unit,
+        cancelled: () -> Boolean,
+    ): Boolean {
+        val file = File(final.path + ".patch")
+        val etag = File(final.path + ".patch.etag")
+        try {
+            val sha = UpdateHttp.download(patch.url, file, etag, progress, cancelled)
+            if (!sha.equals(patch.sha256, ignoreCase = true)) throw IOException("The patch is corrupt (checksum mismatch)")
+            UpdatePatcher.apply(File(context.applicationInfo.sourceDir), file, part, info.sha256)
+            if (UpdateVerifier.verify(context, part, info.sha256) != null) throw IOException("The patched update failed verification")
+            if (!part.renameTo(final)) throw IOException("Could not store the update")
+            return true
+        } catch (e: Throwable) {
+            // A stopped download is not a bad patch; anything else (including a missing native library) falls back to the full APK.
+            if (cancelled()) throw e
+            part.delete()
+            return false
+        } finally {
+            file.delete()
+            etag.delete()
         }
     }
 

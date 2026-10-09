@@ -6,6 +6,7 @@ import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import android.text.format.DateUtils
+import android.text.format.Formatter
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -52,7 +53,7 @@ import com.serendeep.marginalia.ui.theme.Violet
 /** The one-line summary shown under the version in settings. */
 fun statusLine(status: UpdateStatus, now: Long = System.currentTimeMillis()): String = when (status.phase) {
     UpdatePhase.CHECKING -> "Checking for updates…"
-    UpdatePhase.DOWNLOADING -> "Downloading ${status.progress}%"
+    UpdatePhase.DOWNLOADING -> (if (status.fullFallback) "Downloading full update " else "Downloading ") + "${status.progress}%"
     UpdatePhase.READY -> "Update ${status.info?.versionName.orEmpty()} ready"
     UpdatePhase.AVAILABLE -> "Update ${status.info?.versionName.orEmpty()} available"
     UpdatePhase.INSTALLING -> "Installing…"
@@ -156,6 +157,15 @@ fun UpdatesSectionContent(vm: UpdateViewModel = hiltViewModel()) {
     notes?.let { WebPopup(it) { notes = null } }
     Text("Marginalia ${vm.versionName}", style = MaterialTheme.typography.bodyLarge)
     Text(statusLine(status), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    if (status.phase == UpdatePhase.AVAILABLE || status.phase == UpdatePhase.DOWNLOADING) {
+        status.info?.downloadSize(vm.installedVersionCode, usePatch = !status.fullFallback)?.takeIf { it > 0 }?.let { bytes ->
+            Text(
+                Formatter.formatShortFileSize(context, bytes) + " update",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
         if (status.phase == UpdatePhase.READY || status.phase == UpdatePhase.AVAILABLE) {
             GlassButton(primaryLabel(status.phase), onClick = act)

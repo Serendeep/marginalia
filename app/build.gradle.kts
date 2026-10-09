@@ -176,6 +176,7 @@ dependencies {
     implementation(libs.pdfium)
     implementation(libs.emoji2.emojipicker)
     implementation(libs.androidx.webkit)
+    implementation("${libs.zstd.jni.get()}@aar")
 
     implementation(libs.room.runtime)
     implementation(libs.room.ktx)
@@ -198,6 +199,8 @@ dependencies {
 
     testImplementation(libs.junit)
     testImplementation("org.json:json:20250517")
+    // The desktop jar carries the JVM natives that the Android aar leaves out.
+    testImplementation("${libs.zstd.jni.get()}@jar")
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(libs.room.testing)
