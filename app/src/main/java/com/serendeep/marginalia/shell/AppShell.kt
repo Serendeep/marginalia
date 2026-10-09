@@ -296,16 +296,17 @@ private fun GoalCard(viewModel: ShellViewModel, settingsOpen: Boolean, onSetting
     val reminder by viewModel.reminder.collectAsStateWithLifecycle()
     val pencilAction by viewModel.pencilAction.collectAsStateWithLifecycle()
     val handwritingSearch by viewModel.handwritingSearch.collectAsStateWithLifecycle()
+    val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
     val modelState by viewModel.modelState.collectAsStateWithLifecycle()
     if (settingsOpen) {
         LaunchedEffect(Unit) { viewModel.refreshModel() }
         SettingsDialog(
-            goal, reminder, pencilAction, handwritingSearch, modelState,
+            goal, reminder, pencilAction, handwritingSearch, themeMode, modelState,
             onDownloadModel = viewModel::downloadModel,
             onDismiss = { onSettingsOpen(false) },
-            onSave = { g, r, a, h ->
+            onSave = { g, r, a, h, t ->
                 onSettingsOpen(false)
-                viewModel.saveSettings(g, r, a, h)
+                viewModel.saveSettings(g, r, a, h, t)
             },
         )
     }

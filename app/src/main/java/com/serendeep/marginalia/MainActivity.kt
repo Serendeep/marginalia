@@ -2,6 +2,10 @@
 
 package com.serendeep.marginalia
 
+import android.content.Context
+import android.content.SharedPreferences
+import android.graphics.Color as AndroidColor
+import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
 import android.os.SystemClock
 import android.view.KeyEvent
@@ -10,6 +14,7 @@ import android.net.Uri
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
+import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.compose.animation.AnimatedContent
@@ -25,7 +30,9 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -39,11 +46,17 @@ import com.serendeep.marginalia.search.SearchScreen
 import com.serendeep.marginalia.ai.ui.AskScreen
 import com.serendeep.marginalia.shell.AppShell
 import com.serendeep.marginalia.stats.StatsScreen
+import com.serendeep.marginalia.shell.PREFS
 import com.serendeep.marginalia.shell.Screen
 import com.serendeep.marginalia.today.TodayScreen
 import com.serendeep.marginalia.notebook.NotebookScreen
 import com.serendeep.marginalia.notebook.NotebookViewModel
+import androidx.compose.ui.graphics.toArgb
+import com.serendeep.marginalia.ui.theme.BgDark
+import com.serendeep.marginalia.ui.theme.BgLight
 import com.serendeep.marginalia.ui.theme.MarginaliaTheme
+import com.serendeep.marginalia.ui.theme.THEME_MODE_KEY
+import com.serendeep.marginalia.ui.theme.ThemeMode
 import dagger.hilt.android.AndroidEntryPoint
 
 /** Scopes for cover-to-notebook shared-element flight; null outside navigation. */
@@ -67,14 +80,27 @@ class MainActivity : ComponentActivity() {
     private var lastPencilToggleAt = 0L
     private var incomingPdfUri by mutableStateOf<Uri?>(null)
     private var incomingReview by mutableStateOf(false)
+    private var themeMode by mutableStateOf(ThemeMode.SYSTEM)
+    private val themeListener = SharedPreferences.OnSharedPreferenceChangeListener { prefs, key ->
+        if (key == THEME_MODE_KEY) themeMode = ThemeMode.from(prefs.getString(THEME_MODE_KEY, null))
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         incomingPdfUri = pdfUri(intent)
         incomingReview = intent.getBooleanExtra(EXTRA_OPEN_REVIEW, false)
+        val prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        themeMode = ThemeMode.from(prefs.getString(THEME_MODE_KEY, null))
+        prefs.registerOnSharedPreferenceChangeListener(themeListener)
         enableEdgeToEdge()
         setContent {
-            MarginaliaTheme {
+            val dark = themeMode.isDark(isSystemInDarkTheme())
+            SideEffect {
+                val bars = SystemBarStyle.auto(AndroidColor.TRANSPARENT, AndroidColor.TRANSPARENT) { dark }
+                enableEdgeToEdge(statusBarStyle = bars, navigationBarStyle = bars)
+                window.setBackgroundDrawable(ColorDrawable((if (dark) BgDark else BgLight).toArgb()))
+            }
+            MarginaliaTheme(darkTheme = dark) {
                 var screen by remember { mutableStateOf<Screen>(Screen.Today) }
                 var pendingAsk by remember { mutableStateOf<String?>(null) }
                 val aiReady = com.serendeep.marginalia.ai.ui.rememberAiReady()
@@ -152,6 +178,11 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onDestroy() {
+        getSharedPreferences(PREFS, Context.MODE_PRIVATE).unregisterOnSharedPreferenceChangeListener(themeListener)
+        super.onDestroy()
     }
 
     override fun onNewIntent(intent: Intent) {
