@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
 import javax.inject.Inject
 
 /** What the Backup section shows besides its fixed rows. */
@@ -30,6 +31,7 @@ class BackupViewModel @Inject constructor(
     private val exporter: BackupExporter,
     private val importer: BackupImporter,
     private val auto: AutoBackup,
+    private val store: BackupStore,
 ) : ViewModel() {
     private val _state = MutableStateFlow<BackupState>(BackupState.Idle)
     val state: StateFlow<BackupState> = _state.asStateFlow()
@@ -52,6 +54,23 @@ class BackupViewModel @Inject constructor(
     fun cancelImport() {
         importer.discard()
         _state.value = BackupState.Idle
+    }
+
+    private val _recent = MutableStateFlow<List<BackupItem>>(emptyList())
+    val recent: StateFlow<List<BackupItem>> = _recent.asStateFlow()
+
+    fun refreshRecent() {
+        viewModelScope.launch { _recent.value = store.list(auto.config.value.treeUri) }
+    }
+
+    suspend fun details(item: BackupItem) = store.details(item)
+
+    fun inspect(item: BackupItem) =
+        inspect(if (item.inAppStorage) Uri.fromFile(File(item.location)) else Uri.parse(item.location))
+
+    fun export(item: BackupItem, uri: Uri) = launchWork("Exporting…") {
+        store.copyTo(item, uri)
+        BackupState.Done("Exported ${item.name.title.lowercase()} backup")
     }
 
     fun setAuto(transform: (AutoBackupConfig) -> AutoBackupConfig) = auto.update(transform)
