@@ -105,6 +105,18 @@ class MarginaliaRepository @Inject constructor(
 
     fun observeSessions(): Flow<List<StudySessionEntity>> = sessionDao.observeAll()
 
+    suspend fun sessionsBetween(from: Long, to: Long) = sessionDao.between(from, to)
+
+    suspend fun openedBetween(from: Long, to: Long) = lectureDao.openedBetween(from, to)
+
+    suspend fun highlightsBetween(from: Long, to: Long) = highlightDao.between(from, to)
+
+    suspend fun cardsCreatedBetween(from: Long, to: Long) = cardDao.createdBetween(from, to)
+
+    suspend fun reviewsBetween(from: Long, to: Long) = cardDao.reviewsBetween(from, to)
+
+    suspend fun retentionBetween(from: Long, to: Long) = cardDao.retentionBetween(from, to)
+
     suspend fun saveSession(lectureId: String?, kind: SessionKind, startedAt: Long, endedAt: Long) =
         sessionDao.insert(StudySessionEntity(newId(), lectureId, kind.name, startedAt, endedAt))
 

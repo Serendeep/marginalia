@@ -3,7 +3,22 @@ package com.serendeep.marginalia.today
 import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import android.util.Log
 import coil3.ImageLoader
+import com.serendeep.marginalia.ai.AiEvent
+import com.serendeep.marginalia.ai.AiRequest
+import com.serendeep.marginalia.ai.AiRouter
+import com.serendeep.marginalia.ai.AiSettings
+import com.serendeep.marginalia.ai.ChatGptAuth
+import com.serendeep.marginalia.ai.DigestStore
+import com.serendeep.marginalia.ai.Prompts
+import com.serendeep.marginalia.ai.dayKey
+import com.serendeep.marginalia.ai.digestInput
+import com.serendeep.marginalia.ai.ui.aiReady
+import com.serendeep.marginalia.update.RemoteConfigStore
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import com.serendeep.marginalia.data.HighlightRow
 import com.serendeep.marginalia.data.MarginaliaRepository
 import com.serendeep.marginalia.data.ReadingStatus
@@ -68,11 +83,22 @@ data class TodayState(
     val highlights: List<HighlightRow> = emptyList(),
 )
 
+sealed interface DigestUi {
+    data object Hidden : DigestUi
+    data object Writing : DigestUi
+    data class Ready(val text: String) : DigestUi
+}
+
 @HiltViewModel
 class TodayViewModel @Inject constructor(
-    repository: MarginaliaRepository,
+    private val repository: MarginaliaRepository,
     private val focusTimer: FocusTimer,
     val imageLoader: ImageLoader,
+    private val digestStore: DigestStore,
+    private val router: AiRouter,
+    private val settings: AiSettings,
+    private val auth: ChatGptAuth,
+    private val remote: RemoteConfigStore,
 ) : ViewModel() {
 
     private val reviewInputs = combine(repository.observeDue(), repository.observeReviewActivity()) { due, activity ->
@@ -133,4 +159,70 @@ class TodayViewModel @Inject constructor(
     val focus: StateFlow<FocusState> = focusTimer.state
 
     fun toggleFocus() = focusTimer.toggle()
+
+    private val _digest = MutableStateFlow<DigestUi>(DigestUi.Hidden)
+    val digest: StateFlow<DigestUi> = _digest.asStateFlow()
+
+    /**
+     * Shows today's digest of yesterday, writing it first when it is switched on, the AI is ready and yesterday had activity.
+     * Runs only while Today is on screen; leaving cancels a write in progress.
+     */
+    suspend fun loadDigest() {
+        val today = LocalDate.now()
+        val key = dayKey(today)
+        val cache = digestStore.cache()
+        val shown = cache.visible(key)
+        if (!digestStore.enabled.value || shown == null && !cache.needed(key)) {
+            _digest.value = DigestUi.Hidden
+            return
+        }
+        if (shown != null) {
+            _digest.value = DigestUi.Ready(shown)
+            return
+        }
+        if (!aiReady(settings.config.value, auth.status.value, remote.config.value.aiAllowed)) return
+        try {
+            val input = repository.digestInput(today.minusDays(1), System.currentTimeMillis()) ?: return
+            _digest.value = DigestUi.Writing
+            val text = write(Prompts.digest(input))
+            if (text == null) {
+                _digest.value = DigestUi.Hidden
+                return
+            }
+            digestStore.save(digestStore.cache().with(key, text))
+            _digest.value = DigestUi.Ready(text)
+        } catch (e: CancellationException) {
+            _digest.value = DigestUi.Hidden
+            throw e
+        }
+    }
+
+    fun dismissDigest() {
+        digestStore.save(digestStore.cache().dismissed(dayKey(LocalDate.now())))
+        _digest.value = DigestUi.Hidden
+    }
+
+    private suspend fun write(request: AiRequest): String? {
+        val text = StringBuilder()
+        var done = false
+        try {
+            router.active().stream(request).collect { event ->
+                when (event) {
+                    is AiEvent.Delta -> text.append(event.text)
+                    AiEvent.Completed -> done = true
+                    is AiEvent.Failed -> Log.w(TAG, "digest failed: ${event.error.kind}")
+                    else -> Unit
+                }
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "digest failed: ${e.javaClass.simpleName}")
+        }
+        return if (done) text.toString().trim().ifEmpty { null } else null
+    }
+
+    private companion object {
+        const val TAG = "Digest"
+    }
 }
