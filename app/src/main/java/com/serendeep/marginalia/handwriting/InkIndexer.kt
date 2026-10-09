@@ -72,7 +72,7 @@ class InkIndexer @Inject constructor(
 
     suspend fun indexStale() {
         if (notebookOpen || !enabled() || recognizer.refresh() != ModelState.Ready) return
-        val strokeIds = repository.marginStrokeIds()
+        val strokeIds = repository.handwritingStrokeIds()
         val indexed = repository.inkIndexHashes()
         for (lectureId in strokeIds.keys + indexed.keys) {
             val hash = strokesHash(strokeIds[lectureId].orEmpty())
@@ -87,13 +87,21 @@ class InkIndexer @Inject constructor(
 
     /** False when recognition stopped working part-way, so the lecture is left to retry later. */
     private suspend fun index(lectureId: String, hash: String): Boolean {
-        val strokes = repository.loadStrokes(lectureId).filter { it.surface == InkSurface.MARGIN }
-        val blocks = groupBlocks(groupLines(strokes) { it.bounds }, { it.bounds }, { it.anchorId })
+        val all = repository.loadStrokes(lectureId)
+        val margin = all.filter { it.surface == InkSurface.MARGIN }
+        // Page ink lives in each page's own coordinates, so it is grouped page by page.
+        val pages = all.filter { it.surface == InkSurface.PAGE && ((it.brushColor ushr 24) and 0xFFL) == 0xFFL }
+            .groupBy { it.pdfPage }.values
+        val blocks = (listOf(margin) + pages).filter { it.isNotEmpty() }
+            .flatMap { groupBlocks(groupLines(it) { s -> s.bounds }, { s -> s.bounds }, { s -> s.anchorId }) }
         val rows = ArrayList<InkBlockText>()
         for (block in blocks) {
-            val text = block.mapNotNull { recognizer.recognizeLine(it) }.joinToString("\n")
-            if (recognizer.state.value != ModelState.Ready) return false
-            if (text.isNotBlank()) {
+            var failed = false
+            val text = block.mapNotNull { line -> recognizer.recognizeLine(line).also { failed = failed || recognizer.lastFailed } }
+                .joinToString("\n")
+            if (failed || recognizer.state.value != ModelState.Ready) return false
+            // Stray dots and debris read as punctuation; only text with letters or digits is worth finding.
+            if (text.any { it.isLetterOrDigit() }) {
                 val first = block.first().first()
                 rows += InkBlockText(first.id, first.pdfPage.takeIf { first.documentId.isNotEmpty() }, text)
             }

@@ -241,8 +241,8 @@ class MarginaliaRepository @Inject constructor(
     }
 
     /** Margin stroke ids per lecture. */
-    suspend fun marginStrokeIds(): Map<String, List<String>> =
-        strokeDao.marginStrokeIds().groupBy({ it.lectureId }, { it.strokeId })
+    suspend fun handwritingStrokeIds(): Map<String, List<String>> =
+        strokeDao.handwritingStrokeIds().groupBy({ it.lectureId }, { it.strokeId })
 
     /** The stroke hash each lecture's handwriting index was built from. */
     suspend fun inkIndexHashes(): Map<String, String> =

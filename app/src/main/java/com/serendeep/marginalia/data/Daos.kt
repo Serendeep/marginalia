@@ -159,8 +159,9 @@ interface StrokeDao {
     @Query("DELETE FROM strokes WHERE id = :id")
     suspend fun deleteById(id: String)
 
-    @Query("SELECT lectureId, id AS strokeId FROM strokes WHERE surface = 'MARGIN'")
-    suspend fun marginStrokeIds(): List<StrokeRef>
+    // Handwriting to recognise: all margin ink, plus opaque pen ink on PDF pages (highlighters are translucent).
+    @Query("SELECT lectureId, id AS strokeId FROM strokes WHERE surface = 'MARGIN' OR ((brushColor >> 24) & 255) = 255")
+    suspend fun handwritingStrokeIds(): List<StrokeRef>
 
     @Query("SELECT id FROM strokes WHERE anchorId = :anchorId")
     suspend fun idsBoundTo(anchorId: String): List<String>

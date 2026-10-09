@@ -2,6 +2,8 @@
 
 package com.serendeep.marginalia.handwriting
 
+import android.util.Log
+
 import android.graphics.RectF
 import com.google.android.gms.tasks.Task
 import com.google.mlkit.common.model.DownloadConditions
@@ -54,6 +56,11 @@ open class InkRecognizer @Inject constructor() {
     private val download = Mutex()
     private var client: DigitalInkRecognizer? = null
 
+    /** Set when the latest recognition threw, so callers can tell "nothing written" from "failed". */
+    @Volatile
+    var lastFailed = false
+        private set
+
     private val model: DigitalInkRecognitionModel by lazy {
         val id = DigitalInkRecognitionModelIdentifier.fromLanguageTag(LANGUAGE_TAG)
             ?: error("No handwriting model for $LANGUAGE_TAG")
@@ -88,9 +95,11 @@ open class InkRecognizer @Inject constructor() {
     /** Candidate transcriptions of one line, best first; empty when recognition is unavailable. */
     open suspend fun recognize(strokes: List<InkStroke>, writingArea: RectF?): List<String> {
         if (strokes.isEmpty() || !ensureModel()) return emptyList()
-        return guarded(emptyList()) {
+        lastFailed = false
+        return guarded(emptyList(), onError = { lastFailed = true }) {
             val ink = withContext(Dispatchers.Default) { buildInk(strokes) }
-            val context = RecognitionContext.builder().apply {
+            // ML Kit rejects a context without pre-context, even when nothing was written before.
+            val context = RecognitionContext.builder().setPreContext("").apply {
                 if (writingArea != null) setWritingArea(WritingArea(writingArea.width(), writingArea.height()))
             }.build()
             val recogniser = client ?: DigitalInkRecognition.getClient(DigitalInkRecognizerOptions.builder(model).build())
@@ -110,11 +119,13 @@ open class InkRecognizer @Inject constructor() {
         return ink.build()
     }
 
-    private suspend fun <T> guarded(fallback: T, block: suspend () -> T): T = try {
+    private suspend fun <T> guarded(fallback: T, onError: () -> Unit = {}, block: suspend () -> T): T = try {
         block()
     } catch (e: CancellationException) {
         throw e
     } catch (e: Throwable) {
+        Log.w(TAG, "Handwriting recognition failed: ${e.javaClass.simpleName}: ${e.message}")
+        onError()
         fallback
     }
 }
@@ -137,3 +148,5 @@ private suspend fun <T> Task<T>.await(): T = suspendCancellableCoroutine { cont 
     addOnFailureListener { cont.resumeWithException(it) }
     addOnCanceledListener { cont.cancel() }
 }
+
+private const val TAG = "InkRecognizer"
