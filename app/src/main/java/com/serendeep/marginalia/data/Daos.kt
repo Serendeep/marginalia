@@ -47,6 +47,14 @@ interface LectureDao {
     @Query("UPDATE lectures SET title = :title WHERE id = :id")
     suspend fun rename(id: String, title: String)
 
+    @Query("UPDATE lectures SET orderIndex = :orderIndex WHERE id = :id")
+    suspend fun setOrder(id: String, orderIndex: Long)
+
+    @Transaction
+    suspend fun reorder(ids: List<String>) {
+        ids.forEachIndexed { i, id -> setOrder(id, i.toLong()) }
+    }
+
     @Query("UPDATE lectures SET courseId = :courseId WHERE id = :id")
     suspend fun move(id: String, courseId: String)
 

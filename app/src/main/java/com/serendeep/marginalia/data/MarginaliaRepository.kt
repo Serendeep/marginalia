@@ -142,6 +142,8 @@ class MarginaliaRepository @Inject constructor(
     suspend fun renameLecture(lectureId: String, title: String) =
         lectureDao.rename(lectureId, title)
 
+    suspend fun reorderLectures(ids: List<String>) = lectureDao.reorder(ids)
+
     suspend fun moveLecture(lectureId: String, courseId: String) =
         lectureDao.move(lectureId, courseId)
 

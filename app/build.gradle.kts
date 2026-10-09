@@ -170,6 +170,7 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.haze)
     implementation(libs.coil.compose)
+    implementation(libs.reorderable)
     implementation(libs.graphics.shapes)
     implementation(libs.composables.core)
     implementation(libs.material.icons.extended)
