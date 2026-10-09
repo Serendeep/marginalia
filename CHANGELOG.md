@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.2.0](https://github.com/Serendeep/marginalia/compare/v1.1.0...v1.2.0) (2026-10-09)
+
+
+### Features
+
+* add an Updates section to settings ([d5270a1](https://github.com/Serendeep/marginalia/commit/d5270a1449b0a518ef064d1f01a48a263de60d1d))
+* add remote config with kill switches and known-bad versions ([8721a44](https://github.com/Serendeep/marginalia/commit/8721a443262f5f9286e547ecb2bbd35ba85c6046))
+* check, download and verify app updates in the background ([eeafa20](https://github.com/Serendeep/marginalia/commit/eeafa207bbdd9caccc3b5915a675d32a7eb2fc73))
+* in-app updates from GitHub releases with remote kill switches ([6a0374c](https://github.com/Serendeep/marginalia/commit/6a0374c0080bcc619d2441ec45457867722a0048))
+* install updates when idle with a restart prompt ([1416b84](https://github.com/Serendeep/marginalia/commit/1416b8488c066297880f5b7e9776fada6ab8ff33))
+
+
+### Bug Fixes
+
+* open settings from a sidebar gear and stack the reminder time picker ([03d58f4](https://github.com/Serendeep/marginalia/commit/03d58f441d85650cffac938773277b66fc85ce89))
+
 ## [1.1.0](https://github.com/Serendeep/marginalia/compare/v1.0.0...v1.1.0) (2026-10-09)
 
 
