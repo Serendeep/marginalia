@@ -12,7 +12,7 @@
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.0-7F52FF?logo=kotlin&logoColor=white)](https://kotlinlang.org)
 
 
-https://github.com/user-attachments/assets/8484cf50-0133-4eaa-9ad8-fef370420899
+https://github.com/user-attachments/assets/b2026201-a81f-4e13-bd22-6e01d67ba813
 
 
 <img src="docs/screenshots/today.png" alt="Today dashboard with review queue, focus timer and study streak" width="48%">&nbsp;<img src="docs/screenshots/notebook.png" alt="A paper with highlighted text and handwritten notes in the margin" width="48%">
@@ -48,10 +48,14 @@ cloud required. Your notes stay on your tablet.
 - 📚 **Library for courses and papers.** Tags, reading status, arXiv/DOI detection and one-tap BibTeX.
 
 **Optional AI**
-- ✦ **Ask ChatGPT** to explain a page, summarise a paper, draft flashcards, or answer questions across
-  your library with page citations. It uses your ChatGPT plan through OpenAI's "Sign in with ChatGPT";
-  no API key. Nothing is sent unless you tap an AI action. Any OpenAI-compatible endpoint (for example
-  Ollama) works too.
+- ✦ **Ask your library.** It searches your papers, reads the pages and checks figures before it answers,
+  then cites each claim with numbered sources you can tap to open the page. Answers render math, tables
+  and diagrams.
+- 📝 **Ask beside the page.** In a notebook it knows the page you're on and your notes on it: explain a
+  page, summarise the paper, draft flashcards, or lasso a figure and ask about it.
+- It uses your ChatGPT plan through OpenAI's "Sign in with ChatGPT", with no API key, and you can pick the
+  model and effort for each action. Nothing is sent unless you ask. Any OpenAI-compatible endpoint (for
+  example Ollama) works too.
 
 See the [roadmap](ROADMAP.md) for what's next.
 
