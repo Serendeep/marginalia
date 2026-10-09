@@ -1,9 +1,8 @@
 package com.serendeep.marginalia.ai.agent
 
-object AgentPrompts {
-    const val FORMAT_GUIDE = "Format answers in Markdown. Use headings sparingly. Write math as \$…\$ inline or \$\$…\$\$ for display. " +
-        "Use pipe tables for comparisons. Add a ```mermaid block only when a diagram truly helps."
+import com.serendeep.marginalia.ai.Prompts
 
+object AgentPrompts {
     val INSTRUCTIONS = """
         You are the study assistant inside Marginalia, a notebook app where the user keeps PDFs (papers, lecture slides, books) with handwritten notes, highlights and flashcards.
 
@@ -19,6 +18,6 @@ object AgentPrompts {
 
         When asked for flashcards, or when a set of cards would clearly help, call draft_flashcards. The user reviews and saves them; never claim cards are saved.
 
-        Be concise. Lead with the answer. $FORMAT_GUIDE
+        Be concise. Lead with the answer. ${Prompts.FORMAT_GUIDE}
     """.trimIndent()
 }

@@ -67,7 +67,7 @@ enum class PanelSide { START, END }
 private val PanelRadius = 20.dp
 private const val ScrimAlpha = 0.45f
 
-/** Full-height panel sliding in from an edge; browsable or long content with a pinned footer. */
+/** Full-height panel sliding in from an edge; browsable or long content with a pinned footer. With [scrollable] false the content manages its own scrolling. */
 @Composable
 fun SidePanel(
     onDismiss: () -> Unit,
@@ -76,6 +76,7 @@ fun SidePanel(
     side: PanelSide = PanelSide.END,
     width: Dp = 440.dp,
     footer: (@Composable RowScope.() -> Unit)? = null,
+    scrollable: Boolean = true,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val end = side == PanelSide.END
@@ -102,11 +103,15 @@ fun SidePanel(
         ) {
             Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.systemBars.union(WindowInsets.ime))) {
                 PanelHeader(eyebrow, title, close)
-                Column(
-                    Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(24.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
-                    content = content,
-                )
+                if (scrollable) {
+                    Column(
+                        Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(24.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                        content = content,
+                    )
+                } else {
+                    Column(Modifier.weight(1f).fillMaxWidth(), content = content)
+                }
                 if (footer != null) PanelFooter(footer)
             }
         }

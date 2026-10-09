@@ -36,6 +36,7 @@ import com.serendeep.marginalia.highlights.HighlightsScreen
 import com.serendeep.marginalia.library.LibraryScreen
 import com.serendeep.marginalia.review.ReviewScreen
 import com.serendeep.marginalia.search.SearchScreen
+import com.serendeep.marginalia.ai.ui.AskScreen
 import com.serendeep.marginalia.shell.AppShell
 import com.serendeep.marginalia.stats.StatsScreen
 import com.serendeep.marginalia.shell.Screen
@@ -75,6 +76,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             MarginaliaTheme {
                 var screen by remember { mutableStateOf<Screen>(Screen.Today) }
+                var pendingAsk by remember { mutableStateOf<String?>(null) }
                 val pendingPdf = incomingPdfUri
                 LaunchedEffect(pendingPdf) {
                     if (pendingPdf != null) screen = Screen.Library()
@@ -116,13 +118,14 @@ class MainActivity : ComponentActivity() {
                                     viewModel = notebookViewModel,
                                     lectureId = openId,
                                     onBack = { screen = shellScreen },
+                                    onOpenAt = { id, page -> screen = Screen.Notebook(id, shellScreen, page) },
                                     startPage = (screen as? Screen.Notebook)?.page,
                                 )
                             } else {
                                 val open: (String, Int?) -> Unit = { id, page -> screen = Screen.Notebook(id, shellScreen, page) }
                                 AppShell(screen = shellScreen, onNavigate = { screen = it }) {
                                     when (val s = shellScreen) {
-                                        Screen.Today -> TodayScreen(onOpenLecture = { open(it, null) }, onOpenAt = { id, page -> open(id, page) }, onNavigate = { screen = it })
+                                        Screen.Today -> TodayScreen(onOpenLecture = { open(it, null) }, onOpenAt = { id, page -> open(id, page) }, onNavigate = { screen = it }, onAsk = { pendingAsk = it; screen = Screen.Ask })
                                         is Screen.Library -> LibraryScreen(
                                             filter = s.filter,
                                             incomingPdfUri = pendingPdf,
@@ -131,6 +134,11 @@ class MainActivity : ComponentActivity() {
                                         )
                                         Screen.Review -> ReviewScreen(onOpen = { id, page -> open(id, page) }, onDone = { screen = Screen.Today })
                                         Screen.Search -> SearchScreen(onOpen = open)
+                                        Screen.Ask -> AskScreen(
+                                            pendingQuestion = pendingAsk,
+                                            onPendingHandled = { pendingAsk = null },
+                                            onOpenAt = { id, page -> open(id, page) },
+                                        )
                                         Screen.Highlights -> HighlightsScreen(onOpen = { id, page -> open(id, page) })
                                         Screen.Stats -> StatsScreen()
                                         is Screen.Notebook -> Unit

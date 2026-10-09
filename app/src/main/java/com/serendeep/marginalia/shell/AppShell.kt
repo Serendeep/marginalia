@@ -29,6 +29,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Circle
 import androidx.compose.material.icons.filled.Contrast
 import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.AutoAwesomeMotion
 import androidx.compose.material.icons.outlined.BarChart
 import androidx.compose.material.icons.outlined.Circle
 import androidx.compose.material.icons.outlined.Home
@@ -85,6 +86,7 @@ sealed interface Screen {
     data class Library(val filter: LibraryFilter = LibraryFilter.All) : Screen
     data object Review : Screen
     data object Search : Screen
+    data object Ask : Screen
     data object Highlights : Screen
     data object Stats : Screen
     data class Notebook(val lectureId: String, val returnTo: Screen, val page: Int? = null) : Screen
@@ -154,6 +156,7 @@ private fun Sidebar(screen: Screen, onNavigate: (Screen) -> Unit, viewModel: She
                 badge = state.reviewDue.takeIf { it > 0 }?.toString(),
             ) { onNavigate(Screen.Review) }
             NavItem("Search", Icons.Outlined.Search, screen == Screen.Search) { onNavigate(Screen.Search) }
+            NavItem("Ask", Icons.Outlined.AutoAwesomeMotion, screen == Screen.Ask) { onNavigate(Screen.Ask) }
             NavItem(
                 "Highlights", Icons.Outlined.AutoAwesome, screen == Screen.Highlights,
                 count = state.highlights.toString(),
@@ -401,6 +404,7 @@ private fun titleFor(screen: Screen, sidebar: SidebarState): Pair<String, String
     }
     Screen.Review -> "Review" to ""
     Screen.Search -> "Search" to ""
+    Screen.Ask -> "Ask" to ""
     Screen.Highlights -> "Highlights" to ""
     Screen.Stats -> "Stats" to ""
     is Screen.Notebook -> "" to ""
