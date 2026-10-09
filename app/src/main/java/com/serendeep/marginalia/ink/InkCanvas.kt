@@ -296,6 +296,7 @@ private class InkTouchHandler(
     ): Boolean {
         if (event.getToolType(0) == MotionEvent.TOOL_TYPE_STYLUS) {
             stylusNearUntil = SystemClock.uptimeMillis() + STYLUS_NEAR_MS
+            com.serendeep.marginalia.update.PenActivity.mark()
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> onPenActive(true)
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> onPenActive(false)
