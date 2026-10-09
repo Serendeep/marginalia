@@ -50,6 +50,7 @@ private const val WORK_PERIODIC = "update-check"
 private const val KEY_CHECK_AUTO = "update_check_auto"
 private const val KEY_WIFI_ONLY = "update_wifi_only"
 private const val KEY_AUTO_DOWNLOAD = "update_auto_download"
+private const val KEY_CHANNEL = "update_channel"
 private const val KEY_LAST_CHECK = "update_last_check"
 private const val KEY_ETAG = "update_feed_etag"
 private const val KEY_LATEST = "update_latest_json"
@@ -57,6 +58,7 @@ private const val KEY_LAST_SEEN = "update_last_seen_code"
 private const val KEY_WHATS_NEW_UNTIL = "update_whats_new_until"
 private const val WHATS_NEW_MS = 24 * 60 * 60 * 1000L
 private const val RELEASES_URL = "https://github.com/Serendeep/marginalia/releases/tag/v"
+private const val NIGHTLY_RELEASE_URL = "https://github.com/Serendeep/marginalia/releases/tag/nightly"
 
 data class UpdateSettings(
     val checkAutomatically: Boolean = true,
@@ -79,8 +81,8 @@ data class UpdateStatus(
 internal fun justUpdated(lastSeen: Long, installed: Long): Boolean = lastSeen in 1 until installed
 
 /** Release notes for [versionName]: the feed's link when the feed describes that version, else its GitHub release page. */
-internal fun whatsNewUrl(feed: UpdateInfo?, installed: Long, versionName: String): String =
-    feed?.takeIf { it.versionCode == installed }?.notesUrl ?: (RELEASES_URL + versionName)
+internal fun whatsNewUrl(feed: UpdateInfo?, installed: Long, versionName: String, nightly: Boolean = false): String =
+    feed?.takeIf { it.versionCode == installed }?.notesUrl ?: if (nightly) NIGHTLY_RELEASE_URL else (RELEASES_URL + versionName)
 
 /** The download was fetched but must not be installed; retrying will not help. */
 class UpdateRejected(message: String) : Exception(message)
@@ -89,6 +91,7 @@ class UpdateRejected(message: String) : Exception(message)
 class UpdateManager @Inject constructor(
     @ApplicationContext private val context: Context,
     val remote: RemoteConfigStore,
+    private val snapshot: SafetySnapshot,
 ) {
     private val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -107,6 +110,12 @@ class UpdateManager @Inject constructor(
         ),
     )
     val settings: StateFlow<UpdateSettings> = _settings.asStateFlow()
+
+    /** The channel this build was published on, whichever feed it now follows. */
+    val installedChannel: UpdateChannel = UpdateChannel.parse(BuildConfig.CHANNEL, UpdateChannel.STABLE.id)
+
+    private val _channel = MutableStateFlow(UpdateChannel.parse(prefs.getString(KEY_CHANNEL, null), BuildConfig.CHANNEL))
+    val channel: StateFlow<UpdateChannel> = _channel.asStateFlow()
 
     private val _whatsNewUntil = MutableStateFlow(0L)
 
@@ -154,6 +163,26 @@ class UpdateManager @Inject constructor(
         scope.launch { schedulePeriodic() }
     }
 
+    /** Follows [next] from now on; going to Nightly saves a snapshot first. The cached feed belongs to the old channel and is dropped. */
+    fun setChannel(next: UpdateChannel) {
+        if (next == _channel.value) return
+        _channel.value = next
+        scope.launch {
+            if (next == UpdateChannel.NIGHTLY) {
+                try {
+                    snapshot.take("before Nightly")
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    // The switch is the user's call; a failed snapshot must not strand them on the old feed.
+                }
+            }
+            prefs.edit().putString(KEY_CHANNEL, next.id).remove(KEY_LATEST).remove(KEY_ETAG).apply()
+            if (_status.value.phase !in BUSY) refresh()
+            check()
+        }
+    }
+
     private fun schedulePeriodic() {
         val work = WorkManager.getInstance(context)
         val s = _settings.value
@@ -195,11 +224,11 @@ class UpdateManager @Inject constructor(
         _status.update { it.copy(phase = UpdatePhase.CHECKING, error = null) }
         try {
             try {
-                (UpdateHttp.fetchText(BuildConfig.REMOTE_CONFIG_URL) as? Fetched.Body)?.let { remote.update(it.text) }
+                (UpdateHttp.fetchText(feedUrl(_channel.value, BuildConfig.REMOTE_CONFIG_URL, BuildConfig.NIGHTLY_REMOTE_CONFIG_URL)) as? Fetched.Body)?.let { remote.update(it.text) }
             } catch (e: IOException) {
                 // Remote config is optional; the cached or default one stays in force.
             }
-            when (val r = UpdateHttp.fetchText(BuildConfig.UPDATE_FEED_URL, prefs.getString(KEY_ETAG, null))) {
+            when (val r = UpdateHttp.fetchText(feedUrl(_channel.value, BuildConfig.UPDATE_FEED_URL, BuildConfig.NIGHTLY_FEED_URL),prefs.getString(KEY_ETAG, null))) {
                 Fetched.NotModified -> Unit
                 is Fetched.Body -> {
                     if (UpdateInfo.parse(r.text) == null) throw IOException("The update feed is unreadable")
@@ -324,7 +353,7 @@ class UpdateManager @Inject constructor(
     }
 
     fun whatsNewUrl(): String =
-        whatsNewUrl(prefs.getString(KEY_LATEST, null)?.let(UpdateInfo::parse), installedVersionCode, installedVersionName)
+        whatsNewUrl(prefs.getString(KEY_LATEST, null)?.let(UpdateInfo::parse), installedVersionCode, installedVersionName, installedChannel == UpdateChannel.NIGHTLY)
 
     fun dismissWhatsNew() {
         prefs.edit().remove(KEY_WHATS_NEW_UNTIL).apply()

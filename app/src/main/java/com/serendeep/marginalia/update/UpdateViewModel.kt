@@ -20,6 +20,11 @@ class UpdateViewModel @Inject constructor(
     val remote: StateFlow<RemoteConfig> = manager.remote.config
     val dismissedMessage: StateFlow<String?> = manager.remote.dismissed
 
+    val channel: StateFlow<UpdateChannel> = manager.channel
+    val installedChannel: UpdateChannel = manager.installedChannel
+
+    fun setChannel(next: UpdateChannel) = manager.setChannel(next)
+
     val whatsNewUntil: StateFlow<Long> = manager.whatsNewUntil
 
     fun whatsNewUrl(): String = manager.whatsNewUrl()

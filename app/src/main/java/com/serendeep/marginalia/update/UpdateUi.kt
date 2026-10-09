@@ -19,12 +19,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.outlined.SystemUpdateAlt
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -33,7 +35,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -49,6 +53,7 @@ import com.serendeep.marginalia.ui.theme.BodyFamily
 import com.serendeep.marginalia.ui.theme.DimInkDark
 import com.serendeep.marginalia.ui.theme.MonoFamily
 import com.serendeep.marginalia.ui.theme.Violet
+import kotlinx.coroutines.delay
 
 /** The one-line summary shown under the version in settings. */
 fun statusLine(status: UpdateStatus, now: Long = System.currentTimeMillis()): String = when (status.phase) {
@@ -155,7 +160,26 @@ fun UpdatesSectionContent(vm: UpdateViewModel = hiltViewModel()) {
     val busy = status.phase in setOf(UpdatePhase.CHECKING, UpdatePhase.DOWNLOADING, UpdatePhase.INSTALLING)
 
     notes?.let { WebPopup(it) { notes = null } }
-    Text("Marginalia ${vm.versionName}", style = MaterialTheme.typography.bodyLarge)
+    val channel by vm.channel.collectAsStateWithLifecycle()
+    val clipboard = LocalClipboardManager.current
+    var copied by remember { mutableStateOf(false) }
+    LaunchedEffect(copied) {
+        if (copied) {
+            delay(1500)
+            copied = false
+        }
+    }
+    Row(
+        Modifier.clickable {
+            clipboard.setText(AnnotatedString(vm.versionName))
+            copied = true
+        },
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(installedLine(vm.versionName, vm.installedChannel), style = MaterialTheme.typography.bodyLarge)
+        if (copied) Text("Copied", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
     Text(statusLine(status), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     if (status.phase == UpdatePhase.AVAILABLE || status.phase == UpdatePhase.DOWNLOADING) {
         status.info?.downloadSize(vm.installedVersionCode, usePatch = !status.fullFallback)?.takeIf { it > 0 }?.let { bytes ->
@@ -187,6 +211,24 @@ fun UpdatesSectionContent(vm: UpdateViewModel = hiltViewModel()) {
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+    }
+    Text("Channel", style = MaterialTheme.typography.bodyLarge)
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        UpdateChannel.entries.forEach { option ->
+            FilterChip(
+                selected = option == channel,
+                onClick = { vm.setChannel(option) },
+                label = { Text(option.label, maxLines = 1) },
+            )
+        }
+    }
+    Text(
+        "Nightly gets every change as it lands. It's tested, but rougher.",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    switchBackNote(vm.installedChannel, channel)?.let {
+        Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
     ToggleRow("Check automatically", settings.checkAutomatically) { v -> vm.setSettings { it.copy(checkAutomatically = v) } }
     ToggleRow("Wi-Fi only", settings.wifiOnly) { v -> vm.setSettings { it.copy(wifiOnly = v) } }

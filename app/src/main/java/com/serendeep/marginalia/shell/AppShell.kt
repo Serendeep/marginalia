@@ -65,6 +65,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.serendeep.marginalia.BuildConfig
 import com.serendeep.marginalia.data.ReadingStatus
 import com.serendeep.marginalia.library.LibraryFilter
 import com.serendeep.marginalia.library.statusLabel
@@ -148,6 +149,7 @@ private fun Sidebar(screen: Screen, onNavigate: (Screen) -> Unit, viewModel: She
                     letterSpacing = (-0.34).sp,
                     modifier = Modifier.weight(1f),
                 )
+                if (BuildConfig.CHANNEL == "nightly") NightlyBrand()
                 IconButton(onClick = { settingsOpen = true }, modifier = Modifier.size(32.dp)) {
                     Icon(Icons.Outlined.Settings, contentDescription = "Settings", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
                 }
