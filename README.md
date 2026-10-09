@@ -11,12 +11,10 @@
 [![API 29+](https://img.shields.io/badge/API-29%2B-brightgreen)](https://developer.android.com/about/versions/10)
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.0-7F52FF?logo=kotlin&logoColor=white)](https://kotlinlang.org)
 
-<img src="docs/media/marginalia-writing.gif" alt="Highlighting a paper, writing margin notes in cursive, and circling a word that snaps into a clean ellipse" width="96%">
+[![Watch the Marginalia product film](docs/media/film-poster.jpg)](https://github.com/Serendeep/marginalia/releases/download/v1.0.0/marginalia-film.mp4)
 
 <img src="docs/screenshots/today.png" alt="Today dashboard with review queue, focus timer and study streak" width="48%">&nbsp;<img src="docs/screenshots/notebook.png" alt="A paper with highlighted text and handwritten notes in the margin" width="48%">
 <img src="docs/screenshots/review.png" alt="Reviewing a flashcard with spaced-repetition grades" width="48%">&nbsp;<img src="docs/screenshots/search.png" alt="Search results across highlights, handwriting and PDF pages" width="48%">
-
-**[▶ Watch the 70-second demo](https://github.com/Serendeep/marginalia/releases/latest)**
 
 </div>
 
