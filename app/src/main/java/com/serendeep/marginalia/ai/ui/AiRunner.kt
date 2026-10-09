@@ -182,6 +182,8 @@ class AiRunner(
     }
 
     private fun finish(state: AiRunState) {
+        // Once the text is complete, a dropped connection while draining must not replace the answer.
+        if (_state.value == AiRunState.Done && state is AiRunState.Failed) return
         flush(final = true)
         _state.value = state
     }

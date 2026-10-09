@@ -90,6 +90,18 @@ class AiRunnerTest {
     }
 
     @Test
+    fun aDropAfterTextDoneKeepsTheAnswer() = runBlocking {
+        val gate = CompletableDeferred<Unit>()
+        val r = runner { flow { emit(AiEvent.Delta("answer")); emit(AiEvent.TextDone); gate.await(); emit(AiEvent.Failed(AiError(AiErrorKind.NETWORK, "drop"))) } }
+        r.start { request }
+        assertEquals(AiRunState.Done, r.settled())
+        gate.complete(Unit)
+        Thread.sleep(50)
+        assertEquals(AiRunState.Done, r.state.value)
+        assertEquals("answer", r.text.value)
+    }
+
+    @Test
     fun holdsBackTheOpenParagraphUntilItsBoundaryOrTimeout() = runBlocking {
         val gate = CompletableDeferred<Unit>()
         var clock = 0L

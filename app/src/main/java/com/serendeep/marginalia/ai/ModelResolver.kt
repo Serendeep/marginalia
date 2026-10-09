@@ -34,7 +34,10 @@ class ModelResolver @Inject constructor(
         fun resolve(task: AiTask, override: TaskModel, global: String?, models: List<ChatModel>): ResolvedModel {
             val model = override.model
                 ?: if (task.fast) models.firstOrNull { m -> FAST_MARKERS.any { m.slug.contains(it, ignoreCase = true) } }?.slug else null
-            return ResolvedModel(model ?: global, override.effort ?: if (task.fast) Effort.LOW else null)
+            val chosen = model ?: global
+            // Non-reasoning models reject the parameter, so the default only applies where LOW is known to work.
+            val supportsLow = models.firstOrNull { it.slug == chosen }?.efforts?.contains(Effort.LOW) == true
+            return ResolvedModel(chosen, override.effort ?: if (task.fast && supportsLow) Effort.LOW else null)
         }
     }
 }

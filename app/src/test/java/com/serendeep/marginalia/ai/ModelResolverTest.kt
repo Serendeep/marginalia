@@ -7,7 +7,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ModelResolverTest {
-    private val catalog = listOf(ChatModel("gpt-5.5", "GPT-5.5"), ChatModel("gpt-5.5-mini", "GPT-5.5 mini"))
+    private val catalog = listOf(ChatModel("gpt-5.5", "GPT-5.5"), ChatModel("gpt-5.5-mini", "GPT-5.5 mini", listOf(Effort.LOW, Effort.MEDIUM)))
 
     private fun resolve(task: AiTask, override: TaskModel = TaskModel(), global: String? = "gpt-5.5", models: List<ChatModel> = catalog) =
         ModelResolver.resolve(task, override, global, models)
@@ -21,6 +21,7 @@ class ModelResolverTest {
     @Test
     fun autoSortPicksFirstFastModelWithLowEffort() {
         assertEquals(ResolvedModel("gpt-5.5-mini", Effort.LOW), resolve(AiTask.AUTO_SORT))
+        assertEquals(null, resolve(AiTask.AUTO_SORT, models = listOf(ChatModel("gpt-4.1-mini", "4.1 mini"))).effort)
         val flash = listOf(ChatModel("big", "Big"), ChatModel("x-flash", "Flash"), ChatModel("y-nano", "Nano"))
         assertEquals("x-flash", resolve(AiTask.AUTO_SORT, models = flash).model)
     }
