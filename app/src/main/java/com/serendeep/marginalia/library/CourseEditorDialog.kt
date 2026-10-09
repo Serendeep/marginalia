@@ -28,9 +28,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.emoji2.emojipicker.EmojiPickerView
 import com.serendeep.marginalia.ui.components.GlassButton
-import com.serendeep.marginalia.ui.components.GlassDialog
+import com.serendeep.marginalia.ui.components.CenterPanel
 import com.serendeep.marginalia.ui.components.GlassTextButton
-import com.serendeep.marginalia.ui.components.MarginLabel
 import com.serendeep.marginalia.ui.components.glassTextFieldColors
 import com.serendeep.marginalia.ui.theme.CoursePalette
 
@@ -44,64 +43,62 @@ fun CourseEditorDialog(
     var emoji by remember { mutableStateOf<String?>(null) }
     var pickingEmoji by remember { mutableStateOf(false) }
 
-    GlassDialog(onDismiss = onDismiss) {
-        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            MarginLabel("New course")
-            OutlinedTextField(
-                value = name,
-                onValueChange = { name = it },
-                placeholder = { Text("Course name") },
-                singleLine = true,
-                colors = glassTextFieldColors(),
-                modifier = Modifier.fillMaxWidth(),
+    CenterPanel(
+        onDismiss = onDismiss,
+        title = "New course",
+        eyebrow = "Library",
+        footer = {
+            GlassTextButton(text = "Cancel", onClick = onDismiss)
+            GlassButton(
+                text = "Create",
+                onClick = { onSave(name.trim(), colorIndex, emoji) },
+                enabled = name.isNotBlank(),
             )
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                CoursePalette.swatches.forEachIndexed { i, c ->
-                    Box(
-                        Modifier
-                            .size(28.dp)
-                            .clip(CircleShape)
-                            .background(c)
-                            .then(
-                                if (i == colorIndex) Modifier.border(
-                                    2.dp, MaterialTheme.colorScheme.onSurface, CircleShape
-                                ) else Modifier
-                            )
-                            .clickable { colorIndex = i }
-                    )
-                }
-            }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(emoji ?: "Pick an emoji", Modifier.weight(1f))
-                GlassTextButton(
-                    text = if (emoji == null) "Choose" else "Change",
-                    onClick = { pickingEmoji = !pickingEmoji },
+        },
+    ) {
+        OutlinedTextField(
+            value = name,
+            onValueChange = { name = it },
+            placeholder = { Text("Course name") },
+            singleLine = true,
+            colors = glassTextFieldColors(),
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            CoursePalette.swatches.forEachIndexed { i, c ->
+                Box(
+                    Modifier
+                        .size(28.dp)
+                        .clip(CircleShape)
+                        .background(c)
+                        .then(
+                            if (i == colorIndex) Modifier.border(
+                                2.dp, MaterialTheme.colorScheme.onSurface, CircleShape
+                            ) else Modifier
+                        )
+                        .clickable { colorIndex = i }
                 )
             }
-            if (pickingEmoji) {
-                AndroidView(
-                    factory = { ctx ->
-                        EmojiPickerView(ctx).apply {
-                            setOnEmojiPickedListener {
-                                emoji = it.emoji
-                                pickingEmoji = false
-                            }
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(emoji ?: "Pick an emoji", Modifier.weight(1f))
+            GlassTextButton(
+                text = if (emoji == null) "Choose" else "Change",
+                onClick = { pickingEmoji = !pickingEmoji },
+            )
+        }
+        if (pickingEmoji) {
+            AndroidView(
+                factory = { ctx ->
+                    EmojiPickerView(ctx).apply {
+                        setOnEmojiPickedListener {
+                            emoji = it.emoji
+                            pickingEmoji = false
                         }
-                    },
-                    modifier = Modifier.fillMaxWidth().height(280.dp),
-                )
-            }
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.align(Alignment.End),
-            ) {
-                GlassTextButton(text = "Cancel", onClick = onDismiss)
-                GlassButton(
-                    text = "Create",
-                    onClick = { onSave(name.trim(), colorIndex, emoji) },
-                    enabled = name.isNotBlank(),
-                )
-            }
+                    }
+                },
+                modifier = Modifier.fillMaxWidth().height(280.dp),
+            )
         }
     }
 }

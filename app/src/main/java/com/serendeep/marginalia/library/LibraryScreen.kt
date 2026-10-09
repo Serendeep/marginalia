@@ -73,7 +73,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import com.serendeep.marginalia.sharedCover
 import com.serendeep.marginalia.ui.components.GlassButton
-import com.serendeep.marginalia.ui.components.GlassDialog
+import com.serendeep.marginalia.ui.components.CenterPanel
 import com.serendeep.marginalia.ui.components.GlassMenu
 import com.serendeep.marginalia.ui.components.GlassMenuEntry
 import com.serendeep.marginalia.ui.components.GlassTextButton
@@ -339,29 +339,27 @@ fun LibraryScreen(
     }
 
     deleting?.let { target ->
-        GlassDialog(onDismiss = { deleting = null }) {
-            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                Text("Delete ${target.lecture.title}?", style = MaterialTheme.typography.titleMedium)
-                Text(
-                    "This removes the imported PDF copy and all your notes on it.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+        CenterPanel(
+            onDismiss = { deleting = null },
+            title = "Delete ${target.lecture.title}?",
+            eyebrow = "Confirm",
+            footer = {
+                GlassTextButton("Cancel", { deleting = null })
+                GlassButton(
+                    "Delete",
+                    {
+                        viewModel.deleteLecture(target.lecture.id)
+                        deleting = null
+                    },
+                    containerColor = Danger,
                 )
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.align(Alignment.End),
-                ) {
-                    GlassTextButton("Cancel", { deleting = null })
-                    GlassButton(
-                        "Delete",
-                        {
-                            viewModel.deleteLecture(target.lecture.id)
-                            deleting = null
-                        },
-                        containerColor = Danger,
-                    )
-                }
-            }
+            },
+        ) {
+            Text(
+                "This removes the imported PDF copy and all your notes on it.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }
@@ -441,9 +439,15 @@ private fun NamePromptDialog(
     onConfirm: (String) -> Unit,
 ) {
     var text by remember { mutableStateOf("") }
-    GlassDialog(onDismiss = onDismiss) {
-        Text(title, style = MaterialTheme.typography.titleMedium)
-        Spacer(Modifier.height(16.dp))
+    CenterPanel(
+        onDismiss = onDismiss,
+        title = title,
+        eyebrow = "Library",
+        footer = {
+            GlassTextButton("Cancel", onDismiss)
+            GlassButton("Create", { onConfirm(text) }, enabled = text.isNotBlank())
+        },
+    ) {
         OutlinedTextField(
             value = text,
             onValueChange = { text = it },
@@ -451,12 +455,6 @@ private fun NamePromptDialog(
             colors = glassTextFieldColors(),
             modifier = Modifier.fillMaxWidth(),
         )
-        Spacer(Modifier.height(20.dp))
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-            GlassTextButton("Cancel", onDismiss)
-            Spacer(Modifier.width(8.dp))
-            GlassButton("Create", { onConfirm(text) }, enabled = text.isNotBlank())
-        }
     }
 }
 
@@ -470,9 +468,18 @@ private fun TagsDialog(
     onDismiss: () -> Unit,
 ) {
     var text by remember { mutableStateOf("") }
-    GlassDialog(onDismiss = onDismiss) {
-        Text("Tags", style = MaterialTheme.typography.titleMedium)
-        Spacer(Modifier.height(16.dp))
+    CenterPanel(
+        onDismiss = onDismiss,
+        title = "Tags",
+        eyebrow = "Library",
+        footer = {
+            GlassTextButton("Done", onDismiss)
+            GlassButton("Add", {
+                onCreate(text)
+                text = ""
+            }, enabled = text.isNotBlank())
+        },
+    ) {
         if (allTags.isNotEmpty()) {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 allTags.forEach { tag ->
@@ -490,7 +497,6 @@ private fun TagsDialog(
                     )
                 }
             }
-            Spacer(Modifier.height(16.dp))
         }
         OutlinedTextField(
             value = text,
@@ -500,14 +506,5 @@ private fun TagsDialog(
             colors = glassTextFieldColors(),
             modifier = Modifier.fillMaxWidth(),
         )
-        Spacer(Modifier.height(20.dp))
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-            GlassTextButton("Done", onDismiss)
-            Spacer(Modifier.width(8.dp))
-            GlassButton("Add", {
-                onCreate(text)
-                text = ""
-            }, enabled = text.isNotBlank())
-        }
     }
 }
