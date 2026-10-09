@@ -81,7 +81,38 @@ jobs:
           TAG="${{ steps.release.outputs.tag_name }}"
           VERSION_CODE=$("$BT/aapt2" dump badging "$APK" | sed -n "s/^package: .*versionCode='\([0-9]*\)'.*/\1/p" | head -1)
           test -n "$VERSION_CODE"
+          echo '[]' > patches.json
+          make_patches() {
+            command -v zstd >/dev/null || sudo apt-get install -y zstd || return 1
+            mkdir -p patch-work
+            made=0
+            for prev in $(gh release list --exclude-drafts --exclude-pre-releases --limit 10 --json tagName -q '.[].tagName'); do
+              [ "$made" -ge 2 ] && break
+              [ "$prev" = "$TAG" ] && continue
+              gh release view "$prev" --json assets -q '.assets[].name' | grep -qx app-release.apk || continue
+              dir="patch-work/$prev"
+              mkdir -p "$dir"
+              gh release download "$prev" -p app-release.apk -D "$dir" || continue
+              gh release download "$prev" -p latest.json -D "$dir" 2>/dev/null || true
+              OLD_CODE=$(jq -r '.versionCode // empty' "$dir/latest.json" 2>/dev/null || true)
+              [ -n "$OLD_CODE" ] || OLD_CODE=$("$BT/aapt2" dump badging "$dir/app-release.apk" | sed -n "s/^package: .*versionCode='\([0-9]*\)'.*/\1/p" | head -1)
+              [ -n "$OLD_CODE" ] || continue
+              PATCH="app-release-from-$OLD_CODE.zst"
+              zstd -19 --long=27 --patch-from="$dir/app-release.apk" "$APK" -o "$PATCH" -f -q || continue
+              zstd -d --long=27 --patch-from="$dir/app-release.apk" "$PATCH" -o "$dir/check.apk" -f -q || { rm -f "$PATCH"; continue; }
+              cmp "$dir/check.apk" "$APK" || { rm -f "$PATCH"; continue; }
+              gh release upload "$TAG" "$PATCH" --clobber || { rm -f "$PATCH"; continue; }
+              jq --argjson from "$OLD_CODE" \
+                --arg url "https://github.com/${{ github.repository }}/releases/download/$TAG/$PATCH" \
+                --arg sha256 "$(sha256sum "$PATCH" | cut -d' ' -f1)" \
+                --argjson size "$(stat -c %s "$PATCH")" \
+                '. + [{fromVersionCode: $from, url: $url, sha256: $sha256, size: $size}]' patches.json > patches.next && mv patches.next patches.json
+              made=$((made + 1))
+            done
+          }
+          make_patches || echo "::warning::Delta patch generation failed; publishing the full APK only"
           jq -n \
+            --slurpfile patches patches.json \
             --argjson versionCode "$VERSION_CODE" \
             --arg versionName "${TAG#v}" \
             --arg apkUrl "https://github.com/${{ github.repository }}/releases/download/$TAG/app-release.apk" \
@@ -90,7 +121,7 @@ jobs:
             --arg certSha256 "$CERT" \
             --arg notesUrl "${{ steps.release.outputs.html_url }}" \
             --arg publishedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-            '{versionCode: $versionCode, versionName: $versionName, apkUrl: $apkUrl, sha256: $sha256, size: $size, certSha256: $certSha256, notesUrl: $notesUrl, publishedAt: $publishedAt}' > latest.json
+            '{versionCode: $versionCode, versionName: $versionName, apkUrl: $apkUrl, sha256: $sha256, size: $size, certSha256: $certSha256, notesUrl: $notesUrl, publishedAt: $publishedAt, patches: $patches[0]}' > latest.json
           cp config/remote-config.json remote-config.json
           gh release upload "$TAG" latest.json remote-config.json --clobber
           gh release view "${{ steps.release.outputs.tag_name }}" --json body -q .body > notes.md
