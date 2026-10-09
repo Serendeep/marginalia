@@ -244,6 +244,40 @@ class MigrationTest {
         }
     }
 
+    @Test
+    fun migrate8To9_addsHandwritingIndex() {
+        val db = helper.createDatabase(DB, 8)
+        db.execSQL(
+            "INSERT INTO courses (id, name, createdAt, orderIndex, colorIndex, emoji) VALUES ('c1', 'Course', 1, 1, 0, NULL)",
+        )
+        db.execSQL(
+            "INSERT INTO lectures (id, courseId, title, createdAt, orderIndex, lastPage, lastOpenedAt, readingStatus) " +
+                "VALUES ('l1', 'c1', 'L', 1, 1, 0, NULL, 'TO_READ')",
+        )
+        db.close()
+
+        val migrated = helper.runMigrationsAndValidate(DB, 9, true, MarginaliaDatabase.MIGRATION_8_9)
+
+        migrated.execSQL("INSERT INTO ink_text (lectureId, blockKey, page, text) VALUES ('l1', 'b1', NULL, 'entropy never decreases')")
+        migrated.execSQL("INSERT INTO ink_text (lectureId, blockKey, page, text) VALUES ('l1', 'b2', 4, 'gibbs energy')")
+        migrated.query("SELECT blockKey, page FROM ink_text WHERE ink_text MATCH 'entropy'").use { c ->
+            assertTrue(c.moveToFirst())
+            assertEquals("b1", c.getString(0))
+            assertTrue(c.isNull(1))
+        }
+        migrated.query("SELECT page FROM ink_text WHERE ink_text MATCH 'gibbs'").use { c ->
+            assertTrue(c.moveToFirst())
+            assertEquals(4, c.getInt(0))
+        }
+        migrated.execSQL("PRAGMA foreign_keys = ON")
+        migrated.execSQL("INSERT INTO ink_index_state (lectureId, strokesHash, indexedAt) VALUES ('l1', 'h', 5)")
+        migrated.execSQL("DELETE FROM lectures WHERE id = 'l1'")
+        migrated.query("SELECT COUNT(*) FROM ink_index_state").use { c ->
+            assertTrue(c.moveToFirst())
+            assertEquals(0, c.getInt(0))
+        }
+    }
+
     private companion object {
         const val DB = "migration-test.db"
     }

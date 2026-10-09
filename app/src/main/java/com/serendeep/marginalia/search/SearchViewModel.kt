@@ -5,6 +5,7 @@ import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.serendeep.marginalia.data.HighlightRow
+import com.serendeep.marginalia.handwriting.HANDWRITING_SEARCH_KEY
 import com.serendeep.marginalia.data.MarginaliaRepository
 import com.serendeep.marginalia.data.SnippetSpan
 import com.serendeep.marginalia.data.markTerms
@@ -41,6 +42,9 @@ data class PageResult(
 )
 
 @Immutable
+data class InkResult(val key: String, val lectureId: String, val title: String, val page: Int?, val spans: List<SnippetSpan>)
+
+@Immutable
 data class HighlightResult(val key: String, val row: HighlightRow, val spans: List<SnippetSpan>)
 
 @Immutable
@@ -49,8 +53,9 @@ data class SearchUi(
     val documents: List<DocumentResult> = emptyList(),
     val pages: List<PageResult> = emptyList(),
     val highlights: List<HighlightResult> = emptyList(),
+    val ink: List<InkResult> = emptyList(),
 ) {
-    val isEmpty: Boolean get() = documents.isEmpty() && pages.isEmpty() && highlights.isEmpty()
+    val isEmpty: Boolean get() = documents.isEmpty() && pages.isEmpty() && highlights.isEmpty() && ink.isEmpty()
 }
 
 private const val PREFS = "marginalia"
@@ -101,13 +106,14 @@ class SearchViewModel @Inject constructor(
     }
 
     private suspend fun buildUi(q: String): SearchUi {
-        val found = repository.search(q)
+        val found = repository.search(q, includeInk = prefs().getBoolean(HANDWRITING_SEARCH_KEY, true))
         return SearchUi(
             query = q,
             documents = found.documents.map { DocumentResult("d:${it.lectureId}", it.lectureId, markTerms(it.title, q)) },
             pages = found.pages.map {
                 PageResult("p:${it.lectureId}:${it.page}", it.lectureId, it.title, it.page, parseSnippet(it.snippet))
             },
+            ink = found.ink.map { InkResult("i:${it.lectureId}:${it.blockKey}", it.lectureId, it.title, it.page, parseSnippet(it.snippet)) },
             highlights = found.highlights.map { HighlightResult("h:${it.highlight.id}", it, markTerms(it.highlight.text, q)) },
         )
     }

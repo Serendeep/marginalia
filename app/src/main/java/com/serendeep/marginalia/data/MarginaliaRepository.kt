@@ -123,7 +123,10 @@ class MarginaliaRepository @Inject constructor(
     suspend fun latestDocument(lectureId: String): DocumentEntity? =
         documentDao.getByLecture(lectureId).maxByOrNull { it.versionIndex }
 
-    suspend fun deleteLecture(lecture: LectureEntity) = lectureDao.delete(lecture)
+    suspend fun deleteLecture(lecture: LectureEntity) {
+        deleteInkText(lecture.id)
+        lectureDao.delete(lecture)
+    }
 
     suspend fun renameLecture(lectureId: String, title: String) =
         lectureDao.rename(lectureId, title)
@@ -137,6 +140,7 @@ class MarginaliaRepository @Inject constructor(
             cardDao.imagePathsForLecture(lectureId).map { File(it) }
         // The text index is virtual, so the cascade below cannot reach it.
         documents.forEach { dropIndex(it.id) }
+        deleteInkText(lectureId)
         lectureDao.deleteById(lectureId) // FK CASCADE removes documents/strokes/anchors
         files.forEach { runCatching { it.delete() } } // best-effort; rows are gone already
     }
@@ -236,6 +240,26 @@ class MarginaliaRepository @Inject constructor(
             .chunked(500).forEach { searchDao.deleteRows(it) }
     }
 
+    /** Margin stroke ids per lecture. */
+    suspend fun handwritingStrokeIds(): Map<String, List<String>> =
+        strokeDao.handwritingStrokeIds().groupBy({ it.lectureId }, { it.strokeId })
+
+    /** The stroke hash each lecture's handwriting index was built from. */
+    suspend fun inkIndexHashes(): Map<String, String> =
+        searchDao.inkStates().associate { it.lectureId to it.strokesHash }
+
+    /** Swaps a lecture's recognised handwriting for [blocks] and records [hash] as current. */
+    suspend fun replaceInkText(lectureId: String, hash: String, blocks: List<InkBlockText>) {
+        deleteInkText(lectureId)
+        blocks.forEach { searchDao.insertInk(lectureId, it.blockKey, it.page, it.text) }
+        searchDao.putInkState(InkIndexStateEntity(lectureId, hash, now()))
+    }
+
+    private suspend fun deleteInkText(lectureId: String) {
+        searchDao.inkRows().filter { it.lectureId == lectureId }.map { it.rowId }
+            .chunked(500).forEach { searchDao.deleteInkRows(it) }
+    }
+
     suspend fun beginIndexing(documentId: String) {
         searchDao.clearIndexed(documentId)
         deletePages(documentId)
@@ -252,10 +276,13 @@ class MarginaliaRepository @Inject constructor(
         searchDao.clearIndexed(documentId)
     }
 
-    suspend fun search(query: String): SearchResults {
+    suspend fun indexedPageText(lectureId: String, page: Int): String? = searchDao.pageText(lectureId, page)
+
+    suspend fun search(query: String, includeInk: Boolean = true): SearchResults {
         val like = likePattern(query)
         val match = ftsQuery(query)
         return SearchResults(
+            ink = if (includeInk) match?.let { searchDao.searchInk(it, SEARCH_PAGES) }.orEmpty() else emptyList(),
             documents = like?.let {
                 (searchDao.searchTitles(it, SEARCH_DOCS) + searchDao.searchTagged(it, SEARCH_DOCS))
                     .distinctBy { hit -> hit.lectureId }
@@ -319,10 +346,14 @@ class MarginaliaRepository @Inject constructor(
     private fun now(): Long = System.currentTimeMillis()
 }
 
+/** Recognised handwriting of one block; [page] is the PDF page it was written beside, if any. */
+data class InkBlockText(val blockKey: String, val page: Int?, val text: String)
+
 data class SearchResults(
     val documents: List<TitleHit> = emptyList(),
     val pages: List<PageHit> = emptyList(),
     val highlights: List<HighlightRow> = emptyList(),
+    val ink: List<InkHit> = emptyList(),
 ) {
-    val isEmpty: Boolean get() = documents.isEmpty() && pages.isEmpty() && highlights.isEmpty()
+    val isEmpty: Boolean get() = documents.isEmpty() && pages.isEmpty() && highlights.isEmpty() && ink.isEmpty()
 }

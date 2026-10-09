@@ -100,7 +100,7 @@ fun SearchScreen(
                         }
                     }
                 } else {
-                    item(key = "hint") { Hint("Search titles, PDF text and highlights.") }
+                    item(key = "hint") { Hint("Search titles, PDF text, handwriting and highlights.") }
                 }
             } else if (ui.isEmpty) {
                 item(key = "none") { Hint("No matches for “${ui.query}”.") }
@@ -115,6 +115,12 @@ fun SearchScreen(
                     item(key = "pages-h", contentType = "header") { SectionLabel("PAGES · ${ui.pages.size}") }
                     items(ui.pages, key = { it.key }, contentType = { "page" }) { hit ->
                         PageRow(hit) { open(hit.lectureId, hit.page) }
+                    }
+                }
+                if (ui.ink.isNotEmpty()) {
+                    item(key = "ink-h", contentType = "header") { SectionLabel("HANDWRITING · ${ui.ink.size}") }
+                    items(ui.ink, key = { it.key }, contentType = { "ink" }) { hit ->
+                        InkRow(hit) { open(hit.lectureId, hit.page) }
                     }
                 }
                 if (ui.highlights.isNotEmpty()) {
@@ -242,6 +248,36 @@ private fun PageRow(hit: PageResult, onClick: () -> Unit) {
         )
         Text(
             "P.${hit.page + 1} · ${hit.title.uppercase(java.util.Locale.ROOT)}",
+            fontFamily = MonoFamily,
+            fontSize = 10.5.sp,
+            letterSpacing = 0.63.sp,
+            color = DimInkDark,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 4.dp),
+        )
+    }
+}
+
+@Composable
+private fun InkRow(hit: InkResult, onClick: () -> Unit) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 9.dp),
+    ) {
+        Text(
+            emphasised(hit.spans),
+            fontFamily = BodyFamily,
+            fontSize = 13.sp,
+            lineHeight = 19.sp,
+            maxLines = 3,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+            (hit.page?.let { "P.${it + 1} · " }.orEmpty() + hit.title).uppercase(java.util.Locale.ROOT),
             fontFamily = MonoFamily,
             fontSize = 10.5.sp,
             letterSpacing = 0.63.sp,

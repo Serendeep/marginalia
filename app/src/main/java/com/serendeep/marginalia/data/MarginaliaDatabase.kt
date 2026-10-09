@@ -20,8 +20,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         ReviewLogEntity::class,
         TagEntity::class,
         LectureTagEntity::class,
+        InkTextEntity::class,
+        InkIndexStateEntity::class,
     ],
-    version = 8,
+    version = 9,
     exportSchema = true,
 )
 abstract class MarginaliaDatabase : RoomDatabase() {
@@ -181,6 +183,26 @@ abstract class MarginaliaDatabase : RoomDatabase() {
                 db.execSQL("ALTER TABLE lectures ADD COLUMN doi TEXT")
                 db.execSQL("ALTER TABLE lectures ADD COLUMN arxivId TEXT")
                 db.execSQL("ALTER TABLE lectures ADD COLUMN bibtex TEXT")
+            }
+        }
+
+        val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE VIRTUAL TABLE IF NOT EXISTS `ink_text` USING FTS4(" +
+                        "`lectureId` TEXT NOT NULL, `blockKey` TEXT NOT NULL, `page` INTEGER, `text` TEXT NOT NULL, " +
+                        "tokenize=unicode61, notindexed=`lectureId`, notindexed=`blockKey`, notindexed=`page`)",
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `ink_index_state` (
+                        `lectureId` TEXT NOT NULL, `strokesHash` TEXT NOT NULL, `indexedAt` INTEGER NOT NULL,
+                        PRIMARY KEY(`lectureId`),
+                        FOREIGN KEY(`lectureId`) REFERENCES `lectures`(`id`)
+                            ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """.trimIndent(),
+                )
             }
         }
     }
