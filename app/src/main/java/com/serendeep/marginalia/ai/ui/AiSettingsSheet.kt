@@ -21,8 +21,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -55,6 +53,8 @@ import com.serendeep.marginalia.ai.TaskModel
 import com.serendeep.marginalia.ai.ChatGptStatus
 import com.serendeep.marginalia.ai.ProviderChoice
 import com.serendeep.marginalia.ui.components.GlassButton
+import com.serendeep.marginalia.ui.components.GlassDropdownMenu
+import com.serendeep.marginalia.ui.components.GlassMenuItem
 import com.serendeep.marginalia.ui.components.GlassTextButton
 import com.serendeep.marginalia.ui.components.PanelDivider
 import com.serendeep.marginalia.ui.components.PanelSection
@@ -328,12 +328,17 @@ private fun ModelPicker(models: ModelsState, selectedSlug: String?, onSelect: (S
                 Text(shown, fontFamily = BodyFamily, fontSize = 14.sp, modifier = Modifier.weight(1f), maxLines = 1)
                 Text("▾", color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            GlassDropdownMenu(expanded = open, onDismissRequest = { open = false }) {
                 list.forEach { model ->
-                    DropdownMenuItem(text = { Text(model.displayName) }, onClick = {
-                        open = false
-                        onSelect(model.slug)
-                    })
+                    GlassMenuItem(
+                        label = model.displayName,
+                        supporting = model.description.ifEmpty { null },
+                        selected = model.slug == selectedSlug,
+                        onClick = {
+                            open = false
+                            onSelect(model.slug)
+                        },
+                    )
                 }
             }
         }
@@ -371,12 +376,17 @@ private fun TaskModelsSection(
                             ?: "Default \u00b7 $defaultName",
                         options = listOf<Pair<String, String?>>("Default \u00b7 $defaultName" to null) +
                             list.map { it.displayName to it.slug },
-                        onSelect = { onChange(task, current.copy(model = it)) },
+                        onSelect = { slug ->
+                            val target = list.firstOrNull { it.slug == (slug ?: defaultSlug) }
+                            val keep = current.effort?.takeIf { target == null || target.efforts.isEmpty() || it in target.efforts }
+                            onChange(task, TaskModel(slug, keep))
+                        },
+                        supporting = { slug -> list.firstOrNull { it.slug == slug }?.description?.ifEmpty { null } },
                         modifier = Modifier.weight(1f),
                     )
                     SettingsDropdown(
-                        shown = current.effort?.label() ?: "Default",
-                        options = listOf<Pair<String, Effort?>>("Default" to null) + efforts.map { it.label() to it },
+                        shown = current.effort?.label() ?: "Auto",
+                        options = listOf<Pair<String, Effort?>>("Auto" to null) + efforts.map { it.label() to it },
                         onSelect = { onChange(task, current.copy(effort = it)) },
                         modifier = Modifier.width(120.dp),
                     )
@@ -386,14 +396,13 @@ private fun TaskModelsSection(
     }
 }
 
-private fun Effort.label() = name.lowercase().replaceFirstChar { it.uppercase() }
-
 @Composable
 private fun <T> SettingsDropdown(
     shown: String,
     options: List<Pair<String, T>>,
     onSelect: (T) -> Unit,
     modifier: Modifier = Modifier,
+    supporting: (T) -> String? = { null },
 ) {
     var open by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape(12.dp)
@@ -411,12 +420,17 @@ private fun <T> SettingsDropdown(
             Text(shown, fontFamily = BodyFamily, fontSize = 13.sp, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text("\u25be", color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+        GlassDropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             options.forEach { (label, value) ->
-                DropdownMenuItem(text = { Text(label) }, onClick = {
-                    open = false
-                    onSelect(value)
-                })
+                GlassMenuItem(
+                    label = label,
+                    supporting = supporting(value),
+                    selected = label == shown,
+                    onClick = {
+                        open = false
+                        onSelect(value)
+                    },
+                )
             }
         }
     }

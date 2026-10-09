@@ -1,5 +1,7 @@
 package com.serendeep.marginalia.cards
 
+import com.serendeep.marginalia.ui.components.GlassDropdownMenu
+import com.serendeep.marginalia.ui.components.GlassMenuItem
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.border
@@ -13,8 +15,6 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -140,10 +140,10 @@ private fun LecturePicker(lectures: List<LectureEntity>, selected: String?, onSe
                 .clickable { open = true }
                 .padding(vertical = 6.dp),
         )
-        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            DropdownMenuItem(text = { Text("None") }, onClick = { open = false; onSelect(null) })
+        GlassDropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            GlassMenuItem("None", onClick = { open = false; onSelect(null) })
             lectures.forEach { lecture ->
-                DropdownMenuItem(text = { Text(lecture.title) }, onClick = { open = false; onSelect(lecture.id) })
+                GlassMenuItem(lecture.title, onClick = { open = false; onSelect(lecture.id) })
             }
         }
     }

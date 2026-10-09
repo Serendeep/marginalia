@@ -1,5 +1,7 @@
 package com.serendeep.marginalia.highlights
 
+import com.serendeep.marginalia.ui.components.GlassDropdownMenu
+import com.serendeep.marginalia.ui.components.GlassMenuItem
 import android.content.Intent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -13,8 +15,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -125,9 +125,9 @@ private fun GroupHeader(group: HighlightGroup, onExport: () -> Unit) {
             IconButton(onClick = { menuOpen = true }) {
                 Icon(Icons.Filled.MoreVert, contentDescription = "Document actions", tint = DimInkDark)
             }
-            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                DropdownMenuItem(
-                    text = { Text("Export Markdown") },
+            GlassDropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                GlassMenuItem(
+                    "Export Markdown",
                     onClick = {
                         menuOpen = false
                         onExport()
