@@ -78,6 +78,21 @@ jobs:
           CERT=$("$BT/apksigner" verify --print-certs "$APK" | sed -n 's/.*certificate SHA-256 digest: //p' | head -1)
           echo "$SHA  app-release.apk" > app-release.apk.sha256
           gh release upload "${{ steps.release.outputs.tag_name }}" "$APK" app-release.apk.sha256 --clobber
+          TAG="${{ steps.release.outputs.tag_name }}"
+          VERSION_CODE=$("$BT/aapt2" dump badging "$APK" | sed -n "s/^package: .*versionCode='\([0-9]*\)'.*/\1/p" | head -1)
+          test -n "$VERSION_CODE"
+          jq -n \
+            --argjson versionCode "$VERSION_CODE" \
+            --arg versionName "${TAG#v}" \
+            --arg apkUrl "https://github.com/${{ github.repository }}/releases/download/$TAG/app-release.apk" \
+            --arg sha256 "$SHA" \
+            --argjson size "$(stat -c %s "$APK")" \
+            --arg certSha256 "$CERT" \
+            --arg notesUrl "${{ steps.release.outputs.html_url }}" \
+            --arg publishedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '{versionCode: $versionCode, versionName: $versionName, apkUrl: $apkUrl, sha256: $sha256, size: $size, certSha256: $certSha256, notesUrl: $notesUrl, publishedAt: $publishedAt}' > latest.json
+          cp config/remote-config.json remote-config.json
+          gh release upload "$TAG" latest.json remote-config.json --clobber
           gh release view "${{ steps.release.outputs.tag_name }}" --json body -q .body > notes.md
           printf '\n\n### Verify this download\n\n- APK SHA-256: `%s`\n- Signing certificate SHA-256: `%s`\n\n`sha256sum app-release.apk` and `apksigner verify --print-certs app-release.apk` should print the same values.\n' "$SHA" "$CERT" >> notes.md
           gh release edit "${{ steps.release.outputs.tag_name }}" --notes-file notes.md
