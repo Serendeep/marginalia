@@ -34,7 +34,7 @@ data class BackupName(val kind: BackupKind, val version: String?, val stamp: Str
 
     val title: String
         get() = when (kind) {
-            BackupKind.NIGHTLY -> "Nightly"
+            BackupKind.NIGHTLY -> "Automatic"
             BackupKind.FOLDER -> "Folder"
             BackupKind.BEFORE_UPDATE -> "Before update to $version"
             BackupKind.BEFORE_NIGHTLY -> "Before Nightly"
@@ -105,7 +105,7 @@ fun interface BackupSource {
 fun listBackups(sources: List<BackupSource>): List<BackupItem> =
     sources.flatMap { runCatching { it.list() }.getOrDefault(emptyList()) }.sortedByDescending { it.timeMillis }
 
-enum class BackupSchedule(val label: String) { NIGHTLY("Nightly"), WEEKLY("Weekly"), OFF("Off") }
+enum class BackupSchedule(val label: String) { NIGHTLY("Every night"), WEEKLY("Weekly"), OFF("Off") }
 
 enum class BackupDestination(val label: String) { APP("App storage"), FOLDER("Folder") }
 

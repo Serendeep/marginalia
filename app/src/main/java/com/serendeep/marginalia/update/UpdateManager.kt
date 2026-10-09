@@ -146,6 +146,7 @@ class UpdateManager @Inject constructor(
         ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
             override fun onStart(owner: LifecycleOwner) {
                 inForeground = true
+                recoverAbandonedInstall()
                 checkIfDue()
             }
 
@@ -417,6 +418,12 @@ class UpdateManager @Inject constructor(
         } catch (e: Exception) {
             onInstallFailed("Install failed: ${e.message ?: e.javaClass.simpleName}", aborted = false)
         }
+    }
+
+    // Leaving the system's confirmation screen doesn't always report back, so coming to the foreground with no
+    // session of ours still open means the install was dropped and the update is simply ready again.
+    private fun recoverAbandonedInstall() {
+        if (_status.value.phase == UpdatePhase.INSTALLING && context.packageManager.packageInstaller.mySessions.isEmpty()) refresh()
     }
 
     fun onInstallFailed(message: String, aborted: Boolean) {
