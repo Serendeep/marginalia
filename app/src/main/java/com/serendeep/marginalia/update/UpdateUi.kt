@@ -3,6 +3,7 @@ package com.serendeep.marginalia.update
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.provider.Settings
 import android.text.format.DateUtils
 import androidx.compose.foundation.border
@@ -169,6 +170,13 @@ fun UpdatesSectionContent(vm: UpdateViewModel = hiltViewModel()) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         GlassTextButton("Allow installing updates", onClick = { context.startActivity(unknownSourcesIntent(context)) })
+    }
+    if (Build.MANUFACTURER.equals("HUAWEI", ignoreCase = true) || Build.MANUFACTURER.equals("HONOR", ignoreCase = true)) {
+        Text(
+            "This tablet asks for one tap on INSTALL to confirm each update.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
     ToggleRow("Check automatically", settings.checkAutomatically) { v -> vm.setSettings { it.copy(checkAutomatically = v) } }
     ToggleRow("Wi-Fi only", settings.wifiOnly) { v -> vm.setSettings { it.copy(wifiOnly = v) } }
