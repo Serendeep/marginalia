@@ -77,6 +77,8 @@ class MainActivity : ComponentActivity() {
             MarginaliaTheme {
                 var screen by remember { mutableStateOf<Screen>(Screen.Today) }
                 var pendingAsk by remember { mutableStateOf<String?>(null) }
+                val aiReady = com.serendeep.marginalia.ai.ui.rememberAiReady()
+                LaunchedEffect(aiReady, screen) { if (!aiReady && screen == Screen.Ask) screen = Screen.Today }
                 val pendingPdf = incomingPdfUri
                 LaunchedEffect(pendingPdf) {
                     if (pendingPdf != null) screen = Screen.Library()

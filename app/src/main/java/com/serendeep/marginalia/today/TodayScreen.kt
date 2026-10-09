@@ -174,7 +174,9 @@ fun TodayScreen(
                     }
                 }
             }
-            com.serendeep.marginalia.ai.ui.AskChatGptCard(onAsk, Modifier.padding(top = 16.dp))
+            if (com.serendeep.marginalia.ai.ui.rememberAiReady()) {
+                com.serendeep.marginalia.ai.ui.AskChatGptCard(onAsk, Modifier.padding(top = 16.dp))
+            }
         }
     }
     }

@@ -123,6 +123,7 @@ fun NotebookScreen(
     var pendingWebLink by remember { mutableStateOf<String?>(null) }
     var outlineOpen by remember { mutableStateOf(false) }
     var askOpen by remember { mutableStateOf(false) }
+    val aiReady = com.serendeep.marginalia.ai.ui.rememberAiReady()
     var askSelection by remember { mutableStateOf<ByteArray?>(null) }
 
     LaunchedEffect(lectureId) { viewModel.openLecture(lectureId, startPage) }
@@ -215,11 +216,15 @@ fun NotebookScreen(
             onDismiss = viewModel::cancelLassoCard,
             initialBack = draft.back,
             onSave = { _, back, _ -> viewModel.saveLassoCard(back) },
-            onAskAi = {
-                viewModel.askAboutLasso {
-                    askSelection = it
-                    askOpen = true
+            onAskAi = if (aiReady) {
+                {
+                    viewModel.askAboutLasso {
+                        askSelection = it
+                        askOpen = true
+                    }
                 }
+            } else {
+                null
             },
         )
     }
@@ -300,7 +305,7 @@ fun NotebookScreen(
                         PageIndicator(page = currentPage + 1, pageCount = pageCount)
                     }
                     FocusPill(viewModel)
-                    com.serendeep.marginalia.ai.ui.NotebookAskPill(onClick = { askOpen = true })
+                    if (aiReady) com.serendeep.marginalia.ai.ui.NotebookAskPill(onClick = { askOpen = true })
                 }
             }
         }
@@ -470,7 +475,7 @@ fun NotebookScreen(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     FocusPill(viewModel)
-                    com.serendeep.marginalia.ai.ui.NotebookAskPill(onClick = { askOpen = true })
+                    if (aiReady) com.serendeep.marginalia.ai.ui.NotebookAskPill(onClick = { askOpen = true })
                 }
             }
 
@@ -483,7 +488,7 @@ fun NotebookScreen(
             }
         }
     }
-    if (askOpen) {
+    if (askOpen && aiReady) {
         com.serendeep.marginalia.ai.ui.NotebookAskPanel(
             lectureId = lectureId,
             documentId = document?.id,

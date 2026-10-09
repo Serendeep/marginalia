@@ -156,7 +156,9 @@ private fun Sidebar(screen: Screen, onNavigate: (Screen) -> Unit, viewModel: She
                 badge = state.reviewDue.takeIf { it > 0 }?.toString(),
             ) { onNavigate(Screen.Review) }
             NavItem("Search", Icons.Outlined.Search, screen == Screen.Search) { onNavigate(Screen.Search) }
-            NavItem("Ask", Icons.Outlined.AutoAwesomeMotion, screen == Screen.Ask) { onNavigate(Screen.Ask) }
+            if (com.serendeep.marginalia.ai.ui.rememberAiReady()) {
+                NavItem("Ask", Icons.Outlined.AutoAwesomeMotion, screen == Screen.Ask) { onNavigate(Screen.Ask) }
+            }
             NavItem(
                 "Highlights", Icons.Outlined.AutoAwesome, screen == Screen.Highlights,
                 count = state.highlights.toString(),
