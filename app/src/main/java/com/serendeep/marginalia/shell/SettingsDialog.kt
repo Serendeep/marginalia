@@ -52,6 +52,7 @@ fun SettingsDialog(
     var action by remember { mutableStateOf(pencilAction) }
     var goalText by remember { mutableStateOf(goalMin.toString()) }
     var enabled by remember { mutableStateOf(reminder.enabled) }
+    var editTime by remember { mutableStateOf(false) }
     val time = rememberTimePickerState(reminder.minuteOfDay / 60, reminder.minuteOfDay % 60, is24Hour = true)
     val goal = goalText.toIntOrNull()?.takeIf { it in 5..600 }
     SidePanel(
@@ -81,7 +82,12 @@ fun SettingsDialog(
                 Switch(checked = enabled, onCheckedChange = { enabled = it })
             }
             if (enabled) {
-                Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { TimeInput(state = time) }
+                // The time input focuses itself and raises the keyboard, so it only appears when asked for.
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text("Time", modifier = Modifier.weight(1f))
+                    GlassTextButton("%02d:%02d".format(time.hour, time.minute) + if (editTime) " ▴" else " ▾", onClick = { editTime = !editTime })
+                }
+                if (editTime) Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { TimeInput(state = time) }
             }
         }
         PanelDivider()
