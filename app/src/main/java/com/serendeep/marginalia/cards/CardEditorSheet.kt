@@ -5,29 +5,19 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.isImeVisible
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -45,9 +35,9 @@ import coil3.compose.AsyncImage
 import com.serendeep.marginalia.data.LectureEntity
 import com.serendeep.marginalia.data.HighlightRow
 import com.serendeep.marginalia.study.clozeFront
+import com.serendeep.marginalia.ui.components.CenterPanel
 import com.serendeep.marginalia.ui.components.GlassButton
 import com.serendeep.marginalia.ui.components.GlassTextButton
-import com.serendeep.marginalia.ui.components.MarginLabel
 import com.serendeep.marginalia.ui.components.glassBorder
 import com.serendeep.marginalia.ui.components.glassTextFieldColors
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -55,10 +45,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import java.io.File
 
 /**
- * Bottom sheet for writing a card. With [frontImagePath] the front is that picture;
+ * Panel for writing a card. With [frontImagePath] the front is that picture;
  * otherwise it is an editable text field. [lectures] non-null adds a lecture picker.
  */
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun CardEditorSheet(
     imageLoader: ImageLoader,
@@ -73,31 +63,36 @@ fun CardEditorSheet(
     var front by remember { mutableStateOf(initialFront) }
     var back by remember { mutableStateOf(initialBack) }
     var lectureId by remember { mutableStateOf<String?>(null) }
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val canSave = back.isNotBlank() && (frontImagePath != null || front.isNotBlank())
     // With the keyboard up a tablet in landscape has little height left, so the preview shrinks
-    // and the sheet scrolls rather than squeezing the fields and hiding Save.
+    // and the panel scrolls rather than squeezing the fields and hiding Save.
     val imeOpen = WindowInsets.isImeVisible
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        containerColor = MaterialTheme.colorScheme.surface,
-        modifier = modifier,
+    val answer = @Composable { fieldModifier: Modifier ->
+        OutlinedTextField(
+            value = back,
+            onValueChange = { back = it },
+            label = { Text("Answer") },
+            minLines = 3,
+            maxLines = 6,
+            colors = glassTextFieldColors(),
+            modifier = fieldModifier,
+        )
+    }
+    CenterPanel(
+        onDismiss = onDismiss,
+        title = "Make card",
+        eyebrow = "Cards",
+        maxWidth = if (frontImagePath != null) 760.dp else 600.dp,
+        footer = {
+            GlassTextButton("Cancel", onClick = onDismiss)
+            GlassButton("Save", enabled = canSave, onClick = { onSave(front.trim(), back.trim(), lectureId) })
+        },
     ) {
-        Column(
-            Modifier
-                .fillMaxWidth()
-                .imePadding()
-                .navigationBarsPadding()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 24.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            MarginLabel("Make card")
-            if (frontImagePath != null) {
+        if (frontImagePath != null) {
+            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 Box(
                     Modifier
-                        .fillMaxWidth()
+                        .weight(1f)
                         .clip(RoundedCornerShape(12.dp))
                         .background(MaterialTheme.colorScheme.background)
                         .border(1.dp, glassBorder(), RoundedCornerShape(12.dp)),
@@ -108,37 +103,24 @@ fun CardEditorSheet(
                         imageLoader = imageLoader,
                         contentDescription = "Card front",
                         contentScale = ContentScale.Fit,
-                        modifier = Modifier.heightIn(max = if (imeOpen) 96.dp else 220.dp),
+                        modifier = Modifier.heightIn(max = if (imeOpen) 120.dp else 260.dp),
                     )
                 }
-            } else {
-                OutlinedTextField(
-                    value = front,
-                    onValueChange = { front = it },
-                    label = { Text("Front") },
-                    minLines = 2,
-                    maxLines = 5,
-                    colors = glassTextFieldColors(),
-                    modifier = Modifier.fillMaxWidth(),
-                )
+                answer(Modifier.weight(1f))
             }
+        } else {
             OutlinedTextField(
-                value = back,
-                onValueChange = { back = it },
-                label = { Text("Answer") },
-                minLines = 3,
-                maxLines = 6,
+                value = front,
+                onValueChange = { front = it },
+                label = { Text("Front") },
+                minLines = 2,
+                maxLines = 5,
                 colors = glassTextFieldColors(),
                 modifier = Modifier.fillMaxWidth(),
             )
-            if (lectures != null) LecturePicker(lectures, lectureId) { lectureId = it }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
-                GlassTextButton("Cancel", onClick = onDismiss)
-                Spacer(Modifier.width(8.dp))
-                GlassButton("Save", enabled = canSave, onClick = { onSave(front.trim(), back.trim(), lectureId) })
-            }
-            Spacer(Modifier.padding(bottom = 8.dp))
+            answer(Modifier.fillMaxWidth())
         }
+        if (lectures != null) LecturePicker(lectures, lectureId) { lectureId = it }
     }
 }
 
@@ -165,7 +147,7 @@ private fun LecturePicker(lectures: List<LectureEntity>, selected: String?, onSe
     }
 }
 
-/** Sheet for turning a highlight into a cloze card. */
+/** Panel for turning a highlight into a cloze card. */
 @Composable
 fun HighlightCardSheet(row: HighlightRow, onDismiss: () -> Unit, viewModel: CardsViewModel = hiltViewModel()) {
     val text = row.highlight.text
@@ -181,7 +163,7 @@ fun HighlightCardSheet(row: HighlightRow, onDismiss: () -> Unit, viewModel: Card
     )
 }
 
-/** Sheet for a free-form card, with an optional lecture. */
+/** Panel for a free-form card, with an optional lecture. */
 @Composable
 fun TypedCardSheet(onDismiss: () -> Unit, viewModel: CardsViewModel = hiltViewModel()) {
     val lectures by viewModel.lectures.collectAsStateWithLifecycle()

@@ -28,9 +28,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import com.serendeep.marginalia.ui.components.PanelSide
+import com.serendeep.marginalia.ui.components.SidePanel
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.material3.AssistChip
@@ -41,14 +41,6 @@ import androidx.compose.material.icons.automirrored.filled.FormatListBulleted
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import com.composables.core.DragIndication
-import com.composables.core.ModalBottomSheet
-import com.composables.core.Scrim
-import com.composables.core.Sheet
-import com.composables.core.SheetDetent
-import com.composables.core.SheetDetent.Companion.FullyExpanded
-import com.composables.core.SheetDetent.Companion.Hidden
-import com.composables.core.rememberModalBottomSheetState
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
@@ -82,10 +74,8 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.serendeep.marginalia.sharedCover
 import com.serendeep.marginalia.ui.components.GlassButton
-import com.serendeep.marginalia.ui.components.GlassDialog
 import com.serendeep.marginalia.ui.components.WebPopup
 import com.serendeep.marginalia.ui.components.GlassTextButton
-import com.serendeep.marginalia.ui.components.MarginLabel
 import com.serendeep.marginalia.ui.components.glassBorder
 import com.serendeep.marginalia.cards.CardEditorSheet
 import com.serendeep.marginalia.handwriting.HandwritingTextSheet
@@ -130,11 +120,7 @@ fun NotebookScreen(
     val context = LocalContext.current
     var source by remember { mutableStateOf<PdfDocumentSource?>(null) }
     var pendingWebLink by remember { mutableStateOf<String?>(null) }
-    val peekDetent = remember { SheetDetent("peek") { containerHeight, _ -> containerHeight * 0.5f } }
-    val outlineSheet = rememberModalBottomSheetState(
-        initialDetent = Hidden,
-        detents = listOf(Hidden, peekDetent, FullyExpanded),
-    )
+    var outlineOpen by remember { mutableStateOf(false) }
 
     LaunchedEffect(lectureId) { viewModel.openLecture(lectureId, startPage) }
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -290,7 +276,7 @@ fun NotebookScreen(
                 title = document?.fileName?.removeSuffix(".pdf") ?: lectureTitle,
                 hasOutline = current?.outline().orEmpty().isNotEmpty(),
                 onBack = onBack,
-                onOutline = { outlineSheet.currentDetent = peekDetent },
+                onOutline = { outlineOpen = true },
                 hazeState = pdfHaze,
                 modifier = Modifier.align(Alignment.TopStart).padding(12.dp),
             )
@@ -321,54 +307,34 @@ fun NotebookScreen(
             WebPopup(url = url, onDismiss = { pendingWebLink = null })
         }
 
-        // Outline sheet: opens at half height for a glance, drags to full for
-        // long documents; a detent-aware sheet, not the stock two-state one.
-        ModalBottomSheet(state = outlineSheet) {
-            Scrim()
-            Sheet(
-                Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
-                    .background(MaterialTheme.colorScheme.surface)
-                    .border(
-                        1.dp,
-                        MaterialTheme.colorScheme.outlineVariant,
-                        RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
-                    ),
+        if (outlineOpen) {
+            val outline = source?.outline().orEmpty()
+            val activeIndex = outline.indexOfLast { it.pageIndex <= currentPage }
+            SidePanel(
+                onDismiss = { outlineOpen = false },
+                title = "Outline",
+                eyebrow = "Contents",
+                side = PanelSide.START,
+                width = 380.dp,
             ) {
-                val outline = source?.outline().orEmpty()
                 Column(Modifier.fillMaxWidth()) {
-                    DragIndication(
-                        Modifier
-                            .align(Alignment.CenterHorizontally)
-                            .padding(top = 12.dp, bottom = 8.dp)
-                            .background(
-                                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
-                                RoundedCornerShape(100),
-                            )
-                            .width(36.dp)
-                            .height(4.dp),
-                    )
-                    MarginLabel("Outline", Modifier.padding(start = 24.dp, bottom = 6.dp))
-                    LazyColumn(Modifier.fillMaxWidth()) {
-                        items(outline) { node ->
-                            Text(
-                                text = node.title,
-                                style = MaterialTheme.typography.bodyLarge,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        outlineSheet.currentDetent = Hidden
-                                        viewModel.requestPdfPage(node.pageIndex)
-                                    }
-                                    .padding(
-                                        start = 24.dp + 20.dp * node.depth,
-                                        end = 24.dp,
-                                        top = 10.dp,
-                                        bottom = 10.dp,
-                                    ),
-                            )
-                        }
+                    outline.forEachIndexed { index, node ->
+                        val active = index == activeIndex
+                        Text(
+                            text = node.title,
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
+                            color = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(if (active) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f) else Color.Transparent)
+                                .clickable {
+                                    outlineOpen = false
+                                    viewModel.requestPdfPage(node.pageIndex)
+                                }
+                                .padding(start = 12.dp + 18.dp * node.depth, end = 12.dp, top = 10.dp, bottom = 10.dp),
+                        )
                     }
                 }
             }
