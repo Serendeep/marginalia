@@ -3,31 +3,24 @@ package com.serendeep.marginalia.ai.ui
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.serendeep.marginalia.ui.components.GlassButton
-import com.serendeep.marginalia.ui.components.glassTextFieldColors
 import com.serendeep.marginalia.ui.theme.BodyFamily
 import com.serendeep.marginalia.ui.theme.MonoFamily
 
@@ -74,17 +67,14 @@ fun AskChatGptCardContent(
             .padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(
-                "ASK CHATGPT",
-                fontFamily = MonoFamily,
-                fontWeight = FontWeight.Medium,
-                fontSize = 10.5.sp,
-                letterSpacing = 1.26.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            if (ready) modelChip()
-        }
+        Text(
+            "ASK CHATGPT",
+            fontFamily = MonoFamily,
+            fontWeight = FontWeight.Medium,
+            fontSize = 10.5.sp,
+            letterSpacing = 1.26.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
         Text(
             "Ask a question across your notes and PDFs. Answers cite the pages. Uses your ChatGPT plan.",
             fontFamily = BodyFamily,
@@ -95,15 +85,15 @@ fun AskChatGptCardContent(
         if (!ready) {
             GlassButton("Connect ChatGPT", onClick = onSetup)
         } else {
-            OutlinedTextField(
-                value = question,
-                onValueChange = { question = it },
-                placeholder = { Text("Ask about your library…", fontSize = 13.sp) },
-                singleLine = true,
-                colors = glassTextFieldColors(),
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-                keyboardActions = KeyboardActions(onSend = { send() }),
-                modifier = Modifier.fillMaxWidth(),
+            ComposerBox(
+                text = question,
+                onText = { question = it },
+                placeholder = "Ask about your library…",
+                streaming = false,
+                onSend = send,
+                onStop = {},
+                modelChip = modelChip,
+                minLines = 1,
             )
         }
     }

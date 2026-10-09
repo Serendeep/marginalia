@@ -90,6 +90,16 @@ fun NotebookAskPanel(
                     }
                 },
                 placeholder = "Ask about this document…",
+                empty = EmptyCopy(
+                    "Ask about this paper",
+                    "Knows the page you're on and your notes on it, and can read the rest of your library.",
+                    listOf(
+                        "What's the key idea on page ${page + 1}?",
+                        "Walk me through the equations on page ${page + 1}",
+                        "How does this connect to the rest of my library?",
+                        "Quiz me on what I've read so far",
+                    ),
+                ),
                 modifier = Modifier.weight(1f),
             )
         }

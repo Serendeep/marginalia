@@ -63,6 +63,7 @@ fun ChatPane(
     onCitation: (title: String, page: Int) -> Unit,
     modifier: Modifier = Modifier,
     placeholder: String = "Ask about your library…",
+    empty: EmptyCopy? = null,
     viewModel: ChatViewModel = hiltViewModel(),
 ) {
     val messages by viewModel.messages.collectAsStateWithLifecycle()
@@ -81,7 +82,7 @@ fun ChatPane(
         needsSetup = needsSetup,
         drafts = drafts,
         savedCount = saved,
-        suggestions = suggestions,
+        suggestions = empty?.suggestions ?: suggestions,
         onSend = onSend,
         onStop = viewModel::stop,
         onNewChat = viewModel::newChat,
@@ -91,9 +92,18 @@ fun ChatPane(
         onSetup = { settingsOpen = true },
         modifier = modifier,
         placeholder = placeholder,
+        empty = empty ?: LibraryEmpty,
         modelChip = { ModelEffortChip() },
     )
 }
+
+/** Heading and prompts shown before the first message; null [suggestions] keeps the library-wide ones. */
+class EmptyCopy(val title: String, val subtitle: String, val suggestions: List<String>? = null)
+
+val LibraryEmpty = EmptyCopy(
+    "Ask across your notes and PDFs",
+    "Answers are grounded in your library and cite the pages they come from.",
+)
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -114,6 +124,7 @@ fun ChatPaneContent(
     onSetup: () -> Unit,
     modifier: Modifier = Modifier,
     placeholder: String = "Ask about your library…",
+    empty: EmptyCopy = LibraryEmpty,
     modelChip: @Composable () -> Unit = {},
 ) {
     var text by remember { mutableStateOf("") }
@@ -132,7 +143,7 @@ fun ChatPaneContent(
         }
         Box(Modifier.weight(1f).fillMaxWidth()) {
             if (messages.isEmpty()) {
-                EmptyChat(ready, suggestions, onSend, onSetup)
+                EmptyChat(empty, ready, suggestions, onSend, onSetup)
             } else {
                 AnswerView(
                     messages = messages,
@@ -157,7 +168,7 @@ fun ChatPaneContent(
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun EmptyChat(ready: Boolean, suggestions: List<String>, onSend: (String) -> Unit, onSetup: () -> Unit) {
+private fun EmptyChat(copy: EmptyCopy, ready: Boolean, suggestions: List<String>, onSend: (String) -> Unit, onSetup: () -> Unit) {
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(vertical = 24.dp),
         verticalArrangement = Arrangement.Center,
@@ -170,7 +181,7 @@ private fun EmptyChat(ready: Boolean, suggestions: List<String>, onSend: (String
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Text(
-            "Ask across your notes and PDFs",
+            copy.title,
             fontFamily = DisplayFamily,
             fontWeight = FontWeight.SemiBold,
             fontSize = 24.sp,
@@ -178,7 +189,7 @@ private fun EmptyChat(ready: Boolean, suggestions: List<String>, onSend: (String
             modifier = Modifier.padding(top = 6.dp),
         )
         Text(
-            "Answers are grounded in your library and cite the pages they come from.",
+            copy.subtitle,
             fontFamily = BodyFamily,
             fontSize = 14.sp,
             lineHeight = 21.sp,
@@ -205,55 +216,8 @@ private fun Composer(
     onStop: () -> Unit,
     modelChip: @Composable () -> Unit,
 ) {
-    val shape = RoundedCornerShape(14.dp)
-    val send = { if (text.isNotBlank()) onSend() }
     Column(Modifier.fillMaxWidth().padding(top = 10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Column(
-            Modifier
-                .fillMaxWidth()
-                .clip(shape)
-                .background(MaterialTheme.colorScheme.surfaceVariant)
-                .border(1.dp, glassBorder(), shape),
-        ) {
-            TextField(
-                value = text,
-                onValueChange = onText,
-                placeholder = { Text(placeholder, fontFamily = BodyFamily, fontSize = 14.sp) },
-                textStyle = LocalTextStyle.current.copy(fontFamily = BodyFamily, fontSize = 14.sp, lineHeight = 21.sp),
-                minLines = 2,
-                maxLines = 6,
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-                keyboardActions = KeyboardActions(onSend = { send() }),
-                colors = TextFieldDefaults.colors(
-                    focusedContainerColor = Color.Transparent,
-                    unfocusedContainerColor = Color.Transparent,
-                    disabledContainerColor = Color.Transparent,
-                    focusedIndicatorColor = Color.Transparent,
-                    unfocusedIndicatorColor = Color.Transparent,
-                    disabledIndicatorColor = Color.Transparent,
-                    cursorColor = Violet,
-                ),
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Row(
-                Modifier.fillMaxWidth().padding(start = 12.dp, end = 6.dp, bottom = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                modelChip()
-                Spacer(Modifier.weight(1f))
-                if (streaming) {
-                    IconButton(onClick = onStop) { Icon(Icons.Filled.Stop, "Stop", tint = Violet) }
-                } else {
-                    IconButton(onClick = send, enabled = text.isNotBlank()) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.Send,
-                            "Send",
-                            tint = if (text.isNotBlank()) Violet else MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
-            }
-        }
+        ComposerBox(text, onText, placeholder, streaming, onSend, onStop, modelChip)
         Text(
             "Reads your library to answer and cites the pages it used. Requests aren't stored, and nothing is saved to your notes unless you approve it.",
             fontFamily = MonoFamily,
@@ -262,6 +226,69 @@ private fun Composer(
             letterSpacing = 0.3.sp,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+    }
+}
+
+/** Text field with the model chip and send/stop inside one bordered box. */
+@Composable
+fun ComposerBox(
+    text: String,
+    onText: (String) -> Unit,
+    placeholder: String,
+    streaming: Boolean,
+    onSend: () -> Unit,
+    onStop: () -> Unit,
+    modelChip: @Composable () -> Unit,
+    modifier: Modifier = Modifier,
+    minLines: Int = 2,
+) {
+    val shape = RoundedCornerShape(14.dp)
+    val send = { if (text.isNotBlank()) onSend() }
+    Column(
+        modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .border(1.dp, glassBorder(), shape),
+    ) {
+        TextField(
+            value = text,
+            onValueChange = onText,
+            placeholder = { Text(placeholder, fontFamily = BodyFamily, fontSize = 14.sp) },
+            textStyle = LocalTextStyle.current.copy(fontFamily = BodyFamily, fontSize = 14.sp, lineHeight = 21.sp),
+            minLines = minLines,
+            maxLines = 6,
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+            keyboardActions = KeyboardActions(onSend = { send() }),
+            colors = TextFieldDefaults.colors(
+                focusedContainerColor = Color.Transparent,
+                unfocusedContainerColor = Color.Transparent,
+                disabledContainerColor = Color.Transparent,
+                focusedIndicatorColor = Color.Transparent,
+                unfocusedIndicatorColor = Color.Transparent,
+                disabledIndicatorColor = Color.Transparent,
+                cursorColor = Violet,
+            ),
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Row(
+            Modifier.fillMaxWidth().padding(start = 12.dp, end = 6.dp, bottom = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            modelChip()
+            Spacer(Modifier.weight(1f))
+            if (streaming) {
+                IconButton(onClick = onStop) { Icon(Icons.Filled.Stop, "Stop", tint = Violet) }
+            } else {
+                IconButton(onClick = send, enabled = text.isNotBlank()) {
+                    Icon(
+                        Icons.AutoMirrored.Filled.Send,
+                        "Send",
+                        tint = if (text.isNotBlank()) Violet else MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
     }
 }
 
