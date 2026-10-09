@@ -83,12 +83,26 @@ jobs:
           {
             if [ -n "$LAST_STABLE" ]; then
               printf 'Nightly build %s — commits since %s:\n\n' "$VERSION_NAME" "$LAST_STABLE"
-              git log --format='- %s' "$LAST_STABLE..HEAD" | head -50
+              git log -n 50 --format='- %s' "$LAST_STABLE..HEAD"
             else
               printf 'Nightly build %s — recent commits:\n\n' "$VERSION_NAME"
               git log --format='- %s' -50
             fi
           } > notes.md
+
+          # The same commits, grouped for the in-app notes: feat is New, fix is Fixed, the rest Improved.
+          git log -n 50 --format='%s' ${LAST_STABLE:+"$LAST_STABLE..HEAD"} \
+            | { grep -Ev '^(Merge pull request|(chore|ci|docs|test|build)(\([^)]*\))?!?:)' || true; } \
+            | awk '
+              /^$/ { next }
+              { t = "Improved"; s = $0
+                if (match($0, /^[a-z]+(\([^)]*\))?!?: /)) {
+                  ty = $0; sub(/[(!:].*/, "", ty); s = substr($0, RLENGTH + 1)
+                  if (ty == "feat") t = "New"; else if (ty == "fix") t = "Fixed"
+                }
+                items[t] = items[t] "- " s "\n" }
+              END { split("New Fixed Improved", o, " ")
+                for (i = 1; i <= 3; i++) if (items[o[i]] != "") printf "### %s\n\n%s\n", o[i], items[o[i]] }' > feed-notes.md
 
           git tag -f "$TAG" "$SHA_COMMIT"
           git push -f origin "refs/tags/$TAG"
@@ -125,6 +139,7 @@ jobs:
 
           jq -n \
             --slurpfile patches patches.json \
+            --rawfile notes feed-notes.md \
             --argjson versionCode "$VERSION_CODE" \
             --arg versionName "$VERSION_NAME" \
             --arg apkUrl "https://github.com/${{ github.repository }}/releases/download/$TAG/app-release.apk" \
@@ -133,7 +148,7 @@ jobs:
             --arg certSha256 "$CERT" \
             --arg notesUrl "https://github.com/${{ github.repository }}/releases/tag/$TAG" \
             --arg publishedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-            '{channel: "nightly", versionCode: $versionCode, versionName: $versionName, apkUrl: $apkUrl, sha256: $sha256, size: $size, certSha256: $certSha256, notesUrl: $notesUrl, publishedAt: $publishedAt, patches: $patches[0]}' > latest.json
+            '{channel: "nightly", versionCode: $versionCode, versionName: $versionName, apkUrl: $apkUrl, sha256: $sha256, size: $size, certSha256: $certSha256, notesUrl: $notesUrl, publishedAt: $publishedAt, patches: $patches[0], notes: ($notes | sub("^\\s+"; "") | sub("\\s+$"; ""))}' > latest.json
           cp config/remote-config.json remote-config.json
 
           # latest.json goes last: until it lands, clients keep seeing the previous build.

@@ -115,8 +115,10 @@ jobs:
             done
           }
           make_patches || echo "::warning::Delta patch generation failed; publishing the full APK only"
+          awk -v v="${TAG#v}" 'index($0,"## ["v"]")==1||index($0,"## "v" ")==1{f=1;next} f&&/^## /{exit} f' CHANGELOG.md > release-notes.md
           jq -n \
             --slurpfile patches patches.json \
+            --rawfile notes release-notes.md \
             --argjson versionCode "$VERSION_CODE" \
             --arg versionName "${TAG#v}" \
             --arg apkUrl "https://github.com/${{ github.repository }}/releases/download/$TAG/app-release.apk" \
@@ -125,7 +127,7 @@ jobs:
             --arg certSha256 "$CERT" \
             --arg notesUrl "${{ steps.release.outputs.html_url }}" \
             --arg publishedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-            '{channel: "stable", versionCode: $versionCode, versionName: $versionName, apkUrl: $apkUrl, sha256: $sha256, size: $size, certSha256: $certSha256, notesUrl: $notesUrl, publishedAt: $publishedAt, patches: $patches[0]}' > latest.json
+            '{channel: "stable", versionCode: $versionCode, versionName: $versionName, apkUrl: $apkUrl, sha256: $sha256, size: $size, certSha256: $certSha256, notesUrl: $notesUrl, publishedAt: $publishedAt, patches: $patches[0], notes: ($notes | sub("^\\s+"; "") | sub("\\s+$"; ""))}' > latest.json
           cp config/remote-config.json remote-config.json
           gh release upload "$TAG" latest.json remote-config.json --clobber
           gh release view "${{ steps.release.outputs.tag_name }}" --json body -q .body > notes.md
