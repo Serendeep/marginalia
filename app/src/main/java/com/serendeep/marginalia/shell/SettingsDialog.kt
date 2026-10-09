@@ -12,6 +12,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TimePicker
+import androidx.compose.material3.TimePickerLayoutType
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -80,7 +81,7 @@ fun SettingsDialog(
                 Switch(checked = enabled, onCheckedChange = { enabled = it })
             }
             if (enabled) {
-                Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { TimePicker(state = time) }
+                Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { TimePicker(state = time, layoutType = TimePickerLayoutType.Vertical) }
             }
         }
         PanelDivider()
