@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.0](https://github.com/Serendeep/marginalia/compare/v0.4.0...v0.5.0) (2026-10-09)
+
+
+### Features
+
+* handwriting recognition and ChatGPT screens ([e75d5cb](https://github.com/Serendeep/marginalia/commit/e75d5cba00efca4bf2e148264b37f954a0e26a4f))
+
 ## [0.4.0](https://github.com/Serendeep/marginalia/compare/v0.3.0...v0.4.0) (2026-10-09)
 
 
