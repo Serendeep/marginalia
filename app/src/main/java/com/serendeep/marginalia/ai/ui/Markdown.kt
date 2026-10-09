@@ -6,12 +6,14 @@ sealed interface MdBlock {
     data class Paragraph(val spans: List<MdSpan>) : MdBlock
     data class Bullet(val marker: String, val spans: List<MdSpan>) : MdBlock
     data class Code(val text: String) : MdBlock
+    data class Quote(val spans: List<MdSpan>) : MdBlock
 }
 
 private val bulletLine = Regex("""^\s*([-*•]|\d{1,2}[.)])\s+(.*)$""")
+private val quoteLine = Regex("""^\s{0,3}>\s?(.*)$""")
 private val headingLine = Regex("""^\s{0,3}#{1,6}\s+(.*)$""")
 
-/** Paragraphs, bullets, fenced code, **bold** and `code`; an unclosed ** bolds to the end of its block. */
+/** Paragraphs, bullets, quotes, fenced code, **bold** and `code`; an unclosed ** bolds to the end of its block. */
 fun parseMarkdown(src: String): List<MdBlock> {
     val blocks = ArrayList<MdBlock>()
     val para = ArrayList<String>()
@@ -47,6 +49,12 @@ fun parseMarkdown(src: String): List<MdBlock> {
         if (heading != null) {
             flushPara()
             blocks += MdBlock.Paragraph(parseInline(heading.groupValues[1]).map { it.copy(bold = true) })
+            continue
+        }
+        val quote = quoteLine.matchEntire(line)
+        if (quote != null) {
+            flushPara()
+            blocks += MdBlock.Quote(parseInline(quote.groupValues[1]))
             continue
         }
         val bullet = bulletLine.matchEntire(line)

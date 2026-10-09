@@ -62,6 +62,10 @@ fun renderMarkdown(src: String, caret: Boolean = false): AnnotatedString = build
                 append("${block.marker}  ")
                 appendSpans(block.spans)
             }
+            is MdBlock.Quote -> {
+                withStyle(SpanStyle(color = Violet)) { append("┃  ") }
+                appendSpans(block.spans)
+            }
             is MdBlock.Code -> withStyle(SpanStyle(fontFamily = MonoFamily, fontSize = 12.5.sp, background = CodeBg)) { append(block.text) }
         }
     }

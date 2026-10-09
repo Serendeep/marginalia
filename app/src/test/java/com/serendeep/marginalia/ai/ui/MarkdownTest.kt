@@ -75,4 +75,10 @@ class MarkdownTest {
         assertEquals(listOf(b, a, c), rankPages(listOf(listOf(a, b, c), listOf(b)), 3))
         assertEquals(listOf(b), rankPages(listOf(listOf(a, b, c), listOf(b)), 1))
     }
+
+    @Test
+    fun quoteLinesBecomeQuoteBlocks() {
+        val blocks = parseMarkdown("For example:\n\n> English sentence -> German translation")
+        assertEquals(MdBlock.Quote(listOf(MdSpan("English sentence -> German translation"))), blocks.last())
+    }
 }
