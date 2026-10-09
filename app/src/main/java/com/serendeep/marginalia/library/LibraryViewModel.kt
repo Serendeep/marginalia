@@ -5,6 +5,11 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import coil3.ImageLoader
+import com.serendeep.marginalia.ai.AiSettings
+import com.serendeep.marginalia.ai.AutoSorter
+import com.serendeep.marginalia.ai.ChatGptAuth
+import com.serendeep.marginalia.ai.SortResult
+import com.serendeep.marginalia.ai.sortReadyFlow
 import com.serendeep.marginalia.data.CourseEntity
 import com.serendeep.marginalia.data.MarginaliaRepository
 import com.serendeep.marginalia.research.Citation
@@ -19,6 +24,8 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.merge
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -30,6 +37,9 @@ class LibraryViewModel @Inject constructor(
     val imageLoader: ImageLoader,
     private val indexer: TextIndexer,
     private val citations: CitationService,
+    private val sorter: AutoSorter,
+    settings: AiSettings,
+    auth: ChatGptAuth,
     @ApplicationContext context: Context,
 ) : ViewModel() {
 
@@ -45,6 +55,41 @@ class LibraryViewModel @Inject constructor(
     /** Bumps once per successful import batch; the screen celebrates it. */
     private val _celebration = MutableStateFlow(0)
     val celebration: StateFlow<Int> = _celebration.asStateFlow()
+
+    /** True while a provider is connected and sorting can run. */
+    val canSort: StateFlow<Boolean> = sortReadyFlow(settings, auth)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    /** (done, total) while a manual sort runs. */
+    private val _sorting = MutableStateFlow<Pair<Int, Int>?>(null)
+    val sorting: StateFlow<Pair<Int, Int>?> = _sorting.asStateFlow()
+
+    private val _batches = Channel<List<SortResult>>(Channel.BUFFERED)
+
+    /** Each automatic sort arrives alone; a manual run arrives as one batch. */
+    val sorted: Flow<List<SortResult>> = merge(sorter.results.map { listOf(it) }, _batches.receiveAsFlow())
+
+    fun sortUnsorted() {
+        if (_sorting.value != null) return
+        viewModelScope.launch {
+            val unsorted = repository.courses().firstOrNull { it.name == UNSORTED_NAME } ?: return@launch
+            val ids = repository.observeLectures(unsorted.id).first().map { it.id }
+            val results = ArrayList<SortResult>()
+            try {
+                ids.forEachIndexed { i, id ->
+                    _sorting.value = i + 1 to ids.size
+                    sorter.sort(id, force = true)?.let(results::add)
+                }
+            } finally {
+                _sorting.value = null
+            }
+            if (results.isEmpty()) _error.value = "Couldn't sort with AI" else _batches.send(results)
+        }
+    }
+
+    fun undoSort(results: List<SortResult>) {
+        viewModelScope.launch { results.asReversed().forEach { sorter.undo(it) } }
+    }
 
     private val _citation = Channel<Citation>(Channel.BUFFERED)
 

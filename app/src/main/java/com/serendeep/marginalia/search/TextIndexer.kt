@@ -3,6 +3,7 @@ package com.serendeep.marginalia.search
 import android.content.Context
 import android.graphics.RectF
 import android.os.Process
+import com.serendeep.marginalia.ai.AutoSorter
 import com.serendeep.marginalia.data.DocumentEntity
 import com.serendeep.marginalia.data.MarginaliaRepository
 import com.serendeep.marginalia.pdf.PdfDocumentSource
@@ -31,6 +32,7 @@ import javax.inject.Singleton
 class TextIndexer @Inject constructor(
     @ApplicationContext private val context: Context,
     private val repository: MarginaliaRepository,
+    private val autoSorter: AutoSorter,
 ) {
     // One low-priority thread: indexing a big PDF must not compete with scrolling or ink.
     private val dispatcher = Executors.newSingleThreadExecutor { task ->
@@ -78,6 +80,7 @@ class TextIndexer @Inject constructor(
             }
             repository.finishIndexing(document.id)
             if (source.pageCount > 0) sniffIdentifiers(document, source.pageText(0))
+            autoSorter.onIndexed(document.lectureId)
         } finally {
             source.close()
         }

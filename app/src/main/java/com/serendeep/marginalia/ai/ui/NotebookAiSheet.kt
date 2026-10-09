@@ -135,6 +135,7 @@ private fun NotebookAiSheet(
             onSetup = { settingsOpen = true },
             onDraft = viewModel::updateDraft,
             onSave = { viewModel.saveCards(lectureId, documentId, page) },
+            modelChip = { ModelChip() },
         )
     }
 }
@@ -158,6 +159,7 @@ fun NotebookAiContent(
     onSetup: () -> Unit,
     onDraft: (id: Int, front: String?, back: String?, keep: Boolean?) -> Unit,
     onSave: () -> Unit,
+    modelChip: @Composable () -> Unit = {},
 ) {
     var question by remember { mutableStateOf("") }
     val busy = state == AiRunState.Streaming
@@ -170,7 +172,10 @@ fun NotebookAiContent(
             .padding(horizontal = 24.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        MarginLabel("Ask")
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+            MarginLabel("Ask")
+            if (ready) modelChip()
+        }
         if (!ready) {
             Text(
                 "Connect ChatGPT to explain pages, summarize and make cards from this notebook.",

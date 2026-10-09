@@ -5,7 +5,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.serendeep.marginalia.ai.AiConfig
 import com.serendeep.marginalia.ai.AiException
-import com.serendeep.marginalia.ai.AiRouter
+import com.serendeep.marginalia.ai.AutoSorter
+import com.serendeep.marginalia.ai.ModelCatalog
 import com.serendeep.marginalia.ai.AiSettings
 import com.serendeep.marginalia.ai.ChatGptAuth
 import com.serendeep.marginalia.ai.ChatGptStatus
@@ -38,11 +39,23 @@ sealed interface ModelsState {
 class AiSettingsViewModel @Inject constructor(
     private val auth: ChatGptAuth,
     private val settings: AiSettings,
-    private val router: AiRouter,
+    private val catalog: ModelCatalog,
+    private val sorter: AutoSorter,
 ) : ViewModel() {
 
     val config: StateFlow<AiConfig> = settings.config
     val status: StateFlow<ChatGptStatus> = auth.status
+    val autoSort: StateFlow<Boolean> = sorter.enabled
+
+    /** The model requests currently go to, shared by every surface that shows a picker. */
+    val selected: StateFlow<String?> = combine(settings.config, auth.status) { c, s ->
+        when (c.provider) {
+            ProviderChoice.CHATGPT -> (s as? ChatGptStatus.Connected)?.model
+            ProviderChoice.COMPATIBLE -> c.model.ifEmpty { null }
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    fun setAutoSort(on: Boolean) = sorter.setEnabled(on)
 
     /** One-line state for the sidebar row. */
     val label: StateFlow<String> = combine(settings.config, auth.status) { c, s ->
@@ -100,12 +113,12 @@ class AiSettingsViewModel @Inject constructor(
         _models.value = ModelsState.Idle
     }
 
-    fun loadModels() {
+    fun loadModels(refresh: Boolean = false) {
         if (_models.value is ModelsState.Loading) return
         _models.value = ModelsState.Loading
         viewModelScope.launch {
             _models.value = try {
-                val list = router.active().models()
+                val list = catalog.models(refresh)
                 if (list.isEmpty()) ModelsState.Failed("No models available") else ModelsState.Loaded(list)
             } catch (e: CancellationException) {
                 throw e
@@ -128,7 +141,7 @@ class AiSettingsViewModel @Inject constructor(
 
     fun testCustom(baseUrl: String, apiKey: String) {
         saveCustom(baseUrl, apiKey)
-        loadModels()
+        loadModels(refresh = true)
     }
 
     fun selectModel(slug: String) {

@@ -30,6 +30,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -73,6 +74,7 @@ fun AiSettingsSheet(onDismiss: () -> Unit, viewModel: AiSettingsViewModel = hilt
     val status by viewModel.status.collectAsStateWithLifecycle()
     val models by viewModel.models.collectAsStateWithLifecycle()
     val notice by viewModel.notice.collectAsStateWithLifecycle()
+    val autoSort by viewModel.autoSort.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val connected = status is ChatGptStatus.Connected && config.provider == ProviderChoice.CHATGPT
     LaunchedEffect(connected) { if (connected) viewModel.loadModels() }
@@ -109,6 +111,8 @@ fun AiSettingsSheet(onDismiss: () -> Unit, viewModel: AiSettingsViewModel = hilt
             onSelectModel = viewModel::selectModel,
             onTest = viewModel::testCustom,
             onCustomEdited = viewModel::saveCustom,
+            autoSort = autoSort,
+            onAutoSort = viewModel::setAutoSort,
         )
     }
 }
@@ -127,6 +131,8 @@ fun AiSettingsContent(
     onSelectModel: (String) -> Unit,
     onTest: (baseUrl: String, apiKey: String) -> Unit,
     onCustomEdited: (baseUrl: String, apiKey: String) -> Unit,
+    autoSort: Boolean = true,
+    onAutoSort: (Boolean) -> Unit = {},
 ) {
     Column(
         Modifier
@@ -143,6 +149,18 @@ fun AiSettingsContent(
             ChatGptSection(status, models, selectedSlug, notice, onConnect, onCancelSignIn, onDisconnect, onSelectModel)
         } else {
             CustomSection(config, models, selectedSlug, onTest, onCustomEdited, onSelectModel)
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Auto-sort imported PDFs", fontFamily = BodyFamily, fontSize = 14.sp)
+                Text(
+                    "Files new PDFs into a course with a short request to your model.",
+                    fontFamily = BodyFamily,
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Switch(checked = autoSort, onCheckedChange = onAutoSort)
         }
         Text(
             PRIVACY_NOTE,

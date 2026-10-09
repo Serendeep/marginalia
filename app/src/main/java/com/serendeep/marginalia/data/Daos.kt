@@ -17,6 +17,12 @@ interface CourseDao {
     @Query("SELECT * FROM courses ORDER BY orderIndex, createdAt")
     fun observeAll(): Flow<List<CourseEntity>>
 
+    @Query("SELECT * FROM courses ORDER BY orderIndex, createdAt")
+    suspend fun getAll(): List<CourseEntity>
+
+    @Query("DELETE FROM courses WHERE id = :id")
+    suspend fun deleteById(id: String)
+
     @Delete
     suspend fun delete(course: CourseEntity)
 }
@@ -46,6 +52,9 @@ interface LectureDao {
 
     @Query("DELETE FROM lectures WHERE id = :id")
     suspend fun deleteById(id: String)
+
+    @Query("SELECT COUNT(*) FROM lectures WHERE courseId = :courseId")
+    suspend fun countInCourse(courseId: String): Int
 
     @Query("SELECT * FROM lectures WHERE id = :id LIMIT 1")
     suspend fun getById(id: String): LectureEntity?
@@ -84,6 +93,9 @@ interface TagDao {
 
     @Query("SELECT * FROM tags WHERE name = :name LIMIT 1")
     suspend fun byName(name: String): TagEntity?
+
+    @Query("SELECT tagId FROM lecture_tags WHERE lectureId = :lectureId")
+    suspend fun tagIdsOf(lectureId: String): List<String>
 
     @Query("SELECT * FROM tags ORDER BY name")
     fun observeTags(): Flow<List<TagEntity>>

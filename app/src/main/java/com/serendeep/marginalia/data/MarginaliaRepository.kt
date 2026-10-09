@@ -51,6 +51,17 @@ class MarginaliaRepository @Inject constructor(
         return course
     }
 
+    suspend fun courses(): List<CourseEntity> = courseDao.getAll()
+
+    /** Removes [courseId] only while it holds no notebooks; returns whether it was removed. */
+    suspend fun deleteCourseIfEmpty(courseId: String): Boolean {
+        if (lectureDao.countInCourse(courseId) > 0) return false
+        courseDao.deleteById(courseId)
+        return true
+    }
+
+    suspend fun tagIdsOf(lectureId: String): List<String> = tagDao.tagIdsOf(lectureId)
+
     suspend fun createLecture(courseId: String, title: String): LectureEntity {
         val lecture = LectureEntity(
             id = newId(),

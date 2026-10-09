@@ -1,6 +1,7 @@
 package com.serendeep.marginalia.ai
 
 import org.json.JSONArray
+import org.json.JSONObject
 
 data class PageHit(val title: String, val page: Int, val text: String)
 
@@ -8,9 +9,30 @@ data class CardDraft(val front: String, val back: String)
 
 data class Citation(val title: String, val page: Int)
 
+/** What the model chose for one document; [course] names an existing course, [newCourse] asks for a new one. */
+data class SortDecision(
+    val course: String?,
+    val newCourse: String?,
+    val newCourseEmoji: String?,
+    val tags: List<String>,
+    val title: String?,
+)
+
+private val arxivTitle = Regex("""(?i)(arxiv[:\s-]*)?\d{4}\.\d{4,5}(v\d+)?""")
+
+/** True when [title] reads like a file name rather than a human title. */
+fun looksLikeFilename(title: String): Boolean {
+    val t = title.trim()
+    // A single plain word ("xai", "Thermo") is a name someone chose; only machine-looking tokens count.
+    return t.isEmpty() || t.endsWith(".pdf", ignoreCase = true) || arxivTitle.matches(t) ||
+        (t.none { it.isWhitespace() } && t.any { it == '_' || it == '-' || it == '.' || it.isDigit() })
+}
+
 object Prompts {
     const val CONTEXT_BUDGET = 12_000
     const val MAX_CARDS = 12
+    const val SORT_BUDGET = 4_000
+    private const val MAX_SORT_TAGS = 3
 
     fun explainPage(pageText: String, imagePng: ByteArray? = null): AiRequest = AiRequest(
         instructions = "You are a patient tutor helping a student read a technical document. Explain the page clearly: " +
@@ -35,6 +57,42 @@ object Prompts {
             "the front is a self-contained question, the back is short. Skip trivia, dates and anything not worth remembering.",
         text = fairTruncate(listOf(text), CONTEXT_BUDGET).first(),
     )
+
+    fun sortDocument(
+        courses: List<String>,
+        title: String,
+        fileName: String,
+        identifier: String?,
+        pages: List<String>,
+    ): AiRequest {
+        val excerpt = fairTruncate(pages, SORT_BUDGET).joinToString("\n\n").take(SORT_BUDGET)
+        val known = if (courses.isEmpty()) "(none)" else courses.joinToString("\n") { "- $it" }
+        return AiRequest(
+            instructions = "You file documents into a student's library. Reply with ONLY a JSON object, no prose and no code " +
+                "fences: {\"course\": \"<existing course name>\"|null, \"newCourse\": {\"name\": \"...\", \"emoji\": \"...\"}|null, " +
+                "\"tags\": [\"up to $MAX_SORT_TAGS lowercase topic tags\"], \"title\": \"<clean document title>\"|null}. " +
+                "Set \"course\" to a name copied exactly from the existing courses when one fits; otherwise set it to null and " +
+                "suggest \"newCourse\" with a short name and one emoji. Set \"title\" only when the current title looks like a file name.",
+            text = "Existing courses:\n$known\n\nCurrent title: $title\nFile name: $fileName\n" +
+                (identifier?.let { "Identifier: $it\n" } ?: "") + "\nFirst pages:\n$excerpt",
+        )
+    }
+
+    fun parseSort(raw: String): SortDecision? {
+        val o = extractBalanced(raw, '{', '}')?.let { try { JSONObject(it) } catch (_: Exception) { null } } ?: return null
+        fun text(key: String) = if (o.isNull(key)) null else o.optString(key).trim().ifEmpty { null }
+        val fresh = o.optJSONObject("newCourse")
+        val tags = o.optJSONArray("tags")?.let { a ->
+            (0 until a.length()).mapNotNull { a.optString(it).trim().lowercase().ifEmpty { null } }
+        }.orEmpty().distinct().take(MAX_SORT_TAGS)
+        return SortDecision(
+            course = text("course"),
+            newCourse = fresh?.optString("name")?.trim()?.ifEmpty { null },
+            newCourseEmoji = fresh?.optString("emoji")?.trim()?.ifEmpty { null },
+            tags = tags,
+            title = text("title"),
+        )
+    }
 
     fun askLibrary(question: String, hits: List<PageHit>): AiRequest {
         val texts = fairTruncate(hits.map { it.text }, CONTEXT_BUDGET)
@@ -80,8 +138,11 @@ object Prompts {
         return cards
     }
 
-    private fun extractArray(raw: String): JSONArray? {
-        val start = raw.indexOf('[')
+    private fun extractArray(raw: String): JSONArray? =
+        extractBalanced(raw, '[', ']')?.let { try { JSONArray(it) } catch (_: Exception) { null } }
+
+    private fun extractBalanced(raw: String, open: Char, close: Char): String? {
+        val start = raw.indexOf(open)
         if (start < 0) return null
         var depth = 0
         var inString = false
@@ -98,8 +159,8 @@ object Prompts {
             }
             when (c) {
                 '"' -> inString = true
-                '[' -> depth++
-                ']' -> if (--depth == 0) return try { JSONArray(raw.substring(start, i + 1)) } catch (_: Exception) { null }
+                open -> depth++
+                close -> if (--depth == 0) return raw.substring(start, i + 1)
             }
         }
         return null
