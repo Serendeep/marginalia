@@ -84,6 +84,28 @@ object Prompts {
         )
     }
 
+    fun digest(input: DigestInput): AiRequest {
+        val facts = buildList {
+            add("Study time: ${input.studyMinutes} min")
+            if (input.byDocument.isNotEmpty()) add("By document: " + input.byDocument.joinToString("; ") { "${it.first} ${it.second} min" })
+            if (input.opened.isNotEmpty()) add("Opened: " + input.opened.joinToString("; ") { "${it.title} (left at page ${it.lastPage})" })
+            if (input.highlightCount > 0) {
+                add("Highlights (${input.highlightCount}):")
+                input.highlights.forEach { add("- $it") }
+            }
+            add("Cards created: ${input.cardsCreated}")
+            add("Reviews done: ${input.reviews}" + (input.retentionPct?.let { " (retention $it%)" } ?: ""))
+            add("Cards due today: ${input.dueToday}")
+        }
+        return AiRequest(
+            instructions = "You write a short recap of a student's previous study day. Write 3 to 5 warm, factual sentences of plain " +
+                "prose: no Markdown, no lists, no headings. Use only the facts given and never invent numbers, titles or topics. " +
+                "End with what is due today. Do not ask questions and do not suggest quizzes or anything else to do.",
+            text = "Yesterday's facts:\n" + facts.joinToString("\n"),
+            task = AiTask.DIGEST,
+        )
+    }
+
     fun parseSort(raw: String): SortDecision? {
         val o = extractBalanced(raw, '{', '}')?.let { try { JSONObject(it) } catch (_: Exception) { null } } ?: return null
         fun text(key: String) = if (o.isNull(key)) null else o.optString(key).trim().ifEmpty { null }

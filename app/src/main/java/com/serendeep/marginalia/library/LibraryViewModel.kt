@@ -174,6 +174,10 @@ class LibraryViewModel @Inject constructor(
         viewModelScope.launch { repository.renameLecture(lectureId, title) }
     }
 
+    fun reorderLectures(ids: List<String>) {
+        viewModelScope.launch { repository.reorderLectures(ids) }
+    }
+
     fun moveLecture(lectureId: String, courseId: String) {
         viewModelScope.launch { repository.moveLecture(lectureId, courseId) }
     }

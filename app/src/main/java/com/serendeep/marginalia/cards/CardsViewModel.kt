@@ -25,7 +25,7 @@ class CardsViewModel @Inject constructor(
     val lectures: StateFlow<List<LectureEntity>> = repository.observeAllLectures()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    fun saveHighlightCard(row: HighlightRow, front: String, back: String) {
+    fun saveHighlightCard(row: HighlightRow, front: String, back: String, backInk: ByteArray?) {
         val h = row.highlight
         viewModelScope.launch(Dispatchers.IO) {
             repository.createCard(
@@ -35,18 +35,20 @@ class CardsViewModel @Inject constructor(
                 page = h.page,
                 frontText = front,
                 backText = back,
+                backInk = backInk,
                 highlightId = h.id,
             )
         }
     }
 
-    fun saveTyped(front: String, back: String, lectureId: String?) {
+    fun saveTyped(front: String, back: String, lectureId: String?, backInk: ByteArray?) {
         viewModelScope.launch(Dispatchers.IO) {
             repository.createCard(
                 source = CardSource.TYPED,
                 lectureId = lectureId,
                 frontText = front,
                 backText = back,
+                backInk = backInk,
             )
         }
     }

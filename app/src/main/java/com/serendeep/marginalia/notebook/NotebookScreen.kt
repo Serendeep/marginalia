@@ -215,7 +215,7 @@ fun NotebookScreen(
             frontImagePath = draft.imagePath,
             onDismiss = viewModel::cancelLassoCard,
             initialBack = draft.back,
-            onSave = { _, back, _ -> viewModel.saveLassoCard(back) },
+            onSave = { _, back, _, ink -> viewModel.saveLassoCard(back, ink) },
             onAskAi = if (aiReady) {
                 {
                     viewModel.askAboutLasso {

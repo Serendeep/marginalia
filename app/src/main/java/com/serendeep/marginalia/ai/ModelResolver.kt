@@ -34,7 +34,7 @@ class ModelResolver @Inject constructor(
         fun fastModel(models: List<ChatModel>): ChatModel? =
             models.firstOrNull { FAST_DESCRIPTION.containsMatchIn(it.description) } ?: models.firstOrNull { FAST_SLUG.containsMatchIn(it.slug) }
 
-        private val AiTask.fast: Boolean get() = this == AiTask.AUTO_SORT
+        private val AiTask.fast: Boolean get() = this == AiTask.AUTO_SORT || this == AiTask.DIGEST
 
         fun resolve(task: AiTask, override: TaskModel, global: String?, models: List<ChatModel>): ResolvedModel {
             val model = override.model

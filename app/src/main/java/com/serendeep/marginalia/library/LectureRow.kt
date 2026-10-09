@@ -97,7 +97,7 @@ fun LectureRow(
         }
         // Chips share the row with the title; whichever no longer fit drop out whole, course/status first to stay.
         FlowRow(
-            modifier = Modifier.weight(1f, fill = false),
+            modifier = Modifier.weight(1f),
             horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
             maxLines = 1,
         ) {
@@ -108,23 +108,31 @@ fun LectureRow(
             row.tags.take(MAX_ROW_TAGS).forEach { Chip(it.name) }
             if (row.tags.size > MAX_ROW_TAGS) Chip("+${row.tags.size - MAX_ROW_TAGS}")
         }
+        // Progress, pages and the menu keep fixed slots so they line up down the list whatever the chips need.
         val pages = row.document?.pageCount ?: 0
-        if (showProgress && pages > 0 && row.status != ReadingStatus.TO_READ) {
-            val page = (row.lecture.lastPage + 1).coerceIn(1, pages)
-            ProgressBar(page.toFloat() / pages)
-            Text(
-                "$page/$pages",
-                fontFamily = MonoFamily,
-                fontSize = 11.5.sp,
-                color = DimInkDark,
-                textAlign = TextAlign.End,
-                maxLines = 1,
-                modifier = Modifier.width(64.dp),
-            )
+        if (showProgress) {
+            Row(Modifier.width(ProgressSlot), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                if (pages > 0 && row.status != ReadingStatus.TO_READ) {
+                    val page = (row.lecture.lastPage + 1).coerceIn(1, pages)
+                    ProgressBar(page.toFloat() / pages)
+                    Text(
+                        "$page/$pages",
+                        fontFamily = MonoFamily,
+                        fontSize = 11.5.sp,
+                        color = DimInkDark,
+                        textAlign = TextAlign.End,
+                        maxLines = 1,
+                        modifier = Modifier.width(64.dp),
+                    )
+                }
+            }
         }
-        menu?.invoke()
+        Box(Modifier.width(MenuSlot), contentAlignment = Alignment.Center) { menu?.invoke() }
     }
 }
+
+private val ProgressSlot = 90.dp + 14.dp + 64.dp
+private val MenuSlot = 48.dp
 
 enum class ChipKind { Course, Status }
 
@@ -189,10 +197,10 @@ private fun RowThumb(row: RowModel, imageLoader: ImageLoader) {
 }
 
 /** "2h ago" style label; cheap enough to compute while composing. */
-fun relativeTime(at: Long): String =
-    DateUtils.getRelativeTimeSpanString(
+fun relativeTime(at: Long, now: Long = System.currentTimeMillis()): String =
+    if (now - at < DateUtils.MINUTE_IN_MILLIS) "JUST NOW" else DateUtils.getRelativeTimeSpanString(
         at,
-        System.currentTimeMillis(),
+        now,
         DateUtils.MINUTE_IN_MILLIS,
         DateUtils.FORMAT_ABBREV_RELATIVE,
     ).toString().uppercase(Locale.ROOT)

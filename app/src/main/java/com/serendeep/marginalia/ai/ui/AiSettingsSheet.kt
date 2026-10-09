@@ -66,7 +66,7 @@ import com.serendeep.marginalia.ui.theme.MonoFamily
 import com.serendeep.marginalia.ui.theme.Violet
 
 const val CUSTOM_URL_PLACEHOLDER = "https://cursedpc.tailbd2879.ts.net/v1"
-const val PRIVACY_NOTE = "Nothing is sent unless you tap an AI action. Requests don't store your data (store:false)."
+const val PRIVACY_NOTE = "Nothing is sent unless you tap an AI action or turn on the morning digest. Requests don't store your data (store:false)."
 
 @Composable
 fun AiSettingsSheet(onDismiss: () -> Unit, viewModel: AiSettingsViewModel = hiltViewModel()) {
@@ -75,6 +75,7 @@ fun AiSettingsSheet(onDismiss: () -> Unit, viewModel: AiSettingsViewModel = hilt
     val models by viewModel.models.collectAsStateWithLifecycle()
     val notice by viewModel.notice.collectAsStateWithLifecycle()
     val autoSort by viewModel.autoSort.collectAsStateWithLifecycle()
+    val digest by viewModel.digest.collectAsStateWithLifecycle()
     val taskModels by viewModel.taskModels.collectAsStateWithLifecycle()
     val selectedForDefault by viewModel.selected.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -111,6 +112,8 @@ fun AiSettingsSheet(onDismiss: () -> Unit, viewModel: AiSettingsViewModel = hilt
             onCustomEdited = viewModel::saveCustom,
             autoSort = autoSort,
             onAutoSort = viewModel::setAutoSort,
+            digest = digest,
+            onDigest = viewModel::setDigest,
             taskModels = taskModels,
             defaultModelFor = { task -> viewModel.defaultFor(task, (models as? ModelsState.Loaded)?.models.orEmpty()) ?: selectedForDefault },
             onTaskModel = viewModel::setTaskModel,
@@ -137,6 +140,8 @@ fun AiSettingsContent(
     taskModels: Map<AiTask, TaskModel> = emptyMap(),
     defaultModelFor: (AiTask) -> String? = { null },
     onTaskModel: (AiTask, TaskModel) -> Unit = { _, _ -> },
+    digest: Boolean = false,
+    onDigest: (Boolean) -> Unit = {},
 ) {
     val showModel = if (config.provider == ProviderChoice.CHATGPT) {
         status is ChatGptStatus.Connected
@@ -173,6 +178,18 @@ fun AiSettingsContent(
                     )
                 }
                 Switch(checked = autoSort, onCheckedChange = onAutoSort)
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Morning digest", fontFamily = BodyFamily, fontSize = 14.sp)
+                    Text(
+                        "A short summary of yesterday, waiting on Today each morning.",
+                        fontFamily = BodyFamily,
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Switch(checked = digest, onCheckedChange = onDigest)
             }
             Text(
                 PRIVACY_NOTE,
@@ -351,6 +368,7 @@ private val TASK_LABELS = listOf(
     AiTask.SUMMARIZE to "Summarize",
     AiTask.CARDS to "Flashcards",
     AiTask.AUTO_SORT to "Auto-sort & rename",
+    AiTask.DIGEST to "Morning digest",
 )
 
 @Composable

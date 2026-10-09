@@ -11,9 +11,11 @@ import com.serendeep.marginalia.ai.ChatGptAuth
 import com.serendeep.marginalia.ai.Prompts
 import com.serendeep.marginalia.ai.agent.AgentContext
 import com.serendeep.marginalia.ai.agent.ChatEntry
+import com.serendeep.marginalia.ai.agent.ChatInfo
 import com.serendeep.marginalia.ai.agent.ChatSession
 import com.serendeep.marginalia.ai.agent.ChatTurn
 import com.serendeep.marginalia.ai.agent.ContextBuilder
+import com.serendeep.marginalia.ai.agent.LIBRARY_SCOPE
 import com.serendeep.marginalia.data.CardSource
 import com.serendeep.marginalia.data.MarginaliaRepository
 import com.serendeep.marginalia.pdf.PdfDocumentSource
@@ -23,6 +25,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
@@ -120,13 +123,14 @@ class ChatViewModel @Inject constructor(
     val savedCount: StateFlow<Int> = _savedCount.asStateFlow()
 
     private var target: DraftTarget? = null
-    private var loadedKey: Pair<Int, Int>? = null
+    private var loadedKey: Triple<String?, Int, Int>? = null
+    private var chatScope = LIBRARY_SCOPE
 
     init {
         viewModelScope.launch {
             session.turns.collect { turns ->
                 val latest = turns.lastOrNull()
-                val key = latest?.let { it.id to it.drafts.size }
+                val key = latest?.let { Triple(session.currentChatId.value, it.id, it.drafts.size) }
                 if (key == loadedKey) return@collect
                 loadedKey = key
                 _savedCount.value = 0
@@ -141,7 +145,7 @@ class ChatViewModel @Inject constructor(
         target = notebook?.let { DraftTarget(it.lectureId, it.documentId, it.page) }
         viewModelScope.launch {
             val context = withContext(Dispatchers.IO) { runCatching { buildContext(notebook) }.getOrNull() }
-            session.send(text, context, task)
+            session.send(text, context, task, notebook?.lectureId ?: LIBRARY_SCOPE)
         }
     }
 
@@ -164,8 +168,28 @@ class ChatViewModel @Inject constructor(
 
     fun newChat() {
         target = null
-        session.newChat()
+        session.newChat(chatScope)
     }
+
+    /** Shows the most recent chat of [scope] ([LIBRARY_SCOPE] or a lecture id). */
+    fun enter(scope: String) {
+        chatScope = scope
+        viewModelScope.launch { session.enter(scope) }
+    }
+
+    /** Saved chats, newest first; every scope when [scope] is null. */
+    fun chats(scope: String?): Flow<List<ChatInfo>> = session.chats(scope)
+
+    val currentChatId: StateFlow<String?> = session.currentChatId
+
+    fun openChat(id: String) {
+        target = null
+        session.open(id)
+    }
+
+    fun renameChat(id: String, title: String) = session.rename(id, title)
+
+    fun deleteChat(id: String) = session.delete(id)
 
     fun resolve(title: String): String? = resolveLecture(title, lectures.value.associate { it.title to it.id })
 

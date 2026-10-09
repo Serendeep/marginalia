@@ -4,6 +4,8 @@ import android.content.Context
 import com.serendeep.marginalia.ai.AiSettings
 import com.serendeep.marginalia.ai.TokenStore
 import com.serendeep.marginalia.ai.agent.AgentData
+import com.serendeep.marginalia.ai.agent.ChatStore
+import com.serendeep.marginalia.ai.agent.RoomChatStore
 import com.serendeep.marginalia.ai.agent.RepositoryAgentData
 import dagger.Module
 import dagger.Provides
@@ -36,6 +38,9 @@ object AiModule {
 
     @Provides
     fun provideAgentData(impl: RepositoryAgentData): AgentData = impl
+
+    @Provides
+    fun provideChatStore(impl: RoomChatStore): ChatStore = impl
 
     @Provides
     @Singleton

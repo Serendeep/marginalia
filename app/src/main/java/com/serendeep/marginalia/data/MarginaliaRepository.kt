@@ -105,6 +105,18 @@ class MarginaliaRepository @Inject constructor(
 
     fun observeSessions(): Flow<List<StudySessionEntity>> = sessionDao.observeAll()
 
+    suspend fun sessionsBetween(from: Long, to: Long) = sessionDao.between(from, to)
+
+    suspend fun openedBetween(from: Long, to: Long) = lectureDao.openedBetween(from, to)
+
+    suspend fun highlightsBetween(from: Long, to: Long) = highlightDao.between(from, to)
+
+    suspend fun cardsCreatedBetween(from: Long, to: Long) = cardDao.createdBetween(from, to)
+
+    suspend fun reviewsBetween(from: Long, to: Long) = cardDao.reviewsBetween(from, to)
+
+    suspend fun retentionBetween(from: Long, to: Long) = cardDao.retentionBetween(from, to)
+
     suspend fun saveSession(lectureId: String?, kind: SessionKind, startedAt: Long, endedAt: Long) =
         sessionDao.insert(StudySessionEntity(newId(), lectureId, kind.name, startedAt, endedAt))
 
@@ -142,6 +154,8 @@ class MarginaliaRepository @Inject constructor(
     suspend fun renameLecture(lectureId: String, title: String) =
         lectureDao.rename(lectureId, title)
 
+    suspend fun reorderLectures(ids: List<String>) = lectureDao.reorder(ids)
+
     suspend fun moveLecture(lectureId: String, courseId: String) =
         lectureDao.move(lectureId, courseId)
 
@@ -176,6 +190,7 @@ class MarginaliaRepository @Inject constructor(
         frontText: String? = null,
         frontImagePath: String? = null,
         backText: String? = null,
+        backInk: ByteArray? = null,
         highlightId: String? = null,
         id: String = newId(),
     ): CardEntity {
@@ -187,6 +202,7 @@ class MarginaliaRepository @Inject constructor(
             frontText = frontText,
             frontImagePath = frontImagePath,
             backText = backText,
+            backInk = backInk,
             source = source.name,
             highlightId = highlightId,
             dueAt = now(),
