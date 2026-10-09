@@ -273,6 +273,18 @@ private fun DraftList(drafts: List<DraftCard>, onDraft: (Int, String?, String?, 
     if (drafts.isEmpty()) return
     val count = drafts.count { it.keep && it.front.isNotBlank() && it.back.isNotBlank() }
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        // Above the drafts, so saving never means scrolling past every card.
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                "${drafts.size} CARDS DRAFTED · UNTICK ANY YOU DON'T WANT",
+                fontFamily = MonoFamily,
+                fontSize = 11.sp,
+                letterSpacing = 1.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f),
+            )
+            GlassButton("Save $count cards", enabled = count > 0, onClick = onSave)
+        }
         drafts.forEach { d ->
             Row(
                 Modifier
@@ -304,9 +316,6 @@ private fun DraftList(drafts: List<DraftCard>, onDraft: (Int, String?, String?, 
                     )
                 }
             }
-        }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-            GlassButton("Save $count cards", enabled = count > 0, onClick = onSave)
         }
     }
 }
