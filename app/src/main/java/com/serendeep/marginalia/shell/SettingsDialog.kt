@@ -11,8 +11,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TimePicker
-import androidx.compose.material3.TimePickerLayoutType
+import androidx.compose.material3.TimeInput
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -24,6 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.serendeep.marginalia.BuildConfig
+import com.serendeep.marginalia.backup.BackupSectionContent
 import com.serendeep.marginalia.handwriting.ModelState
 import com.serendeep.marginalia.handwriting.modelStatus
 import com.serendeep.marginalia.ink.PencilAction
@@ -81,7 +81,7 @@ fun SettingsDialog(
                 Switch(checked = enabled, onCheckedChange = { enabled = it })
             }
             if (enabled) {
-                Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { TimePicker(state = time, layoutType = TimePickerLayoutType.Vertical) }
+                Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { TimeInput(state = time) }
             }
         }
         PanelDivider()
@@ -116,6 +116,8 @@ fun SettingsDialog(
                 if (modelState == ModelState.NotDownloaded) GlassTextButton("Download model", onClick = onDownloadModel)
             }
         }
+        PanelDivider()
+        PanelSection("Backup") { BackupSectionContent() }
         if (BuildConfig.UPDATES_ENABLED) {
             PanelDivider()
             PanelSection("Updates") { UpdatesSectionContent() }

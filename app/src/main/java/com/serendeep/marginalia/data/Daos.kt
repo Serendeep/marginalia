@@ -32,7 +32,7 @@ interface LectureDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(lecture: LectureEntity)
 
-    @Query("SELECT * FROM lectures WHERE courseId = :courseId ORDER BY orderIndex, createdAt")
+    @Query("SELECT * FROM lectures WHERE courseId = :courseId ORDER BY orderIndex DESC, createdAt DESC")
     fun observeByCourse(courseId: String): Flow<List<LectureEntity>>
 
     @Query("SELECT * FROM lectures ORDER BY createdAt DESC")
@@ -46,6 +46,15 @@ interface LectureDao {
 
     @Query("UPDATE lectures SET title = :title WHERE id = :id")
     suspend fun rename(id: String, title: String)
+
+    @Query("UPDATE lectures SET orderIndex = :orderIndex WHERE id = :id")
+    suspend fun setOrder(id: String, orderIndex: Long)
+
+    @Transaction
+    suspend fun reorder(ids: List<String>) {
+        // Descending so the list, which shows the highest orderIndex first, keeps the dragged order.
+        ids.forEachIndexed { i, id -> setOrder(id, (ids.size - 1 - i).toLong()) }
+    }
 
     @Query("UPDATE lectures SET courseId = :courseId WHERE id = :id")
     suspend fun move(id: String, courseId: String)

@@ -20,6 +20,12 @@ class UpdateViewModel @Inject constructor(
     val remote: StateFlow<RemoteConfig> = manager.remote.config
     val dismissedMessage: StateFlow<String?> = manager.remote.dismissed
 
+    val whatsNewUntil: StateFlow<Long> = manager.whatsNewUntil
+
+    fun whatsNewUrl(): String = manager.whatsNewUrl()
+
+    fun dismissWhatsNew() = manager.dismissWhatsNew()
+
     val installedVersionCode: Long = manager.installedVersionCode
 
     fun canInstall(): Boolean = context.packageManager.canRequestPackageInstalls()

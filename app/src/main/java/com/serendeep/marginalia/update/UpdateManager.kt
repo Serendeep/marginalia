@@ -5,8 +5,6 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import androidx.core.app.NotificationCompat
-import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
@@ -19,7 +17,6 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import com.serendeep.marginalia.BuildConfig
 import com.serendeep.marginalia.MainActivity
-import com.serendeep.marginalia.R
 import com.serendeep.marginalia.shell.PREFS
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
@@ -29,9 +26,7 @@ import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -45,27 +40,28 @@ import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
 
-const val UPDATE_CHANNEL = "updates"
+const val UPDATE_CHANNEL = "update_download"
+private const val LEGACY_CHANNEL = "updates"
 private const val CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000L
 private const val PERIODIC_HOURS = 12L
 private const val WORK_DOWNLOAD = "update-download"
 private const val WORK_PERIODIC = "update-check"
-private const val NOTIFICATION_CONFIRM = 7011
 
 private const val KEY_CHECK_AUTO = "update_check_auto"
 private const val KEY_WIFI_ONLY = "update_wifi_only"
 private const val KEY_AUTO_DOWNLOAD = "update_auto_download"
-private const val KEY_AUTO_INSTALL = "update_auto_install"
 private const val KEY_LAST_CHECK = "update_last_check"
 private const val KEY_ETAG = "update_feed_etag"
 private const val KEY_LATEST = "update_latest_json"
-private const val KEY_FAILED_CODE = "update_failed_code"
+private const val KEY_LAST_SEEN = "update_last_seen_code"
+private const val KEY_WHATS_NEW_UNTIL = "update_whats_new_until"
+private const val WHATS_NEW_MS = 24 * 60 * 60 * 1000L
+private const val RELEASES_URL = "https://github.com/Serendeep/marginalia/releases/tag/v"
 
 data class UpdateSettings(
     val checkAutomatically: Boolean = true,
     val wifiOnly: Boolean = true,
     val downloadAutomatically: Boolean = true,
-    val installWhenIdle: Boolean = true,
 )
 
 enum class UpdatePhase { UP_TO_DATE, CHECKING, AVAILABLE, DOWNLOADING, READY, INSTALLING, FAILED }
@@ -76,7 +72,15 @@ data class UpdateStatus(
     val progress: Int = 0,
     val checkedAt: Long = 0,
     val error: String? = null,
+    val fullFallback: Boolean = false,
 )
+
+/** Whether this launch is the first of a version newer than the one last seen; a fresh install has nothing to announce. */
+internal fun justUpdated(lastSeen: Long, installed: Long): Boolean = lastSeen in 1 until installed
+
+/** Release notes for [versionName]: the feed's link when the feed describes that version, else its GitHub release page. */
+internal fun whatsNewUrl(feed: UpdateInfo?, installed: Long, versionName: String): String =
+    feed?.takeIf { it.versionCode == installed }?.notesUrl ?: (RELEASES_URL + versionName)
 
 /** The download was fetched but must not be installed; retrying will not help. */
 class UpdateRejected(message: String) : Exception(message)
@@ -89,8 +93,8 @@ class UpdateManager @Inject constructor(
     private val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val checkLock = Mutex()
-    private var autoInstallJob: Job? = null
     @Volatile private var inForeground = false
+    @Volatile private var patchFailedFor = 0L
 
     val installedVersionCode: Long by lazy { context.packageManager.getPackageInfo(context.packageName, 0).longVersionCode }
     val installedVersionName: String by lazy { BuildConfig.VERSION_NAME }
@@ -100,10 +104,22 @@ class UpdateManager @Inject constructor(
             prefs.getBoolean(KEY_CHECK_AUTO, true),
             prefs.getBoolean(KEY_WIFI_ONLY, true),
             prefs.getBoolean(KEY_AUTO_DOWNLOAD, true),
-            prefs.getBoolean(KEY_AUTO_INSTALL, true),
         ),
     )
     val settings: StateFlow<UpdateSettings> = _settings.asStateFlow()
+
+    private val _whatsNewUntil = MutableStateFlow(0L)
+
+    /** Until when the sidebar offers the notes of the version that was just installed; 0 when it does not. */
+    val whatsNewUntil: StateFlow<Long> = _whatsNewUntil.asStateFlow()
+
+    init {
+        val lastSeen = prefs.getLong(KEY_LAST_SEEN, 0)
+        val now = System.currentTimeMillis()
+        if (justUpdated(lastSeen, installedVersionCode)) prefs.edit().putLong(KEY_WHATS_NEW_UNTIL, now + WHATS_NEW_MS).apply()
+        if (lastSeen != installedVersionCode) prefs.edit().putLong(KEY_LAST_SEEN, installedVersionCode).apply()
+        _whatsNewUntil.value = prefs.getLong(KEY_WHATS_NEW_UNTIL, 0).takeIf { it > now } ?: 0
+    }
 
     private val _status = MutableStateFlow(UpdateStatus(checkedAt = prefs.getLong(KEY_LAST_CHECK, 0)))
     val status: StateFlow<UpdateStatus> = _status.asStateFlow()
@@ -119,7 +135,6 @@ class UpdateManager @Inject constructor(
 
             override fun onStop(owner: LifecycleOwner) {
                 inForeground = false
-                maybeAutoInstall()
             }
         })
         scope.launch {
@@ -135,10 +150,8 @@ class UpdateManager @Inject constructor(
             .putBoolean(KEY_CHECK_AUTO, next.checkAutomatically)
             .putBoolean(KEY_WIFI_ONLY, next.wifiOnly)
             .putBoolean(KEY_AUTO_DOWNLOAD, next.downloadAutomatically)
-            .putBoolean(KEY_AUTO_INSTALL, next.installWhenIdle)
             .apply()
         scope.launch { schedulePeriodic() }
-        maybeAutoInstall()
     }
 
     private fun schedulePeriodic() {
@@ -169,12 +182,11 @@ class UpdateManager @Inject constructor(
         scope.launch { checkAndDownload() }
     }
 
-    /** Checks the feed, then fetches and installs per the settings. Called by the app start check and the periodic worker. */
+    /** Checks the feed, then fetches per the settings. Called by the app start check and the periodic worker. */
     suspend fun checkAndDownload() {
         check()
         val st = _status.value
         if (st.phase == UpdatePhase.AVAILABLE && _settings.value.downloadAutomatically) enqueueDownload(userInitiated = false)
-        if (st.phase == UpdatePhase.READY) maybeAutoInstall()
     }
 
     /** Fetches the feed and remote config and records what they say. */
@@ -240,23 +252,31 @@ class UpdateManager @Inject constructor(
         )
     }
 
-    /** Fetches [info] into place; the file only gets its final name once every check passed. */
+    /** Fetches [info] into place, as a small patch when the feed has one for this install; the file only gets its final name once every check passed. */
     fun download(info: UpdateInfo, cancelled: () -> Boolean, onPercent: (Int) -> Unit) {
         val final = apkFile(info)
         if (final.exists()) return
         val part = File(final.path + ".part")
         val etag = File(final.path + ".part.etag")
         var last = -1
+        val progress = { done: Long, total: Long ->
+            val pct = if (total > 0) (done * 100 / total).toInt() else 0
+            if (pct != last) {
+                last = pct
+                _status.update { it.copy(progress = pct) }
+                onPercent(pct)
+            }
+        }
         try {
-            _status.update { it.copy(phase = UpdatePhase.DOWNLOADING, info = info, progress = 0, error = null) }
-            val sha = UpdateHttp.download(info.apkUrl, part, etag, { done, total ->
-                val pct = if (total > 0) (done * 100 / total).toInt() else 0
-                if (pct != last) {
-                    last = pct
-                    _status.update { it.copy(progress = pct) }
-                    onPercent(pct)
-                }
-            }, cancelled)
+            _status.update { it.copy(phase = UpdatePhase.DOWNLOADING, info = info, progress = 0, error = null, fullFallback = false) }
+            val patch = info.patchFor(installedVersionCode)?.takeIf { !part.exists() && patchFailedFor != info.versionCode }
+            if (patch != null) {
+                if (applyPatch(info, patch, part, final, progress, cancelled)) return
+                patchFailedFor = info.versionCode
+                last = -1
+                _status.update { it.copy(progress = 0, fullFallback = true) }
+            }
+            val sha = UpdateHttp.download(info.apkUrl, part, etag, progress, cancelled)
             val problem = if (!sha.equals(info.sha256, ignoreCase = true)) {
                 "The download is corrupt (checksum mismatch)"
             } else {
@@ -272,6 +292,43 @@ class UpdateManager @Inject constructor(
         } finally {
             refresh(error = null)
         }
+    }
+
+    /** Downloads [patch], rebuilds the APK into [part] and stores it as [final]; false means nothing usable was left and the full APK should be fetched. */
+    private fun applyPatch(
+        info: UpdateInfo,
+        patch: UpdatePatch,
+        part: File,
+        final: File,
+        progress: (Long, Long) -> Unit,
+        cancelled: () -> Boolean,
+    ): Boolean {
+        val file = File(final.path + ".patch")
+        val etag = File(final.path + ".patch.etag")
+        try {
+            val sha = UpdateHttp.download(patch.url, file, etag, progress, cancelled)
+            if (!sha.equals(patch.sha256, ignoreCase = true)) throw IOException("The patch is corrupt (checksum mismatch)")
+            UpdatePatcher.apply(File(context.applicationInfo.sourceDir), file, part, info.sha256)
+            if (UpdateVerifier.verify(context, part, info.sha256) != null) throw IOException("The patched update failed verification")
+            if (!part.renameTo(final)) throw IOException("Could not store the update")
+            return true
+        } catch (e: Throwable) {
+            // A stopped download is not a bad patch; anything else (including a missing native library) falls back to the full APK.
+            if (cancelled()) throw e
+            part.delete()
+            return false
+        } finally {
+            file.delete()
+            etag.delete()
+        }
+    }
+
+    fun whatsNewUrl(): String =
+        whatsNewUrl(prefs.getString(KEY_LATEST, null)?.let(UpdateInfo::parse), installedVersionCode, installedVersionName)
+
+    fun dismissWhatsNew() {
+        prefs.edit().remove(KEY_WHATS_NEW_UNTIL).apply()
+        _whatsNewUntil.value = 0
     }
 
     fun fail(message: String) = refresh(error = message)
@@ -305,52 +362,13 @@ class UpdateManager @Inject constructor(
         }
     }
 
-    /** Installs when the app is in the background and the pen has been still, if the setting allows. */
-    fun maybeAutoInstall() {
-        if (!BuildConfig.UPDATES_ENABLED || !_settings.value.installWhenIdle) return
-        val st = _status.value
-        if (st.phase != UpdatePhase.READY || inForeground) return
-        if (st.info?.versionCode == prefs.getLong(KEY_FAILED_CODE, 0)) return
-        if (!context.packageManager.canRequestPackageInstalls()) return
-        autoInstallJob?.cancel()
-        val wait = PenActivity.msUntilIdle()
-        autoInstallJob = scope.launch {
-            if (wait > 0) delay(wait)
-            if (!inForeground && _status.value.phase == UpdatePhase.READY && PenActivity.msUntilIdle() == 0L) install()
-        }
-    }
-
     fun onInstallFailed(message: String, aborted: Boolean) {
-        latest()?.let { prefs.edit().putLong(KEY_FAILED_CODE, it.versionCode).apply() }
         refresh(error = if (aborted) null else message)
     }
 
-    /** The system wants the user to confirm: show its screen now, or leave a notification when we are in the background. */
+    /** The system wants the user to confirm: show its screen if the tap that started this is still on screen, otherwise stay ready. */
     fun confirmInstall(confirm: Intent) {
-        if (inForeground) {
-            context.startActivity(confirm.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-            return
-        }
-        ensureUpdateChannel(context)
-        val tap = PendingIntent.getActivity(
-            context,
-            NOTIFICATION_CONFIRM,
-            confirm.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-        )
-        val notification = NotificationCompat.Builder(context, UPDATE_CHANNEL)
-            .setSmallIcon(R.drawable.ic_stat_marginalia)
-            .setColor(0xFF8B7CF6.toInt())
-            .setContentTitle("Marginalia update ready")
-            .setContentText("Tap to finish updating")
-            .setContentIntent(tap)
-            .setAutoCancel(true)
-            .build()
-        try {
-            NotificationManagerCompat.from(context).notify(NOTIFICATION_CONFIRM, notification)
-        } catch (_: SecurityException) {
-            // Notifications are off; the Updates row in the app still offers the install.
-        }
+        if (inForeground) context.startActivity(confirm.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) else refresh()
     }
 
     companion object {
@@ -361,8 +379,13 @@ class UpdateManager @Inject constructor(
 fun ensureUpdateChannel(context: Context) {
     val manager = context.getSystemService(NotificationManager::class.java)
     if (manager.getNotificationChannel(UPDATE_CHANNEL) == null) {
+        manager.deleteNotificationChannel(LEGACY_CHANNEL)
         manager.createNotificationChannel(
-            NotificationChannel(UPDATE_CHANNEL, "App updates", NotificationManager.IMPORTANCE_LOW),
+            NotificationChannel(UPDATE_CHANNEL, "Update downloads", NotificationManager.IMPORTANCE_LOW).apply {
+                setSound(null, null)
+                enableVibration(false)
+                setShowBadge(false)
+            },
         )
     }
 }

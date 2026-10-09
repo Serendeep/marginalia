@@ -38,6 +38,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -62,6 +63,8 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalHapticFeedback
+import sh.calvin.reorderable.ReorderableItem
+import sh.calvin.reorderable.rememberReorderableLazyListState
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.graphics.shapes.CornerRounding
@@ -94,7 +97,22 @@ fun LibraryScreen(
 ) {
     val shelf by viewModel.shelf.collectAsStateWithLifecycle()
     val data = shelf
-    val sections = remember(data, filter) { data?.sections(filter).orEmpty() }
+    // Mid-drag order per course, until the saved order arrives with the next shelf.
+    var dragOrder by remember { mutableStateOf<Map<String, List<String>>>(emptyMap()) }
+    LaunchedEffect(data) { dragOrder = emptyMap() }
+    val reorderable = filter is LibraryFilter.All || filter is LibraryFilter.Course
+    val sections = remember(data, filter, dragOrder) {
+        data?.sections(filter).orEmpty().map { it.reordered(dragOrder) }
+    }
+    val listState = rememberLazyListState()
+    val haptics = LocalHapticFeedback.current
+    val reorderState = rememberReorderableLazyListState(listState) { from, to ->
+        val section = sections.firstOrNull { s -> s.items.any { it.lecture.id == from.key } }
+        val ids = section?.items?.map { it.lecture.id }
+        if (section != null && ids != null && to.key in ids) {
+            dragOrder = dragOrder + (section.items.first().lecture.courseId to ids.moved(from.key as String, to.key as String))
+        }
+    }
     val moveTargets = remember(data) {
         data?.courses.orEmpty().filter { it.name != LibraryViewModel.UNSORTED_NAME }
     }
@@ -182,6 +200,7 @@ fun LibraryScreen(
             EmptyShelf(onImport = { launchImport("quick") })
         } else if (data != null) {
             LazyColumn(
+                state = listState,
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(start = 22.dp, end = 22.dp, bottom = 120.dp),
             ) {
@@ -207,8 +226,21 @@ fun LibraryScreen(
                         )
                     }
                     items(section.items, key = { it.lecture.id }, contentType = { "row" }) { item ->
+                        ReorderableItem(reorderState, key = item.lecture.id, enabled = reorderable) { dragging ->
                         LectureRow(
                             row = item,
+                            modifier = if (!reorderable) {
+                                Modifier
+                            } else {
+                                Modifier
+                                    .background(if (dragging) MaterialTheme.colorScheme.surfaceVariant else Color.Transparent)
+                                    .longPressDraggableHandle(
+                                        onDragStarted = { haptics.performHapticFeedback(HapticFeedbackType.GestureThresholdActivate) },
+                                        onDragStopped = {
+                                            dragOrder[item.lecture.courseId]?.let(viewModel::reorderLectures)
+                                        },
+                                    )
+                            },
                             imageLoader = viewModel.imageLoader,
                             meta = remember(item.lecture.id, item.document?.pageCount, item.touchedAt, item.lecture.arxivId, item.lecture.doi) {
                                 listOfNotNull(
@@ -230,6 +262,7 @@ fun LibraryScreen(
                                 }
                             },
                         )
+                        }
                     }
                 }
             }
@@ -262,7 +295,6 @@ fun LibraryScreen(
 
         // Import success stays quiet: one confirming tick, nothing on screen.
         val celebration by viewModel.celebration.collectAsStateWithLifecycle()
-        val haptics = LocalHapticFeedback.current
         if (celebration > 0) {
             LaunchedEffect(celebration) {
                 haptics.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -330,6 +362,8 @@ fun LibraryScreen(
     renaming?.let { target ->
         NamePromptDialog(
             title = "Rename notebook",
+            initial = target.lecture.title,
+            confirmLabel = "Rename",
             onDismiss = { renaming = null },
             onConfirm = { name ->
                 viewModel.renameLecture(target.lecture.id, name)
@@ -437,15 +471,17 @@ private fun NamePromptDialog(
     title: String,
     onDismiss: () -> Unit,
     onConfirm: (String) -> Unit,
+    initial: String = "",
+    confirmLabel: String = "Create",
 ) {
-    var text by remember { mutableStateOf("") }
+    var text by remember { mutableStateOf(initial) }
     CenterPanel(
         onDismiss = onDismiss,
         title = title,
         eyebrow = "Library",
         footer = {
             GlassTextButton("Cancel", onDismiss)
-            GlassButton("Create", { onConfirm(text) }, enabled = text.isNotBlank())
+            GlassButton(confirmLabel, { onConfirm(text.trim()) }, enabled = text.isNotBlank() && text.trim() != initial)
         },
     ) {
         OutlinedTextField(
