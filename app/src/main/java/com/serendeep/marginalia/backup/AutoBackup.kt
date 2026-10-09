@@ -5,8 +5,8 @@ import android.net.Uri
 import androidx.documentfile.provider.DocumentFile
 import androidx.work.Constraints
 import androidx.work.CoroutineWorker
-import androidx.work.ExistingPeriodicWorkPolicy
-import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.ExistingWorkPolicy
+import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.serendeep.marginalia.shell.PREFS
@@ -21,6 +21,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
+import java.time.Duration
 import java.time.Instant
 import java.time.ZoneId
 import java.util.concurrent.TimeUnit
@@ -108,8 +109,15 @@ class AutoBackup @Inject constructor(
         schedule(next)
     }
 
+    /** Status writes from a run; they must not touch the schedule, or the running worker would be replaced. */
+    private fun record(transform: (AutoBackupConfig) -> AutoBackupConfig) {
+        val next = transform(_config.value)
+        save(next)
+        _config.value = next
+    }
+
     /** Called at launch so the default schedule exists without the user opening Settings. */
-    fun ensureScheduled() = schedule(_config.value)
+    fun ensureScheduled() = schedule(_config.value, ExistingWorkPolicy.KEEP)
 
     /** Writes one backup to the chosen destination and trims old ones. Never throws. */
     suspend fun run() {
@@ -124,11 +132,11 @@ class AutoBackup @Inject constructor(
                     }
                     BackupDestination.FOLDER -> writeToFolder(cfg)
                 }
-                update { it.copy(lastRunAt = System.currentTimeMillis(), lastError = null, kept = kept) }
+                record { it.copy(lastRunAt = System.currentTimeMillis(), lastError = null, kept = kept) }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                update { it.copy(lastRunAt = System.currentTimeMillis(), lastError = e.message ?: "Backup failed") }
+                record { it.copy(lastRunAt = System.currentTimeMillis(), lastError = e.message ?: "Backup failed") }
             }
         }
     }
@@ -148,7 +156,9 @@ class AutoBackup @Inject constructor(
         return store.trimFolder(tree, cfg.keep)
     }
 
-    private fun schedule(cfg: AutoBackupConfig) {
+    // One-shot jobs aimed at the next occurrence of the chosen time, each run queueing the next, so a
+    // changed time applies at once and the run stays on the wall clock across DST changes.
+    private fun schedule(cfg: AutoBackupConfig, policy: ExistingWorkPolicy = ExistingWorkPolicy.REPLACE) {
         val work = WorkManager.getInstance(context)
         if (!cfg.active) {
             work.cancelUniqueWork(WORK_NAME)
@@ -158,14 +168,23 @@ class AutoBackup @Inject constructor(
             .setRequiresCharging(cfg.onlyCharging)
             .setRequiresStorageNotLow(true)
             .build()
-        val days = if (cfg.schedule == BackupSchedule.WEEKLY) 7L else 1L
-        val delay = nextRunDelay(Instant.now(), cfg.minuteOfDay, ZoneId.systemDefault())
-        val request = PeriodicWorkRequestBuilder<AutoBackupWorker>(days, TimeUnit.DAYS)
+        val now = Instant.now()
+        // Weekly runs wait until most of a week has passed since the last one.
+        val from = if (cfg.schedule == BackupSchedule.WEEKLY && cfg.lastRunAt > 0) {
+            maxOf(now, Instant.ofEpochMilli(cfg.lastRunAt).plus(Duration.ofDays(6)))
+        } else {
+            now
+        }
+        val delay = Duration.between(now, from) + nextRunDelay(from, cfg.minuteOfDay, ZoneId.systemDefault())
+        val request = OneTimeWorkRequestBuilder<AutoBackupWorker>()
             .setInitialDelay(delay.toMillis(), TimeUnit.MILLISECONDS)
             .setConstraints(constraints)
             .build()
-        work.enqueueUniquePeriodicWork(WORK_NAME, ExistingPeriodicWorkPolicy.UPDATE, request)
+        work.enqueueUniqueWork(WORK_NAME, policy, request)
     }
+
+    /** Queues the run after this one; appended so it waits for the current worker to finish. */
+    fun scheduleNext() = schedule(_config.value, ExistingWorkPolicy.APPEND_OR_REPLACE)
 
     private fun save(c: AutoBackupConfig) {
         prefs.edit()
@@ -186,7 +205,9 @@ class AutoBackup @Inject constructor(
 
 class AutoBackupWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result {
-        EntryPointAccessors.fromApplication(applicationContext, AutoBackupEntryPoint::class.java).autoBackup().run()
+        val auto = EntryPointAccessors.fromApplication(applicationContext, AutoBackupEntryPoint::class.java).autoBackup()
+        auto.run()
+        auto.scheduleNext()
         return Result.success()
     }
 }
