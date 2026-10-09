@@ -73,8 +73,24 @@ fun MarginaliaRepository.observeShelf(): Flow<ShelfData> = combine(
     )
 }.flowOn(Dispatchers.IO)
 
+/** Ids with [from] moved to the slot [to] occupies; unchanged when either is missing. */
+fun List<String>.moved(from: String, to: String): List<String> {
+    val a = indexOf(from)
+    val b = indexOf(to)
+    if (a < 0 || b < 0) return this
+    return toMutableList().apply { add(b, removeAt(a)) }
+}
+
+/** The section with its notebooks in the order [order] gives for their course, if any. */
+fun ShelfSection.reordered(order: Map<String, List<String>>): ShelfSection {
+    val ids = items.firstOrNull()?.lecture?.courseId?.let(order::get) ?: return this
+    val byId = items.associateBy { it.lecture.id }
+    return copy(items = ids.mapNotNull(byId::get) + items.filter { it.lecture.id !in ids })
+}
+
 fun ShelfData.sections(filter: LibraryFilter): List<ShelfSection> {
-    val byCourse = rows.groupBy { it.lecture.courseId }
+    // Higher orderIndex first: new notebooks get the creation time, so they land on top until reordered.
+    val byCourse = rows.sortedByDescending { it.lecture.orderIndex }.groupBy { it.lecture.courseId }
     val unsorted = courses.firstOrNull { it.name == LibraryViewModel.UNSORTED_NAME }
     fun section(course: CourseEntity): ShelfSection? {
         val items = byCourse[course.id].orEmpty().filter {

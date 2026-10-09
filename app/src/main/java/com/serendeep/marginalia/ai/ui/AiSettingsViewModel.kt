@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.serendeep.marginalia.ai.AiConfig
 import com.serendeep.marginalia.ai.AiException
 import com.serendeep.marginalia.ai.AutoSorter
+import com.serendeep.marginalia.ai.DigestStore
 import com.serendeep.marginalia.ai.ModelCatalog
 import com.serendeep.marginalia.ai.AiSettings
 import com.serendeep.marginalia.ai.AiTask
@@ -47,6 +48,7 @@ class AiSettingsViewModel @Inject constructor(
     private val catalog: ModelCatalog,
     private val sorter: AutoSorter,
     private val resolver: ModelResolver,
+    private val digestStore: DigestStore,
     remote: RemoteConfigStore,
 ) : ViewModel() {
 
@@ -67,6 +69,10 @@ class AiSettingsViewModel @Inject constructor(
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     fun setAutoSort(on: Boolean) = sorter.setEnabled(on)
+
+    val digest: StateFlow<Boolean> = digestStore.enabled
+
+    fun setDigest(on: Boolean) = digestStore.setEnabled(on)
 
     val taskModels: StateFlow<Map<AiTask, TaskModel>> = settings.tasks
 

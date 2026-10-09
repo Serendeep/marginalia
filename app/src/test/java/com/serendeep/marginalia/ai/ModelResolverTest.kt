@@ -27,6 +27,11 @@ class ModelResolverTest {
     }
 
     @Test
+    fun digestUsesTheFastTierToo() {
+        assertEquals(ResolvedModel("gpt-5.5-mini", Effort.LOW), resolve(AiTask.DIGEST))
+    }
+
+    @Test
     fun fallsBackToGlobalModel() {
         assertEquals("gpt-5.5", resolve(AiTask.AUTO_SORT, models = listOf(ChatModel("gpt-5.5", "GPT-5.5"))).model)
         assertEquals("gpt-5.5", resolve(AiTask.AUTO_SORT, models = emptyList()).model)

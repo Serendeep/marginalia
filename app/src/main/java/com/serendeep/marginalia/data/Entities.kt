@@ -325,3 +325,21 @@ data class TagEntity(
     indices = [Index("tagId")],
 )
 data class LectureTagEntity(val lectureId: String, val tagId: String)
+
+// A saved assistant conversation; [scope] is "library" or the lecture it was held in.
+@Entity(tableName = "chats", indices = [Index(value = ["scope", "updatedAt"])])
+data class ChatEntity(
+    @PrimaryKey val id: String,
+    val title: String,
+    val scope: String,
+    val createdAt: Long,
+    val updatedAt: Long,
+)
+
+// One exchange of a chat: what was shown and the provider items it added.
+@Entity(tableName = "chat_turns", primaryKeys = ["chatId", "idx"])
+data class ChatTurnEntity(
+    val chatId: String,
+    val idx: Int,
+    val json: String,
+)

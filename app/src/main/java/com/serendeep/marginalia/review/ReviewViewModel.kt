@@ -29,6 +29,7 @@ data class ReviewCard(
     val frontText: String?,
     val frontImagePath: String?,
     val backText: String?,
+    val backInk: ByteArray?,
     val lectureId: String?,
     val page: Int?,
     // "LECTURE 7 · P.14"; null when the card isn't tied to a lecture.
@@ -138,6 +139,7 @@ class ReviewViewModel @Inject constructor(
             frontText = card.frontText,
             frontImagePath = card.frontImagePath,
             backText = card.backText,
+            backInk = card.backInk,
             lectureId = card.lectureId,
             page = card.page,
             source = title?.let { t ->

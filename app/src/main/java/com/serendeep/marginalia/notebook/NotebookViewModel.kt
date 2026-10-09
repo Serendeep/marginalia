@@ -152,7 +152,7 @@ class NotebookViewModel @Inject constructor(
         }
     }
 
-    fun saveLassoCard(back: String) {
+    fun saveLassoCard(back: String, backInk: ByteArray?) {
         val draft = _lassoDraft.value ?: return
         val lecture = lectureId ?: return
         _lassoDraft.value = null
@@ -164,6 +164,7 @@ class NotebookViewModel @Inject constructor(
                 page = draft.page,
                 frontImagePath = draft.imagePath,
                 backText = back,
+                backInk = backInk,
                 id = draft.id,
             )
         }

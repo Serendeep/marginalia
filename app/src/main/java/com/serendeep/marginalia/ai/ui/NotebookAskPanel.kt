@@ -13,6 +13,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -71,6 +72,7 @@ fun NotebookAskPanel(
             selectionPng = selectionPng,
         )
     }
+    LaunchedEffect(lectureId) { viewModel.enter(lectureId) }
     SidePanel(onDismiss = onDismiss, title = title, eyebrow = "ASK", width = 460.dp, scrollable = false) {
         Column(Modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             QuickActions(
@@ -90,6 +92,8 @@ fun NotebookAskPanel(
                     }
                 },
                 placeholder = "Ask about this document…",
+                historyScope = lectureId,
+                scopeToggle = true,
                 empty = EmptyCopy(
                     "Ask about this paper",
                     "Knows the page you're on and your notes on it, and can read the rest of your library.",

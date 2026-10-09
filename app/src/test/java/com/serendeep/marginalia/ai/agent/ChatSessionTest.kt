@@ -22,6 +22,7 @@ import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -47,7 +48,107 @@ class ChatSessionTest {
     @After
     fun tearDown() = scope.cancel()
 
-    private fun session(provider: ChatProvider) = ChatSession(Agent({ provider }, tools, 5_000, 8), scope) { 0L }
+    private val store = FakeChatStore()
+
+    private fun session(provider: ChatProvider, at: () -> Long = { 0L }) =
+        ChatSession(Agent({ provider }, tools, 5_000, 8), store, scope, at)
+
+    private fun ChatSession.saved() = runBlocking { withTimeout(5_000) { settled() } }
+
+    @Test
+    fun finishedExchangesAreSavedWithTheirItemsAndATitle() {
+        val provider = ChatProvider { _, _ -> flow { emit(TurnEvent.TextDelta("answer")); emit(TurnEvent.Completed) } }
+        val chat = session(provider)
+        chat.sendAndWait("  What is   entropy?  ")
+        chat.sendAndWait("and enthalpy?")
+        chat.saved()
+        val id = chat.currentChatId.value!!
+        val info = runBlocking { store.get(id)!! }
+        assertEquals("What is entropy?", info.title)
+        assertEquals(LIBRARY_SCOPE, info.scope)
+        assertEquals(listOf(0, 1), runBlocking { store.turns(id) }.map { it.idx })
+    }
+
+    @Test
+    fun openRestoresTurnsAndProviderHistory() {
+        val provider = ChatProvider { _, _ -> flow { emit(TurnEvent.TextDelta("answer")); emit(TurnEvent.Completed) } }
+        val first = session(provider)
+        first.sendAndWait("one")
+        first.saved()
+        val id = first.currentChatId.value!!
+
+        val second = session(provider)
+        second.open(id)
+        runBlocking { withTimeout(5_000) { second.turns.first { it.isNotEmpty() } } }
+        assertEquals(listOf("one"), second.turns.value.map { it.user })
+        assertFalse(second.turns.value.single().streaming)
+        assertEquals(id, second.currentChatId.value)
+
+        second.sendAndWait("two")
+        assertEquals(listOf("UserText", "AssistantText", "UserText"), provider.inputs.last().map { it::class.simpleName })
+        second.saved()
+        assertEquals(2, runBlocking { store.turns(id) }.size)
+    }
+
+    @Test
+    fun failedTurnIsKeptForDisplayButNotInHistory() {
+        val provider = ChatProvider { round, _ ->
+            flow {
+                if (round == 0) {
+                    emit(TurnEvent.Failed(AiError(AiErrorKind.SERVER, "down")))
+                } else {
+                    emit(TurnEvent.TextDelta("ok"))
+                    emit(TurnEvent.Completed)
+                }
+            }
+        }
+        val first = session(provider)
+        first.sendAndWait("bad")
+        first.sendAndWait("good")
+        first.saved()
+
+        val second = session(provider)
+        runBlocking { second.enter(LIBRARY_SCOPE) }
+        assertEquals(listOf("bad", "good"), second.turns.value.map { it.user })
+        assertEquals("down", second.turns.value.first().error?.message)
+        second.sendAndWait("next")
+        assertEquals(listOf("UserText", "AssistantText", "UserText"), provider.inputs.last().map { it::class.simpleName })
+    }
+
+    @Test
+    fun enterResumesTheScopesLatestChatOrStartsEmpty() {
+        var clock = 0L
+        val provider = ChatProvider { _, _ -> flow { emit(TurnEvent.TextDelta("a")); emit(TurnEvent.Completed) } }
+        val chat = session(provider) { ++clock }
+        runBlocking { chat.enter("lec1") }
+        chat.send("about lecture", chatScope = "lec1")
+        chat.awaitIdle()
+        chat.send("old library", chatScope = LIBRARY_SCOPE)
+        chat.awaitIdle()
+        chat.saved()
+        assertEquals(listOf("old library"), chat.turns.value.map { it.user })
+
+        runBlocking { chat.enter("lec1") }
+        assertEquals(listOf("about lecture"), chat.turns.value.map { it.user })
+        runBlocking { chat.enter("lec2") }
+        assertTrue(chat.turns.value.isEmpty())
+        assertNull(chat.currentChatId.value)
+    }
+
+    @Test
+    fun renameAndDeleteReachTheStore() {
+        val provider = ChatProvider { _, _ -> flow { emit(TurnEvent.TextDelta("a")); emit(TurnEvent.Completed) } }
+        val chat = session(provider)
+        chat.sendAndWait("q")
+        val id = chat.currentChatId.value!!
+        chat.rename(id, "  Entropy notes ")
+        chat.saved()
+        assertEquals("Entropy notes", runBlocking { store.get(id)!!.title })
+        chat.delete(id)
+        chat.saved()
+        assertNull(runBlocking { store.get(id) })
+        assertTrue(chat.turns.value.isEmpty())
+    }
 
     private fun ChatSession.awaitIdle() = runBlocking { withTimeout(5_000) { streaming.first { !it } } }
 

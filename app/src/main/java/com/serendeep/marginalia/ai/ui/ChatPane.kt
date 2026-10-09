@@ -1,5 +1,6 @@
 package com.serendeep.marginalia.ai.ui
 
+import com.serendeep.marginalia.ai.agent.LIBRARY_SCOPE
 import com.serendeep.marginalia.ui.components.glassBorder
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.graphics.Color
@@ -64,6 +65,8 @@ fun ChatPane(
     modifier: Modifier = Modifier,
     placeholder: String = "Ask about your library…",
     empty: EmptyCopy? = null,
+    historyScope: String = LIBRARY_SCOPE,
+    scopeToggle: Boolean = false,
     viewModel: ChatViewModel = hiltViewModel(),
 ) {
     val messages by viewModel.messages.collectAsStateWithLifecycle()
@@ -74,7 +77,9 @@ fun ChatPane(
     val saved by viewModel.savedCount.collectAsStateWithLifecycle()
     val suggestions by viewModel.suggestions.collectAsStateWithLifecycle()
     var settingsOpen by remember { mutableStateOf(false) }
+    var historyOpen by remember { mutableStateOf(false) }
     if (settingsOpen) AiSettingsSheet(onDismiss = { settingsOpen = false })
+    if (historyOpen) ChatHistory(viewModel, historyScope, scopeToggle, onDismiss = { historyOpen = false })
     ChatPaneContent(
         messages = messages,
         streaming = streaming,
@@ -86,6 +91,7 @@ fun ChatPane(
         onSend = onSend,
         onStop = viewModel::stop,
         onNewChat = viewModel::newChat,
+        onHistory = { historyOpen = true },
         onCitation = onCitation,
         onDraft = viewModel::updateDraft,
         onSaveDrafts = viewModel::saveDrafts,
@@ -126,6 +132,7 @@ fun ChatPaneContent(
     placeholder: String = "Ask about your library…",
     empty: EmptyCopy = LibraryEmpty,
     modelChip: @Composable () -> Unit = {},
+    onHistory: (() -> Unit)? = null,
 ) {
     var text by remember { mutableStateOf("") }
     var popup by remember { mutableStateOf<String?>(null) }
@@ -136,9 +143,10 @@ fun ChatPaneContent(
         }
     }
     Column(modifier.fillMaxSize()) {
-        if (messages.isNotEmpty()) {
+        if (messages.isNotEmpty() || onHistory != null) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                GlassTextButton("New chat", onClick = onNewChat)
+                if (onHistory != null) GlassTextButton("History", onClick = onHistory)
+                if (messages.isNotEmpty()) GlassTextButton("New chat", onClick = onNewChat)
             }
         }
         Box(Modifier.weight(1f).fillMaxWidth()) {

@@ -7,6 +7,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -30,6 +31,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.ink.strokes.Stroke
 import coil3.ImageLoader
 import coil3.compose.AsyncImage
 import com.serendeep.marginalia.data.LectureEntity
@@ -53,7 +55,7 @@ import java.io.File
 fun CardEditorSheet(
     imageLoader: ImageLoader,
     onDismiss: () -> Unit,
-    onSave: (front: String, back: String, lectureId: String?) -> Unit,
+    onSave: (front: String, back: String, lectureId: String?, backInk: ByteArray?) -> Unit,
     modifier: Modifier = Modifier,
     frontImagePath: String? = null,
     initialFront: String = "",
@@ -64,20 +66,35 @@ fun CardEditorSheet(
     var front by remember { mutableStateOf(initialFront) }
     var back by remember { mutableStateOf(initialBack) }
     var lectureId by remember { mutableStateOf<String?>(null) }
-    val canSave = back.isNotBlank() && (frontImagePath != null || front.isNotBlank())
+    var writing by remember { mutableStateOf(false) }
+    var ink by remember { mutableStateOf(emptyList<Stroke>()) }
+    val canSave = (back.isNotBlank() || ink.isNotEmpty()) && (frontImagePath != null || front.isNotBlank())
     // With the keyboard up a tablet in landscape has little height left, so the preview shrinks
     // and the panel scrolls rather than squeezing the fields and hiding Save.
     val imeOpen = WindowInsets.isImeVisible
     val answer = @Composable { fieldModifier: Modifier ->
-        OutlinedTextField(
-            value = back,
-            onValueChange = { back = it },
-            label = { Text("Answer") },
-            minLines = 3,
-            maxLines = 6,
-            colors = glassTextFieldColors(),
-            modifier = fieldModifier,
-        )
+        Column(fieldModifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                GlassTextButton(if (writing) "Type" else "Write", onClick = { writing = !writing })
+                if (writing) {
+                    GlassTextButton("Undo", enabled = ink.isNotEmpty(), onClick = { ink = ink.dropLast(1) })
+                    GlassTextButton("Clear", enabled = ink.isNotEmpty(), onClick = { ink = emptyList() })
+                }
+            }
+            if (writing) {
+                InkAnswerPad(ink, onFinished = { ink = ink + it })
+            } else {
+                OutlinedTextField(
+                    value = back,
+                    onValueChange = { back = it },
+                    label = { Text("Answer") },
+                    minLines = 3,
+                    maxLines = 6,
+                    colors = glassTextFieldColors(),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        }
     }
     CenterPanel(
         onDismiss = onDismiss,
@@ -87,7 +104,7 @@ fun CardEditorSheet(
         footer = {
             GlassTextButton("Cancel", onClick = onDismiss)
             if (onAskAi != null && frontImagePath != null) GlassTextButton("Ask AI", onClick = onAskAi)
-            GlassButton("Save", enabled = canSave, onClick = { onSave(front.trim(), back.trim(), lectureId) })
+            GlassButton("Save", enabled = canSave, onClick = { onSave(front.trim(), back.trim(), lectureId, encodeInkAnswer(ink)) })
         },
     ) {
         if (frontImagePath != null) {
@@ -158,8 +175,8 @@ fun HighlightCardSheet(row: HighlightRow, onDismiss: () -> Unit, viewModel: Card
         onDismiss = onDismiss,
         initialFront = remember(text) { clozeFront(text) },
         initialBack = text,
-        onSave = { front, back, _ ->
-            viewModel.saveHighlightCard(row, front, back)
+        onSave = { front, back, _, ink ->
+            viewModel.saveHighlightCard(row, front, back, ink)
             onDismiss()
         },
     )
@@ -173,8 +190,8 @@ fun TypedCardSheet(onDismiss: () -> Unit, viewModel: CardsViewModel = hiltViewMo
         imageLoader = viewModel.imageLoader,
         onDismiss = onDismiss,
         lectures = lectures,
-        onSave = { front, back, lectureId ->
-            viewModel.saveTyped(front, back, lectureId)
+        onSave = { front, back, lectureId, ink ->
+            viewModel.saveTyped(front, back, lectureId, ink)
             onDismiss()
         },
     )
