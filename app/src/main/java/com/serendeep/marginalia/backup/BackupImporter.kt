@@ -69,8 +69,14 @@ class BackupImporter @Inject constructor(
         // Everything below is quick renames so the closed database isn't reopened half-way.
         db.close()
         val dbFile = context.getDatabasePath(DB_NAME)
-        listOf("", "-wal", "-shm", "-journal").forEach { File(dbFile.path + it).delete() }
-        if (!File(stage, DB_ENTRY).renameTo(dbFile)) throw BackupException("Couldn't replace the database")
+        val suffixes = listOf("", "-wal", "-shm", "-journal")
+        // The current database moves aside rather than being deleted, so a failed swap can put it back.
+        suffixes.forEach { s -> File(dbFile.path + s).takeIf { it.exists() }?.renameTo(File(dbFile.path + s + ".old")) }
+        if (!File(stage, DB_ENTRY).renameTo(dbFile)) {
+            suffixes.forEach { s -> File(dbFile.path + s + ".old").takeIf { it.exists() }?.renameTo(File(dbFile.path + s)) }
+            throw BackupException("Couldn't replace the database")
+        }
+        suffixes.forEach { s -> File(dbFile.path + s + ".old").delete() }
         for (dir in LIBRARY_DIRS) {
             val target = File(context.filesDir, dir)
             target.deleteRecursively()
