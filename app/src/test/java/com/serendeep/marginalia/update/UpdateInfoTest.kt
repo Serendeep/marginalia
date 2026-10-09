@@ -69,4 +69,35 @@ class UpdateInfoTest {
         assertFalse(isNewer(6, 7))
         assertNotNull(UpdateInfo.parse(feed()))
     }
+
+    private fun patch(from: Int, url: String = "https://example.com/p$from.zst", sha: String = this.sha, size: Int = 1_200_000) =
+        """{"fromVersionCode": $from, "url": "$url", "sha256": "$sha", "size": $size}"""
+
+    @Test
+    fun patchesAreOptional() {
+        assertTrue(UpdateInfo.parse(feed())!!.patches.isEmpty())
+        assertTrue(UpdateInfo.parse(feed("\"patches\": []"))!!.patches.isEmpty())
+    }
+
+    @Test
+    fun parsesPatchesAndPicksTheOneForTheInstalledVersion() {
+        val info = UpdateInfo.parse(feed("\"size\": 22000000", "\"patches\": [${patch(5)}, ${patch(6)}]"))!!
+        assertEquals(listOf(5L, 6L), info.patches.map { it.fromVersionCode })
+        assertEquals("https://example.com/p6.zst", info.patchFor(6)!!.url)
+        assertNull(info.patchFor(4))
+        assertEquals(1_200_000L, info.downloadSize(installed = 6))
+        assertEquals(22_000_000L, info.downloadSize(installed = 4))
+        assertEquals(22_000_000L, info.downloadSize(installed = 6, usePatch = false))
+        assertEquals(info, UpdateInfo.parse(info.toJson()))
+    }
+
+    @Test
+    fun dropsPatchesItCannotTrust() {
+        val info = UpdateInfo.parse(
+            feed(
+                "\"patches\": [${patch(5, url = "http://example.com/p.zst")}, ${patch(6, sha = "abc")}, ${patch(0)}, ${patch(4)}, 7]",
+            ),
+        )!!
+        assertEquals(listOf(4L), info.patches.map { it.fromVersionCode })
+    }
 }

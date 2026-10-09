@@ -3,8 +3,10 @@ package com.serendeep.marginalia.update
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.provider.Settings
 import android.text.format.DateUtils
+import android.text.format.Formatter
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -51,7 +53,7 @@ import com.serendeep.marginalia.ui.theme.Violet
 /** The one-line summary shown under the version in settings. */
 fun statusLine(status: UpdateStatus, now: Long = System.currentTimeMillis()): String = when (status.phase) {
     UpdatePhase.CHECKING -> "Checking for updates…"
-    UpdatePhase.DOWNLOADING -> "Downloading ${status.progress}%"
+    UpdatePhase.DOWNLOADING -> (if (status.fullFallback) "Downloading full update " else "Downloading ") + "${status.progress}%"
     UpdatePhase.READY -> "Update ${status.info?.versionName.orEmpty()} ready"
     UpdatePhase.AVAILABLE -> "Update ${status.info?.versionName.orEmpty()} available"
     UpdatePhase.INSTALLING -> "Installing…"
@@ -93,13 +95,27 @@ private fun primaryLabel(phase: UpdatePhase) = when (phase) {
     else -> "Check now"
 }
 
-/** Sidebar row shown once an update is downloaded and verified. */
+/** Sidebar row: the ready update, or a quiet note on what changed in the version that was just installed. */
 @Composable
 fun UpdateSidebarRow(vm: UpdateViewModel = hiltViewModel()) {
     if (!vm.enabled) return
     val status by vm.status.collectAsStateWithLifecycle()
-    if (status.phase != UpdatePhase.READY) return
+    val whatsNewUntil by vm.whatsNewUntil.collectAsStateWithLifecycle()
+    var notes by remember { mutableStateOf<String?>(null) }
     val act = rememberPrimaryAction(vm)
+    notes?.let { WebPopup(it) { notes = null } }
+    if (status.phase == UpdatePhase.READY) {
+        SidebarRow("Update ${status.info?.versionName.orEmpty()} ready", "Restart", act)
+    } else if (whatsNewUntil > System.currentTimeMillis()) {
+        SidebarRow("Updated to ${vm.versionName}", "What's new") {
+            notes = vm.whatsNewUrl()
+            vm.dismissWhatsNew()
+        }
+    }
+}
+
+@Composable
+private fun SidebarRow(label: String, action: String, act: () -> Unit) {
     val shape = RoundedCornerShape(9.dp)
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -114,7 +130,7 @@ fun UpdateSidebarRow(vm: UpdateViewModel = hiltViewModel()) {
     ) {
         Icon(Icons.Outlined.SystemUpdateAlt, null, tint = Violet, modifier = Modifier.size(16.dp))
         Text(
-            "Update ${status.info?.versionName.orEmpty()} ready",
+            label,
             fontFamily = BodyFamily,
             fontSize = 12.5.sp,
             color = Color(0xFFA0A0AB),
@@ -122,7 +138,7 @@ fun UpdateSidebarRow(vm: UpdateViewModel = hiltViewModel()) {
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
         )
-        Text("Restart", fontFamily = MonoFamily, fontSize = 10.5.sp, letterSpacing = 0.4.sp, color = Violet)
+        Text(action, fontFamily = MonoFamily, fontSize = 10.5.sp, letterSpacing = 0.4.sp, color = Violet)
     }
 }
 
@@ -141,6 +157,15 @@ fun UpdatesSectionContent(vm: UpdateViewModel = hiltViewModel()) {
     notes?.let { WebPopup(it) { notes = null } }
     Text("Marginalia ${vm.versionName}", style = MaterialTheme.typography.bodyLarge)
     Text(statusLine(status), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    if (status.phase == UpdatePhase.AVAILABLE || status.phase == UpdatePhase.DOWNLOADING) {
+        status.info?.downloadSize(vm.installedVersionCode, usePatch = !status.fullFallback)?.takeIf { it > 0 }?.let { bytes ->
+            Text(
+                Formatter.formatShortFileSize(context, bytes) + " update",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
         if (status.phase == UpdatePhase.READY || status.phase == UpdatePhase.AVAILABLE) {
             GlassButton(primaryLabel(status.phase), onClick = act)
@@ -156,10 +181,16 @@ fun UpdatesSectionContent(vm: UpdateViewModel = hiltViewModel()) {
         )
         GlassTextButton("Allow installing updates", onClick = { context.startActivity(unknownSourcesIntent(context)) })
     }
+    if (Build.MANUFACTURER.equals("HUAWEI", ignoreCase = true) || Build.MANUFACTURER.equals("HONOR", ignoreCase = true)) {
+        Text(
+            "This tablet asks for one tap on INSTALL to confirm each update.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
     ToggleRow("Check automatically", settings.checkAutomatically) { v -> vm.setSettings { it.copy(checkAutomatically = v) } }
     ToggleRow("Wi-Fi only", settings.wifiOnly) { v -> vm.setSettings { it.copy(wifiOnly = v) } }
     ToggleRow("Download automatically", settings.downloadAutomatically) { v -> vm.setSettings { it.copy(downloadAutomatically = v) } }
-    ToggleRow("Install when idle", settings.installWhenIdle) { v -> vm.setSettings { it.copy(installWhenIdle = v) } }
 }
 
 @Composable
