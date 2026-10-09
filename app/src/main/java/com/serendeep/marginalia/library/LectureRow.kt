@@ -197,10 +197,10 @@ private fun RowThumb(row: RowModel, imageLoader: ImageLoader) {
 }
 
 /** "2h ago" style label; cheap enough to compute while composing. */
-fun relativeTime(at: Long): String =
-    DateUtils.getRelativeTimeSpanString(
+fun relativeTime(at: Long, now: Long = System.currentTimeMillis()): String =
+    if (now - at < DateUtils.MINUTE_IN_MILLIS) "JUST NOW" else DateUtils.getRelativeTimeSpanString(
         at,
-        System.currentTimeMillis(),
+        now,
         DateUtils.MINUTE_IN_MILLIS,
         DateUtils.FORMAT_ABBREV_RELATIVE,
     ).toString().uppercase(Locale.ROOT)
