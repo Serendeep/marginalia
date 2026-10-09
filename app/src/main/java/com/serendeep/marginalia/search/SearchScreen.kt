@@ -111,18 +111,7 @@ fun SearchScreen(
                         PlainRow(spans = hit.spans) { open(hit.lectureId, null) }
                     }
                 }
-                if (ui.pages.isNotEmpty()) {
-                    item(key = "pages-h", contentType = "header") { SectionLabel("PAGES · ${ui.pages.size}") }
-                    items(ui.pages, key = { it.key }, contentType = { "page" }) { hit ->
-                        PageRow(hit) { open(hit.lectureId, hit.page) }
-                    }
-                }
-                if (ui.ink.isNotEmpty()) {
-                    item(key = "ink-h", contentType = "header") { SectionLabel("HANDWRITING · ${ui.ink.size}") }
-                    items(ui.ink, key = { it.key }, contentType = { "ink" }) { hit ->
-                        InkRow(hit) { open(hit.lectureId, hit.page) }
-                    }
-                }
+                // Your own notes outrank raw PDF text, which can match dozens of pages.
                 if (ui.highlights.isNotEmpty()) {
                     item(key = "hl-h", contentType = "header") { SectionLabel("HIGHLIGHTS · ${ui.highlights.size}") }
                     items(ui.highlights, key = { it.key }, contentType = { "highlight" }) { hit ->
@@ -133,6 +122,18 @@ fun SearchScreen(
                             text = { Text(emphasised(hit.spans), fontFamily = BodyFamily, fontSize = 13.sp, lineHeight = 19.sp, maxLines = 4, overflow = TextOverflow.Ellipsis) },
                             modifier = Modifier.padding(vertical = 2.dp),
                         )
+                    }
+                }
+                if (ui.ink.isNotEmpty()) {
+                    item(key = "ink-h", contentType = "header") { SectionLabel("HANDWRITING · ${ui.ink.size}") }
+                    items(ui.ink, key = { it.key }, contentType = { "ink" }) { hit ->
+                        InkRow(hit) { open(hit.lectureId, hit.page) }
+                    }
+                }
+                if (ui.pages.isNotEmpty()) {
+                    item(key = "pages-h", contentType = "header") { SectionLabel("PAGES · ${ui.pages.size}") }
+                    items(ui.pages, key = { it.key }, contentType = { "page" }) { hit ->
+                        PageRow(hit) { open(hit.lectureId, hit.page) }
                     }
                 }
             }

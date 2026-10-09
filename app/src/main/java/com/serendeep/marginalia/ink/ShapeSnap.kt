@@ -114,11 +114,14 @@ object ShapeSnap {
         val corners = corners(ring)
         val startIdx = ring.indices.minBy { dist(ring[it].x, ring[it].y, body.first().x, body.first().y) }
         val clockwise = signedArea(ring) > 0
-        return when (corners.size) {
+        // The tight ends of a wide oval (circling a word) can read as corners; when the polygon
+        // doesn't fit, the shape is still a candidate for an ellipse.
+        val polygon = when (corners.size) {
             4 -> rectangle(ring, corners, startIdx, clockwise)
             3 -> triangle(ring, corners, startIdx, clockwise, box)
-            else -> ellipse(ring, len, body.first(), clockwise)
+            else -> null
         }
+        return polygon ?: ellipse(ring, len, body.first(), clockwise)
     }
 
     private fun resampleClosed(body: List<InkPt>): List<V> {

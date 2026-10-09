@@ -5,13 +5,14 @@ import kotlin.math.abs
 /** Recognises a scribble-out gesture: a tight back-and-forth stroke that deletes what it covers. */
 object ScratchOut {
     const val MIN_REVERSALS = 4
-    const val COVERAGE = 0.4f
+    const val COVERAGE = 0.6f
     const val INFLATE_PX = 4f
 
     private const val MIN_SIDE_PX = 8f
     private const val MAX_ASPECT = 6f
     private const val MIN_PATH_RATIO = 3f
-    private const val REVERSAL_FRACTION = 0.25f
+    // A scribble swings across most of its own width on every pass; loops in cursive letters do not.
+    private const val REVERSAL_FRACTION = 0.6f
 
     /** The area scratched out, or null when [points] is not a scratch. */
     fun detect(points: List<InkPt>): Extent? {

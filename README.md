@@ -4,37 +4,56 @@
 
 # Marginalia
 
-**Handwritten lecture notes next to the slides, for Android tablets.**
+**Handwritten study notes beside your PDFs, for Android tablets.**
 
 [![CI](https://github.com/Serendeep/marginalia/actions/workflows/ci.yml/badge.svg)](https://github.com/Serendeep/marginalia/actions/workflows/ci.yml)
 [![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-blue)](LICENSE)
 [![API 29+](https://img.shields.io/badge/API-29%2B-brightgreen)](https://developer.android.com/about/versions/10)
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.0-7F52FF?logo=kotlin&logoColor=white)](https://kotlinlang.org)
 
-<img src="docs/screenshots/library.png" alt="Library with imported lecture PDFs" width="48%">&nbsp;<img src="docs/screenshots/notebook.png" alt="Notebook view: PDF page beside a writable margin" width="48%">
+<img src="docs/media/marginalia-writing.gif" alt="Highlighting a paper, writing margin notes in cursive, and circling a word that snaps into a clean ellipse" width="96%">
+
+<img src="docs/screenshots/today.png" alt="Today dashboard with review queue, focus timer and study streak" width="48%">&nbsp;<img src="docs/screenshots/notebook.png" alt="A paper with highlighted text and handwritten notes in the margin" width="48%">
+<img src="docs/screenshots/review.png" alt="Reviewing a flashcard with spaced-repetition grades" width="48%">&nbsp;<img src="docs/screenshots/search.png" alt="Search results across highlights, handwriting and PDF pages" width="48%">
+
+**[▶ Watch the 70-second demo](https://github.com/Serendeep/marginalia/releases/latest)**
 
 </div>
 
-Your professor's slides already say most of it. Marginalia gives you the
-margin: each PDF page gets a writable strip beside it, so your notes live
-next to the slide they belong to and stay anchored there. The stylus draws;
-your finger scrolls and zooms. There is no mode toggle to get in the way.
+Lecture slides, papers and textbooks already say most of it. Marginalia gives you
+the margin: every PDF page gets a writable strip beside it, so your notes live
+next to the passage they belong to. Then it helps you actually remember them,
+with flashcards, spaced review, and search that reads your handwriting.
 
-Offline-first, no account, no cloud. Your notes stay on your tablet.
+The stylus writes; your finger scrolls and zooms. Offline-first, no account, no
+cloud required. Your notes stay on your tablet.
 
 ## Features
 
-- ✍️ **Write beside the page, not on it.** Every PDF page gets its own margin canvas.
-- 📌 **Notes stay anchored.** Strokes are tied to the page you wrote them against.
-- 🖐️ **Stylus draws, finger navigates.** Palm-friendly, with no mode switch.
-- 📚 **Quiet course library.** Import PDFs, browse real page thumbnails, and group lectures by course.
-- 🏷️ **Make courses yours.** Pick a course color and emoji, then rename or move lectures from the row menu.
-- 🧭 **Outline sheet.** Jump around long decks from the PDF's table of contents.
-- ↩️ **Undo, redo, erase.** Haptic feedback, low-latency ink, and a clear active-tool ring.
-- 📴 **Fully offline.** No account, and no Google Play Services needed.
+**Write**
+- ✍️ **Write beside the page, or on it.** A margin canvas next to every PDF page, plus ink directly on the page.
+- 🖍️ **Smart highlighter.** Highlighter strokes straighten onto the text lines underneath and capture the text.
+- 🔷 **Hold to shape.** Draw a line, arrow, circle, box or triangle and hold the nib; it snaps clean.
+- 🧽 **Scratch out to erase**, eraser sizes, and a lasso to move, scale, recolour or copy ink.
+- 🎨 **Pen widths and colours**, a laser pointer, and a configurable M-Pencil double-tap.
 
-The [roadmap](ROADMAP.md) covers what comes next: empty notebooks, ink directly
-on the PDF page, a highlighter, and opening PDFs from other apps.
+**Remember**
+- 🗂️ **Flashcards from anything.** Lasso a region, turn a highlight into a cloze card, or type one.
+- 🔁 **Spaced repetition** (SM-2) with a daily review queue and a gentle evening reminder.
+- 🔎 **Search everything.** PDF text, highlights, and your own handwriting, recognised on-device.
+
+**Stay on track**
+- 📅 **Today dashboard.** What's due, what to continue, and a focus timer, at a glance.
+- 🔥 **Study time tracks itself**, with a daily goal, streaks and a Stats screen.
+- 📚 **Library for courses and papers.** Tags, reading status, arXiv/DOI detection and one-tap BibTeX.
+
+**Optional AI**
+- ✦ **Ask ChatGPT** to explain a page, summarise a paper, draft flashcards, or answer questions across
+  your library with page citations. It uses your ChatGPT plan through OpenAI's "Sign in with ChatGPT";
+  no API key. Nothing is sent unless you tap an AI action. Any OpenAI-compatible endpoint (for example
+  Ollama) works too.
+
+See the [roadmap](ROADMAP.md) for what's next.
 
 ## Building
 

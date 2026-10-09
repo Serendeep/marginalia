@@ -1,5 +1,6 @@
 package com.serendeep.marginalia.ai.ui
 
+import com.serendeep.marginalia.ui.components.PILL_ALPHA
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -81,7 +82,7 @@ fun NotebookAskPill(
         color = Violet,
         modifier = modifier
             .clip(shape)
-            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.7f))
+            .background(MaterialTheme.colorScheme.surface.copy(alpha = PILL_ALPHA))
             .border(1.dp, glassBorder(), shape)
             .clickable { open = true }
             .padding(horizontal = 12.dp, vertical = 6.dp),

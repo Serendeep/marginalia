@@ -1,5 +1,6 @@
 package com.serendeep.marginalia.notebook
 
+import com.serendeep.marginalia.ui.components.PILL_ALPHA
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.Canvas
@@ -605,7 +606,7 @@ private fun PageIndicator(page: Int, pageCount: Int, modifier: Modifier = Modifi
         color = iconColor,
         modifier = modifier
             .clip(shape)
-            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.7f))
+            .background(MaterialTheme.colorScheme.surface.copy(alpha = PILL_ALPHA))
             .border(1.dp, glassBorder(), shape)
             .padding(horizontal = 12.dp, vertical = 6.dp),
     )
@@ -637,7 +638,7 @@ private fun FocusPill(viewModel: NotebookViewModel, modifier: Modifier = Modifie
         color = tint,
         modifier = modifier
             .clip(shape)
-            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.7f))
+            .background(MaterialTheme.colorScheme.surface.copy(alpha = PILL_ALPHA))
             .border(1.dp, glassBorder(), shape)
             .clickable(onClick = viewModel::toggleFocus)
             .padding(horizontal = 12.dp, vertical = 6.dp),

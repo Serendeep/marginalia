@@ -7,6 +7,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -49,6 +51,7 @@ private val ChipText = Color(0xFFA0A0AB)
 private const val MAX_ROW_TAGS = 2
 
 /** Dense list row: thumbnail, title with mono meta, a chip, reading progress. */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun LectureRow(
     row: RowModel,
@@ -72,7 +75,7 @@ fun LectureRow(
             .padding(horizontal = 8.dp, vertical = 9.dp),
     ) {
         RowThumb(row, imageLoader)
-        Column(Modifier.weight(1f)) {
+        Column(Modifier.weight(1.3f)) {
             Text(
                 row.lecture.title,
                 fontFamily = BodyFamily,
@@ -92,11 +95,18 @@ fun LectureRow(
                 modifier = Modifier.padding(top = 3.dp),
             )
         }
-        row.tags.take(MAX_ROW_TAGS).forEach { Chip(it.name) }
-        if (row.tags.size > MAX_ROW_TAGS) Chip("+${row.tags.size - MAX_ROW_TAGS}")
-        when (chip) {
-            ChipKind.Course -> Chip(row.course?.name ?: "Notebook", dot = CoursePalette.color(row.colorIndex))
-            ChipKind.Status -> Chip(statusLabel(row.status))
+        // Chips share the row with the title; whichever no longer fit drop out whole, course/status first to stay.
+        FlowRow(
+            modifier = Modifier.weight(1f, fill = false),
+            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+            maxLines = 1,
+        ) {
+            when (chip) {
+                ChipKind.Course -> Chip(row.course?.name ?: "Notebook", dot = CoursePalette.color(row.colorIndex))
+                ChipKind.Status -> Chip(statusLabel(row.status))
+            }
+            row.tags.take(MAX_ROW_TAGS).forEach { Chip(it.name) }
+            if (row.tags.size > MAX_ROW_TAGS) Chip("+${row.tags.size - MAX_ROW_TAGS}")
         }
         val pages = row.document?.pageCount ?: 0
         if (showProgress && pages > 0 && row.status != ReadingStatus.TO_READ) {
