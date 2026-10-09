@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.0](https://github.com/Serendeep/marginalia/compare/v0.5.0...v1.0.0) (2026-10-09)
+
+
+### Bug Fixes
+
+* pre-1.0 polish, demo media and 1.0.0 release ([22b4af0](https://github.com/Serendeep/marginalia/commit/22b4af023fd70d8c20358b231a402ea848be7550))
+
 ## [0.5.0](https://github.com/Serendeep/marginalia/compare/v0.4.0...v0.5.0) (2026-10-09)
 
 
