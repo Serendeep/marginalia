@@ -1,17 +1,27 @@
 package com.serendeep.marginalia.ai
 
 import android.content.Context
+import com.serendeep.marginalia.ai.agent.Item
+import com.serendeep.marginalia.ai.agent.ToolSpec
+import com.serendeep.marginalia.ai.agent.TurnEvent
 import com.serendeep.marginalia.shell.PREFS
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.flowOf
 import javax.inject.Inject
 import javax.inject.Singleton
 
 interface AiProvider {
     val name: String
     fun stream(request: AiRequest): Flow<AiEvent>
+
+    /** Whether a tool result may be followed by a page image the model can look at. */
+    val pageImages: Boolean get() = false
+
+    fun turn(input: List<Item>, tools: List<ToolSpec>, instructions: String, task: AiTask): Flow<TurnEvent> =
+        flowOf(TurnEvent.Failed(AiError(AiErrorKind.PROTOCOL, "This provider can't use tools")))
     suspend fun models(): List<ChatModel>
 }
 
@@ -80,13 +90,18 @@ class AiSettings(context: Context) {
 
 class ChatGptProvider(private val client: ResponsesClient) : AiProvider {
     override val name = "ChatGPT"
+    override val pageImages = true
     override fun stream(request: AiRequest) = client.stream(request)
+    override fun turn(input: List<Item>, tools: List<ToolSpec>, instructions: String, task: AiTask) =
+        client.turn(input, tools, instructions, task)
     override suspend fun models() = client.listModels()
 }
 
 class CompatibleProvider(private val client: OpenAiCompatibleClient) : AiProvider {
     override val name = "OpenAI-compatible"
     override fun stream(request: AiRequest) = client.stream(request)
+    override fun turn(input: List<Item>, tools: List<ToolSpec>, instructions: String, task: AiTask) =
+        client.turn(input, tools, instructions, task)
     override suspend fun models() = client.listModels()
 }
 

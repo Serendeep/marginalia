@@ -14,11 +14,12 @@ import java.net.HttpURLConnection
  * Runs [open] on IO, optionally reopening once after a 401, and streams [parse] over the response lines.
  * Cancelling the collector disconnects the socket so the blocking read ends.
  */
-internal fun sseFlow(
-    parse: (Sequence<String>) -> Sequence<AiEvent>,
+internal fun <T> sseFlow(
+    parse: (Sequence<String>) -> Sequence<T>,
+    failed: (AiError) -> T,
     retryOnUnauthorized: Boolean,
     open: suspend (retry: Boolean) -> HttpURLConnection,
-): Flow<AiEvent> = channelFlow {
+): Flow<T> = channelFlow {
     val conn = java.util.concurrent.atomic.AtomicReference<HttpURLConnection?>()
     val reader: Job = launch(Dispatchers.IO) {
         try {
@@ -30,18 +31,18 @@ internal fun sseFlow(
                 code = c.responseCode
             }
             if (code !in 200..299) {
-                send(AiEvent.Failed(Http.httpError(code, Http.readBody(c))))
+                send(failed(Http.httpError(code, Http.readBody(c))))
                 return@launch
             }
             c.inputStream.bufferedReader().use { r ->
                 for (event in parse(r.lineSequence())) send(event)
             }
         } catch (e: AiException) {
-            send(AiEvent.Failed(e.error))
+            send(failed(e.error))
         } catch (e: CancellationException) {
             throw e
         } catch (e: IOException) {
-            if (isActive) send(AiEvent.Failed(AiError(AiErrorKind.NETWORK, "Connection problem — check your network")))
+            if (isActive) send(failed(AiError(AiErrorKind.NETWORK, "Connection problem — check your network")))
         }
     }
     try {

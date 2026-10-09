@@ -1,6 +1,9 @@
 package com.serendeep.marginalia.ai
 
 import android.util.Base64
+import com.serendeep.marginalia.ai.agent.Item
+import com.serendeep.marginalia.ai.agent.ToolSpec
+import com.serendeep.marginalia.ai.agent.TurnEvent
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emitAll
@@ -45,14 +48,75 @@ class ResponsesClient @Inject constructor(
         }
         val effort = request.effort ?: resolved.effort
         emitAll(
-            sseFlow(Sse::responses, retryOnUnauthorized = true) { retry ->
+            sseFlow(Sse::responses, AiEvent::Failed, retryOnUnauthorized = true) { retry ->
                 Http.postJson("$BASE/responses", auth.validAccessToken(force = retry), requestBody(model, request, effort))
+            },
+        )
+    }
+
+    fun turn(input: List<Item>, tools: List<ToolSpec>, instructions: String, task: AiTask): Flow<TurnEvent> = flow {
+        val resolved = resolver.resolve(task)
+        val model = resolved.model
+        if (model == null) {
+            emit(TurnEvent.Failed(AiError(AiErrorKind.NO_MODEL, "Pick a ChatGPT model in settings")))
+            return@flow
+        }
+        emitAll(
+            sseFlow(Sse::responsesTurn, TurnEvent::Failed, retryOnUnauthorized = true) { retry ->
+                val body = turnBody(model, resolved.effort, instructions, input, tools)
+                Http.postJson("$BASE/responses", auth.validAccessToken(force = retry), body)
             },
         )
     }
 
     companion object {
         private const val BASE = AuthFlow.RESOURCE
+
+        fun turnBody(model: String, effort: Effort?, instructions: String, input: List<Item>, tools: List<ToolSpec>): JSONObject =
+            JSONObject()
+                .put("model", model)
+                .put("instructions", instructions)
+                .put("input", JSONArray().apply { input.forEach { put(inputItem(it)) } })
+                .apply {
+                    if (tools.isNotEmpty()) {
+                        put(
+                            "tools",
+                            JSONArray().apply {
+                                tools.forEach {
+                                    put(
+                                        JSONObject().put("type", "function").put("name", it.name)
+                                            .put("description", it.description).put("parameters", it.parametersJsonSchema)
+                                            .put("strict", false),
+                                    )
+                                }
+                            },
+                        )
+                    }
+                }
+                .put("store", false)
+                .put("stream", true)
+                .put("include", JSONArray().put("reasoning.encrypted_content"))
+                .apply { if (effort != null) put("reasoning", JSONObject().put("effort", effort.wire)) }
+
+        private fun inputItem(item: Item): JSONObject = when (item) {
+            is Item.UserText -> {
+                val content = JSONArray().put(JSONObject().put("type", "input_text").put("text", item.text))
+                item.images.forEach {
+                    val url = "data:image/png;base64," + Base64.encodeToString(it, Base64.NO_WRAP)
+                    content.put(JSONObject().put("type", "input_image").put("image_url", url))
+                }
+                JSONObject().put("role", "user").put("content", content)
+            }
+            is Item.AssistantText -> JSONObject().put("role", "assistant").put(
+                "content",
+                JSONArray().put(JSONObject().put("type", "output_text").put("text", item.text)),
+            )
+            is Item.ToolCall -> item.providerItem ?: JSONObject().put("type", "function_call")
+                .put("call_id", item.callId).put("name", item.name).put("arguments", item.argsJson)
+            is Item.ToolResult -> JSONObject().put("type", "function_call_output")
+                .put("call_id", item.callId).put("output", item.output)
+            is Item.Reasoning -> item.raw
+        }
 
         fun requestBody(model: String, r: AiRequest, effort: Effort? = r.effort): JSONObject {
             val content = JSONArray().put(JSONObject().put("type", "input_text").put("text", r.text))
