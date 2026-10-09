@@ -51,13 +51,19 @@ private const val WORK_PERIODIC = "update-check"
 private const val KEY_CHECK_AUTO = "update_check_auto"
 private const val KEY_WIFI_ONLY = "update_wifi_only"
 private const val KEY_AUTO_DOWNLOAD = "update_auto_download"
+private const val KEY_CHANNEL = "update_channel"
 private const val KEY_LAST_CHECK = "update_last_check"
 private const val KEY_ETAG = "update_feed_etag"
 private const val KEY_LATEST = "update_latest_json"
 private const val KEY_LAST_SEEN = "update_last_seen_code"
 private const val KEY_WHATS_NEW_UNTIL = "update_whats_new_until"
 private const val WHATS_NEW_MS = 24 * 60 * 60 * 1000L
-private const val RELEASES_URL = "https://github.com/Serendeep/marginalia/releases/tag/v"
+private const val KEY_LAST_SEEN_NAME = "update_last_seen_name"
+private const val KEY_PREV_NAME = "update_prev_name"
+private const val KEY_NOTES_CODE = "update_notes_code"
+private const val KEY_NOTES = "update_notes"
+private const val RELEASES_URL = "https://github.com/Serendeep/marginalia/releases"
+private const val NIGHTLY_RELEASE_URL = "https://github.com/Serendeep/marginalia/releases/tag/nightly"
 
 data class UpdateSettings(
     val checkAutomatically: Boolean = true,
@@ -78,10 +84,6 @@ data class UpdateStatus(
 
 /** Whether this launch is the first of a version newer than the one last seen; a fresh install has nothing to announce. */
 internal fun justUpdated(lastSeen: Long, installed: Long): Boolean = lastSeen in 1 until installed
-
-/** Release notes for [versionName]: the feed's link when the feed describes that version, else its GitHub release page. */
-internal fun whatsNewUrl(feed: UpdateInfo?, installed: Long, versionName: String): String =
-    feed?.takeIf { it.versionCode == installed }?.notesUrl ?: (RELEASES_URL + versionName)
 
 /** The download was fetched but must not be installed; retrying will not help. */
 class UpdateRejected(message: String) : Exception(message)
@@ -110,6 +112,12 @@ class UpdateManager @Inject constructor(
     )
     val settings: StateFlow<UpdateSettings> = _settings.asStateFlow()
 
+    /** The channel this build was published on, whichever feed it now follows. */
+    val installedChannel: UpdateChannel = UpdateChannel.parse(BuildConfig.CHANNEL, UpdateChannel.STABLE.id)
+
+    private val _channel = MutableStateFlow(UpdateChannel.parse(prefs.getString(KEY_CHANNEL, null), BuildConfig.CHANNEL))
+    val channel: StateFlow<UpdateChannel> = _channel.asStateFlow()
+
     private val _whatsNewUntil = MutableStateFlow(0L)
 
     /** Until when the sidebar offers the notes of the version that was just installed; 0 when it does not. */
@@ -119,7 +127,13 @@ class UpdateManager @Inject constructor(
         val lastSeen = prefs.getLong(KEY_LAST_SEEN, 0)
         val now = System.currentTimeMillis()
         if (justUpdated(lastSeen, installedVersionCode)) prefs.edit().putLong(KEY_WHATS_NEW_UNTIL, now + WHATS_NEW_MS).apply()
-        if (lastSeen != installedVersionCode) prefs.edit().putLong(KEY_LAST_SEEN, installedVersionCode).apply()
+        if (lastSeen != installedVersionCode) {
+            prefs.edit()
+                .putLong(KEY_LAST_SEEN, installedVersionCode)
+                .putString(KEY_PREV_NAME, prefs.getString(KEY_LAST_SEEN_NAME, null))
+                .putString(KEY_LAST_SEEN_NAME, installedVersionName)
+                .apply()
+        }
         _whatsNewUntil.value = prefs.getLong(KEY_WHATS_NEW_UNTIL, 0).takeIf { it > now } ?: 0
     }
 
@@ -132,6 +146,7 @@ class UpdateManager @Inject constructor(
         ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
             override fun onStart(owner: LifecycleOwner) {
                 inForeground = true
+                recoverAbandonedInstall()
                 checkIfDue()
             }
 
@@ -154,6 +169,26 @@ class UpdateManager @Inject constructor(
             .putBoolean(KEY_AUTO_DOWNLOAD, next.downloadAutomatically)
             .apply()
         scope.launch { schedulePeriodic() }
+    }
+
+    /** Follows [next] from now on; going to Nightly saves a snapshot first. The cached feed belongs to the old channel and is dropped. */
+    fun setChannel(next: UpdateChannel) {
+        if (next == _channel.value) return
+        _channel.value = next
+        scope.launch {
+            if (next == UpdateChannel.NIGHTLY) {
+                try {
+                    snapshots.take("before Nightly")
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    // The switch is the user's call; a failed snapshot must not strand them on the old feed.
+                }
+            }
+            prefs.edit().putString(KEY_CHANNEL, next.id).remove(KEY_LATEST).remove(KEY_ETAG).apply()
+            if (_status.value.phase !in BUSY) refresh()
+            check()
+        }
     }
 
     private fun schedulePeriodic() {
@@ -197,11 +232,11 @@ class UpdateManager @Inject constructor(
         _status.update { it.copy(phase = UpdatePhase.CHECKING, error = null) }
         try {
             try {
-                (UpdateHttp.fetchText(BuildConfig.REMOTE_CONFIG_URL) as? Fetched.Body)?.let { remote.update(it.text) }
+                (UpdateHttp.fetchText(feedUrl(_channel.value, BuildConfig.REMOTE_CONFIG_URL, BuildConfig.NIGHTLY_REMOTE_CONFIG_URL)) as? Fetched.Body)?.let { remote.update(it.text) }
             } catch (e: IOException) {
                 // Remote config is optional; the cached or default one stays in force.
             }
-            when (val r = UpdateHttp.fetchText(BuildConfig.UPDATE_FEED_URL, prefs.getString(KEY_ETAG, null))) {
+            when (val r = UpdateHttp.fetchText(feedUrl(_channel.value, BuildConfig.UPDATE_FEED_URL, BuildConfig.NIGHTLY_FEED_URL),prefs.getString(KEY_ETAG, null))) {
                 Fetched.NotModified -> Unit
                 is Fetched.Body -> {
                     if (UpdateInfo.parse(r.text) == null) throw IOException("The update feed is unreadable")
@@ -292,6 +327,7 @@ class UpdateManager @Inject constructor(
             if (!part.renameTo(final)) throw IOException("Could not store the update")
             etag.delete()
         } finally {
+            if (final.exists()) cacheNotes(info)
             refresh(error = null)
         }
     }
@@ -325,8 +361,27 @@ class UpdateManager @Inject constructor(
         }
     }
 
-    fun whatsNewUrl(): String =
-        whatsNewUrl(prefs.getString(KEY_LATEST, null)?.let(UpdateInfo::parse), installedVersionCode, installedVersionName)
+    /** The one web link left in the notes panels. */
+    val releasesUrl: String get() = if (installedChannel == UpdateChannel.NIGHTLY) NIGHTLY_RELEASE_URL else RELEASES_URL
+
+    /** The bundled release history, newest first. */
+    fun changelog(): List<VersionNotes> = try {
+        ReleaseNotes.parse(context.assets.open("CHANGELOG.md").bufferedReader().use { it.readText() })
+    } catch (e: IOException) {
+        emptyList()
+    }
+
+    /** What changed since the version last seen before this install. */
+    fun whatsNew(): List<VersionNotes> {
+        val cached = prefs.getString(KEY_NOTES, null)
+            ?.takeIf { prefs.getLong(KEY_NOTES_CODE, 0) == installedVersionCode }
+            ?.let { ReleaseNotes.parse(it).firstOrNull() }
+        return ReleaseNotes.sinceLastSeen(changelog(), prefs.getString(KEY_PREV_NAME, null), installedVersionName, cached)
+    }
+
+    private fun cacheNotes(info: UpdateInfo) {
+        if (info.notes != null) prefs.edit().putLong(KEY_NOTES_CODE, info.versionCode).putString(KEY_NOTES, info.notes).apply()
+    }
 
     fun dismissWhatsNew() {
         prefs.edit().remove(KEY_WHATS_NEW_UNTIL).apply()
@@ -363,6 +418,12 @@ class UpdateManager @Inject constructor(
         } catch (e: Exception) {
             onInstallFailed("Install failed: ${e.message ?: e.javaClass.simpleName}", aborted = false)
         }
+    }
+
+    // Leaving the system's confirmation screen doesn't always report back, so coming to the foreground with no
+    // session of ours still open means the install was dropped and the update is simply ready again.
+    private fun recoverAbandonedInstall() {
+        if (_status.value.phase == UpdatePhase.INSTALLING && context.packageManager.packageInstaller.mySessions.isEmpty()) refresh()
     }
 
     fun onInstallFailed(message: String, aborted: Boolean) {
