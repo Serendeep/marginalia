@@ -26,7 +26,6 @@ import com.serendeep.marginalia.ui.components.PILL_ALPHA
 import com.serendeep.marginalia.ui.components.SidePanel
 import com.serendeep.marginalia.ui.components.glassBorder
 import com.serendeep.marginalia.ui.theme.MonoFamily
-import com.serendeep.marginalia.ui.theme.Violet
 
 /** "Ask" pill beside the page indicator; [NotebookAskPanel] is what it opens. */
 @Composable
@@ -37,7 +36,7 @@ fun NotebookAskPill(onClick: () -> Unit, modifier: Modifier = Modifier) {
         fontFamily = MonoFamily,
         fontSize = 11.sp,
         letterSpacing = 1.2.sp,
-        color = Violet,
+        color = MaterialTheme.colorScheme.primary,
         modifier = modifier
             .clip(shape)
             .background(MaterialTheme.colorScheme.surface.copy(alpha = PILL_ALPHA))

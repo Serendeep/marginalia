@@ -1,5 +1,6 @@
 package com.serendeep.marginalia.shell
 
+import com.serendeep.marginalia.ui.theme.marginalia
 import androidx.compose.material3.IconButton
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.animation.animateColorAsState
@@ -71,12 +72,8 @@ import com.serendeep.marginalia.library.LibraryFilter
 import com.serendeep.marginalia.library.statusLabel
 import com.serendeep.marginalia.ui.theme.BodyFamily
 import com.serendeep.marginalia.ui.theme.CoursePalette
-import com.serendeep.marginalia.ui.theme.DimInkDark
 import com.serendeep.marginalia.ui.theme.DisplayFamily
-import com.serendeep.marginalia.ui.theme.Lime
 import com.serendeep.marginalia.ui.theme.MonoFamily
-import com.serendeep.marginalia.ui.theme.Violet
-import com.serendeep.marginalia.ui.theme.OnViolet
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.format.TextStyle
@@ -96,7 +93,6 @@ sealed interface Screen {
 }
 
 private val SidebarWidth = 220.dp
-private val GoalTrack = Color(0xFF26262B)
 
 @Composable
 fun AppShell(
@@ -142,7 +138,7 @@ private fun Sidebar(screen: Screen, onNavigate: (Screen) -> Unit, viewModel: She
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 modifier = Modifier.padding(start = 8.dp, end = 8.dp, top = 6.dp, bottom = 16.dp),
             ) {
-                if (nightly) NightlyStar() else Box(Modifier.size(10.dp).clip(RoundedCornerShape(3.dp)).background(Lime))
+                if (nightly) NightlyStar() else Box(Modifier.size(10.dp).clip(RoundedCornerShape(3.dp)).background(MaterialTheme.marginalia.limeInk))
                 Text(
                     "Marginalia",
                     fontFamily = DisplayFamily,
@@ -224,7 +220,7 @@ private fun SectionLabel(text: String) {
         fontWeight = FontWeight.Medium,
         fontSize = 10.5.sp,
         letterSpacing = 1.26.sp,
-        color = DimInkDark,
+        color = MaterialTheme.marginalia.dimInk,
         modifier = Modifier.padding(start = 10.dp, end = 10.dp, top = 18.dp, bottom = 6.dp),
     )
 }
@@ -245,6 +241,7 @@ private fun NavItem(
         label = "nav-bg",
     )
     val shape = RoundedCornerShape(9.dp)
+    val accent = MaterialTheme.colorScheme.primary
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -254,11 +251,11 @@ private fun NavItem(
             .clickable(onClick = onClick)
             .drawBehind {
                 drawRect(bg)
-                if (selected) drawRect(Violet, size = Size(2.dp.toPx(), size.height))
+                if (selected) drawRect(accent, size = Size(2.dp.toPx(), size.height))
             }
             .padding(horizontal = 10.dp, vertical = 8.dp),
     ) {
-        val tint = if (selected) Color.White else Color(0xFFA0A0AB)
+        val tint = if (selected) MaterialTheme.colorScheme.onSurface else MaterialTheme.marginalia.chipText
         when {
             dot != null -> Box(Modifier.size(8.dp).clip(RoundedCornerShape(3.dp)).background(dot))
             icon != null -> Icon(icon, null, tint = tint, modifier = Modifier.size(16.dp))
@@ -278,11 +275,11 @@ private fun NavItem(
                 fontFamily = MonoFamily,
                 fontWeight = FontWeight.Medium,
                 fontSize = 11.sp,
-                color = OnViolet,
-                modifier = Modifier.clip(RoundedCornerShape(9.dp)).background(Violet).padding(horizontal = 7.dp, vertical = 1.dp),
+                color = MaterialTheme.colorScheme.onPrimary,
+                modifier = Modifier.clip(RoundedCornerShape(9.dp)).background(MaterialTheme.colorScheme.primary).padding(horizontal = 7.dp, vertical = 1.dp),
             )
         } else if (count != null) {
-            Text(count, fontFamily = MonoFamily, fontSize = 11.sp, color = DimInkDark)
+            Text(count, fontFamily = MonoFamily, fontSize = 11.sp, color = MaterialTheme.marginalia.dimInk)
         }
     }
 }
@@ -292,20 +289,23 @@ private fun NavItem(
 @Composable
 private fun GoalCard(viewModel: ShellViewModel, settingsOpen: Boolean, onSettingsOpen: (Boolean) -> Unit) {
     val minutes by viewModel.minutesToday.collectAsStateWithLifecycle()
+    val track = MaterialTheme.marginalia.goalTrack
+    val lime = MaterialTheme.marginalia.limeInk
     val goal by viewModel.goalMin.collectAsStateWithLifecycle()
     val reminder by viewModel.reminder.collectAsStateWithLifecycle()
     val pencilAction by viewModel.pencilAction.collectAsStateWithLifecycle()
     val handwritingSearch by viewModel.handwritingSearch.collectAsStateWithLifecycle()
+    val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
     val modelState by viewModel.modelState.collectAsStateWithLifecycle()
     if (settingsOpen) {
         LaunchedEffect(Unit) { viewModel.refreshModel() }
         SettingsDialog(
-            goal, reminder, pencilAction, handwritingSearch, modelState,
+            goal, reminder, pencilAction, handwritingSearch, themeMode, modelState,
             onDownloadModel = viewModel::downloadModel,
             onDismiss = { onSettingsOpen(false) },
-            onSave = { g, r, a, h ->
+            onSave = { g, r, a, h, t ->
                 onSettingsOpen(false)
-                viewModel.saveSettings(g, r, a, h)
+                viewModel.saveSettings(g, r, a, h, t)
             },
         )
     }
@@ -326,10 +326,10 @@ private fun GoalCard(viewModel: ShellViewModel, settingsOpen: Boolean, onSetting
             val w = 5.dp.toPx()
             val inset = w / 2
             val arc = Size(size.width - w, size.height - w)
-            drawArc(GoalTrack, 0f, 360f, false, Offset(inset, inset), arc, style = Stroke(w))
+            drawArc(track, 0f, 360f, false, Offset(inset, inset), arc, style = Stroke(w))
             val frac = (minutes.toFloat() / goal.coerceAtLeast(1)).coerceIn(0f, 1f)
             if (frac > 0f) {
-                drawArc(Lime, -90f, 360f * frac, false, Offset(inset, inset), arc, style = Stroke(w, cap = StrokeCap.Butt))
+                drawArc(lime, -90f, 360f * frac, false, Offset(inset, inset), arc, style = Stroke(w, cap = StrokeCap.Butt))
             }
         }
         Column {
@@ -370,7 +370,7 @@ private fun TopBar(screen: Screen, viewModel: ShellViewModel, onSearch: () -> Un
             .padding(horizontal = 24.dp),
     ) {
         Text(title, fontFamily = DisplayFamily, fontWeight = FontWeight.SemiBold, fontSize = 20.sp, letterSpacing = (-0.4).sp, maxLines = 1)
-        Text(crumb, fontFamily = MonoFamily, fontSize = 12.sp, letterSpacing = 0.72.sp, color = DimInkDark, maxLines = 1)
+        Text(crumb, fontFamily = MonoFamily, fontSize = 12.sp, letterSpacing = 0.72.sp, color = MaterialTheme.marginalia.dimInk, maxLines = 1)
         Spacer(Modifier.weight(1f))
         if (screen != Screen.Search) Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -384,8 +384,8 @@ private fun TopBar(screen: Screen, viewModel: ShellViewModel, onSearch: () -> Un
                 .clickable(onClick = onSearch)
                 .padding(horizontal = 14.dp),
         ) {
-            Icon(Icons.Outlined.Search, null, tint = DimInkDark, modifier = Modifier.size(16.dp))
-            Text("Search notes, PDFs, highlights", fontFamily = BodyFamily, fontSize = 13.sp, color = DimInkDark, maxLines = 1)
+            Icon(Icons.Outlined.Search, null, tint = MaterialTheme.marginalia.dimInk, modifier = Modifier.size(16.dp))
+            Text("Search notes, PDFs, highlights", fontFamily = BodyFamily, fontSize = 13.sp, color = MaterialTheme.marginalia.dimInk, maxLines = 1)
         }
     }
 }

@@ -32,6 +32,9 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.serendeep.marginalia.ui.theme.LimeInkLight
+import com.serendeep.marginalia.ui.theme.LocalDarkTheme
+import com.serendeep.marginalia.ui.theme.Violet
 import kotlinx.coroutines.delay
 import kotlin.math.PI
 import kotlin.math.abs
@@ -50,6 +53,12 @@ private val SkyMid = Color(0xFF0F0E1C)
 private val MoonLight = Color(0xFFF3EFD8)
 private val MoonDark = Color(0xFF2A2740)
 private val NightLime = Color(0xFFC6F432)
+
+// Pre-dawn: the same sky on paper, in pale lavender and muted violet.
+private val DawnTop = Color(0xFFD8D2FA)
+private val DawnMid = Color(0xFFEAE6FB)
+private val DawnMoonLit = Color(0xFFA99DF8)
+private val DawnMoonShade = Color(0xFFE2DEF2)
 
 /** [age] in days since the last new moon; [fraction] is the share of the cycle, 0 new and 0.5 full. */
 data class MoonPhase(val age: Double, val fraction: Double, val illumination: Double, val name: String) {
@@ -101,6 +110,7 @@ private val Stars = listOf(
 @Composable
 fun Modifier.nightSky(height: Dp = 220.dp): Modifier {
     val phase by twinkle()
+    val dark = LocalDarkTheme.current
     return drawBehind {
         val h = height.toPx().coerceAtMost(size.height)
         val band = Rect(0f, 0f, size.width, h)
@@ -108,7 +118,7 @@ fun Modifier.nightSky(height: Dp = 220.dp): Modifier {
             // The wash is masked by a vertical fade so it melts into the sidebar instead of ending in an edge.
             canvas.saveLayer(band, Paint())
             drawRect(
-                Brush.radialGradient(listOf(SkyTop, SkyMid), center = Offset(size.width * 0.6f, -h * 0.15f), radius = size.width * 1.05f),
+                Brush.radialGradient(if (dark) listOf(SkyTop, SkyMid) else listOf(DawnTop, DawnMid), center = Offset(size.width * 0.6f, -h * 0.15f), radius = size.width * 1.05f),
                 size = band.size,
             )
             // Eased falloff (roughly 1 - t^2) over the whole band, so there is no visible line where it ends.
@@ -135,11 +145,11 @@ fun Modifier.nightSky(height: Dp = 220.dp): Modifier {
             lineTo(at(Stars[1]).x, at(Stars[1]).y)
             lineTo(at(Stars[2]).x, at(Stars[2]).y)
         }
-        drawPath(line, Color.White.copy(alpha = 0.12f), style = Stroke(width = 0.6.dp.toPx()))
+        drawPath(line, if (dark) Color.White.copy(alpha = 0.12f) else Violet.copy(alpha = 0.22f), style = Stroke(width = 0.6.dp.toPx()))
         Stars.forEach { s ->
             // Each star dims once per cycle at its own offset, so only one or two change at a time.
             val d = abs(((phase + s.offset) % 1f) - 0.5f) * 2f
-            drawCircle(Color.White.copy(alpha = 0.3f + 0.6f * d), radius = s.r.dp.toPx(), center = at(s))
+            drawCircle((if (dark) Color.White else Violet).copy(alpha = if (dark) 0.3f + 0.6f * d else 0.22f + 0.45f * d), radius = s.r.dp.toPx(), center = at(s))
         }
     }
 }
@@ -148,6 +158,7 @@ fun Modifier.nightSky(height: Dp = 220.dp): Modifier {
 @Composable
 fun NightlyStar(size: Dp = 12.dp) {
     val phase by twinkle()
+    val ink = if (LocalDarkTheme.current) NightLime else LimeInkLight
     Canvas(Modifier.size(size)) {
         val c = this.size.width / 2
         val inner = c * 0.22f
@@ -158,7 +169,7 @@ fun NightlyStar(size: Dp = 12.dp) {
             close()
         }
         val alpha = 0.75f + 0.25f * sin(phase * 2 * PI).toFloat()
-        drawPath(path, NightLime.copy(alpha = alpha))
+        drawPath(path, ink.copy(alpha = alpha))
     }
 }
 
@@ -172,12 +183,15 @@ fun NightlyMoon(size: Dp = 18.dp) {
         }
     }
     val moon = remember(now / 3_600_000) { moonPhase(now) }
+    val dark = LocalDarkTheme.current
+    val lit = if (dark) MoonLight else DawnMoonLit
+    val shade = if (dark) MoonDark else DawnMoonShade
     Canvas(Modifier.size(size).semantics { contentDescription = moon.label }) {
         val r = this.size.minDimension / 2 * 0.72f
         val cx = this.size.width / 2
         val cy = this.size.height / 2
-        drawCircle(MoonLight.copy(alpha = (0.06 + 0.16 * moon.illumination).toFloat()), radius = r * 1.38f, center = Offset(cx, cy))
-        drawCircle(MoonDark, radius = r, center = Offset(cx, cy))
+        drawCircle(lit.copy(alpha = (0.06 + 0.16 * moon.illumination).toFloat()), radius = r * 1.38f, center = Offset(cx, cy))
+        drawCircle(shade, radius = r, center = Offset(cx, cy))
         val disc = Rect(cx - r, cy - r, cx + r, cy + r)
         // The lit half on the sunward side, then the terminator ellipse added (gibbous) or cut away (crescent).
         val half = Path().apply {
@@ -186,9 +200,9 @@ fun NightlyMoon(size: Dp = 18.dp) {
         }
         val rx = abs(cos(2 * PI * moon.fraction)).toFloat() * r
         val terminator = Path().apply { addOval(Rect(cx - rx, cy - r, cx + rx, cy + r)) }
-        val lit = Path().apply {
+        val litPath = Path().apply {
             op(half, terminator, if (moon.illumination > 0.5) PathOperation.Union else PathOperation.Difference)
         }
-        drawPath(lit, MoonLight)
+        drawPath(litPath, lit)
     }
 }

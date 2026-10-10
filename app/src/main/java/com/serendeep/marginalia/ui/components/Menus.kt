@@ -24,7 +24,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.serendeep.marginalia.ui.theme.BodyFamily
 import com.serendeep.marginalia.ui.theme.MonoFamily
-import com.serendeep.marginalia.ui.theme.Violet
 import java.util.Locale
 
 /** Dropdown on the app's sheet surface with a hairline border, used for every menu. */
@@ -65,7 +64,7 @@ fun GlassMenuItem(
                     fontFamily = BodyFamily,
                     fontSize = 14.sp,
                     fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal,
-                    color = if (selected) Violet else color,
+                    color = if (selected) MaterialTheme.colorScheme.primary else color,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -83,7 +82,7 @@ fun GlassMenuItem(
             }
         },
         trailingIcon = if (selected) {
-            { Icon(Icons.Filled.Check, contentDescription = null, tint = Violet, modifier = Modifier.size(18.dp)) }
+            { Icon(Icons.Filled.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp)) }
         } else {
             null
         },

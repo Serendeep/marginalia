@@ -42,7 +42,6 @@ import com.serendeep.marginalia.ui.components.glassBorder
 import com.serendeep.marginalia.ui.components.glassTextFieldColors
 import com.serendeep.marginalia.ui.theme.BodyFamily
 import com.serendeep.marginalia.ui.theme.MonoFamily
-import com.serendeep.marginalia.ui.theme.Violet
 
 /** History of the chats held in [scope]; with [scopeToggle] it can widen to every chat. */
 @Composable
@@ -109,7 +108,7 @@ private fun ChatRow(chat: ChatInfo, current: Boolean, onOpen: () -> Unit, onRena
     var draft by remember { mutableStateOf(chat.title) }
     val shape = RoundedCornerShape(12.dp)
     Column(
-        Modifier.fillMaxWidth().clip(shape).border(1.dp, if (current) Violet else glassBorder(), shape).padding(horizontal = 14.dp, vertical = 10.dp),
+        Modifier.fillMaxWidth().clip(shape).border(1.dp, if (current) MaterialTheme.colorScheme.primary else glassBorder(), shape).padding(horizontal = 14.dp, vertical = 10.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         when (mode) {
@@ -145,7 +144,7 @@ private fun ChatRow(chat: ChatInfo, current: Boolean, onOpen: () -> Unit, onRena
                         chat.title,
                         fontFamily = BodyFamily,
                         fontSize = 14.sp,
-                        color = if (current) Violet else MaterialTheme.colorScheme.onSurface,
+                        color = if (current) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                     )

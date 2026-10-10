@@ -2,7 +2,7 @@ package com.serendeep.marginalia.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// Liquid Glass. Dark is the primary mode; light is its frosted-porcelain twin.
+// Liquid Glass. Dark is the primary mode; light is its warm-paper twin.
 
 // Dark mode
 val BgDark = Color(0xFF0C0C0E)
@@ -22,14 +22,16 @@ val GlassBorderDark = Color(0x24FFFFFF)
 // a tint that stays dark regardless of what the blur samples.
 val GlassSmokeDark = Color(0xB3161A21)
 
-// Light mode
-val BgLight = Color(0xFFEEF1F5)
-val SheetLight = Color(0xFFF9FAFC)
-val InkLight = Color(0xFF1B2027)
-val AccentLight = Color(0xFF4A6FB5)
-val SoftInkLight = Color(0xFF66707C)
-val RuleLight = Color(0xFFD5DBE3)
-val DividerLight = Color(0x1F000000)
+// Light mode: warm paper
+val BgLight = Color(0xFFF7F5F0)
+val SheetLight = Color(0xFFFFFEFC)
+val Surface2Light = Color(0xFFF0EDE6)
+val InkLight = Color(0xFF1C1B22)
+val VioletLight = Color(0xFF6A58E0)
+val SoftInkLight = Color(0xFF626170)
+val DimInkLight = Color(0xFF6B6A75)
+val RuleLight = Color(0xFFE3DFD6)
+val DividerLight = Color(0x1F1C1B22)
 val GlassTintLight = Color(0x99FFFFFF)
 val GlassBorderLight = Color(0xCCFFFFFF)
 
@@ -48,6 +50,9 @@ val PenRustDark = Color(0xFFC98A5E)
 
 // Time and habit UI only: focus tile, streak heatmap, daily-goal ring, brand dot.
 val Lime = Color(0xFFC6F432)
+
+// Lime as text or a thin stroke on a light surface.
+val LimeInkLight = Color(0xFF5C7600)
 
 val Danger = Color(0xFFFF6B6B)
 

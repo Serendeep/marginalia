@@ -33,6 +33,7 @@ import com.serendeep.marginalia.ui.components.PanelSection
 import com.serendeep.marginalia.ui.components.SidePanel
 import com.serendeep.marginalia.ui.components.GlassTextButton
 import com.serendeep.marginalia.ui.components.glassTextFieldColors
+import com.serendeep.marginalia.ui.theme.ThemeMode
 import com.serendeep.marginalia.update.UpdatesSectionContent
 
 /** Daily goal and reminder; opened by long-pressing the sidebar goal card. */
@@ -43,12 +44,14 @@ fun SettingsDialog(
     reminder: ReminderSettings,
     pencilAction: PencilAction,
     handwritingSearch: Boolean,
+    themeMode: ThemeMode,
     modelState: ModelState,
     onDownloadModel: () -> Unit,
     onDismiss: () -> Unit,
-    onSave: (goalMin: Int, reminder: ReminderSettings, pencilAction: PencilAction, handwritingSearch: Boolean) -> Unit,
+    onSave: (goalMin: Int, reminder: ReminderSettings, pencilAction: PencilAction, handwritingSearch: Boolean, themeMode: ThemeMode) -> Unit,
 ) {
     var searchInk by remember { mutableStateOf(handwritingSearch) }
+    var theme by remember { mutableStateOf(themeMode) }
     var action by remember { mutableStateOf(pencilAction) }
     var goalText by remember { mutableStateOf(goalMin.toString()) }
     var enabled by remember { mutableStateOf(reminder.enabled) }
@@ -62,10 +65,23 @@ fun SettingsDialog(
         footer = {
             GlassTextButton("Cancel", onClick = onDismiss)
             GlassButton("Save", enabled = goal != null, onClick = {
-                onSave(goal ?: goalMin, ReminderSettings(enabled, time.hour * 60 + time.minute), action, searchInk)
+                onSave(goal ?: goalMin, ReminderSettings(enabled, time.hour * 60 + time.minute), action, searchInk, theme)
             })
         },
     ) {
+        PanelSection("Appearance") {
+            Text("Theme", style = MaterialTheme.typography.labelLarge)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                ThemeMode.entries.forEach { option ->
+                    FilterChip(
+                        selected = option == theme,
+                        onClick = { theme = option },
+                        label = { Text(option.label, maxLines = 1) },
+                    )
+                }
+            }
+        }
+        PanelDivider()
         PanelSection("Daily goal") {
             OutlinedTextField(
                 value = goalText,

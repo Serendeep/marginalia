@@ -1,5 +1,6 @@
 package com.serendeep.marginalia.review
 
+import com.serendeep.marginalia.ui.theme.marginalia
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -51,12 +52,8 @@ import com.serendeep.marginalia.cards.TypedCardSheet
 import com.serendeep.marginalia.study.Grade
 import com.serendeep.marginalia.ui.components.GlassButton
 import com.serendeep.marginalia.ui.theme.BodyFamily
-import com.serendeep.marginalia.ui.theme.Danger
-import com.serendeep.marginalia.ui.theme.DimInkDark
 import com.serendeep.marginalia.ui.theme.DisplayFamily
 import com.serendeep.marginalia.ui.theme.MonoFamily
-import com.serendeep.marginalia.ui.theme.OnViolet
-import com.serendeep.marginalia.ui.theme.Violet
 import java.io.File
 import java.util.Locale
 
@@ -151,14 +148,14 @@ private fun CardSession(
                 fontFamily = MonoFamily,
                 fontSize = 11.sp,
                 letterSpacing = 0.66.sp,
-                color = DimInkDark,
+                color = MaterialTheme.marginalia.dimInk,
                 modifier = Modifier.weight(1f),
             )
             Text(
                 "+ New card",
                 fontFamily = BodyFamily,
                 fontSize = 13.sp,
-                color = Violet,
+                color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable(onClick = onNewCard).padding(8.dp),
             )
         }
@@ -177,7 +174,7 @@ private fun CardSession(
                     fontFamily = MonoFamily,
                     fontSize = 11.sp,
                     letterSpacing = 1.1.sp,
-                    color = DimInkDark,
+                    color = MaterialTheme.marginalia.dimInk,
                 )
             }
         }
@@ -231,7 +228,7 @@ private fun CardFaces(card: ReviewCard, imageLoader: ImageLoader, rotation: Anim
                     alpha = if (rotation.value >= 90f) 1f else 0f
                 }
                 .background(surface, shape)
-                .border(1.dp, Violet.copy(alpha = 0.5f), shape)
+                .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f), shape)
                 .padding(28.dp),
             contentAlignment = Alignment.Center,
         ) {
@@ -281,8 +278,8 @@ private fun GradeRow(labels: List<String>, onGrade: (Grade) -> Unit) {
         Grade.entries.forEachIndexed { i, grade ->
             val primary = grade == Grade.GOOD
             val tint = when (grade) {
-                Grade.AGAIN -> Danger
-                Grade.GOOD -> OnViolet
+                Grade.AGAIN -> MaterialTheme.marginalia.danger
+                Grade.GOOD -> MaterialTheme.colorScheme.onPrimary
                 else -> MaterialTheme.colorScheme.onSurface
             }
             Column(
@@ -290,7 +287,7 @@ private fun GradeRow(labels: List<String>, onGrade: (Grade) -> Unit) {
                 modifier = Modifier
                     .widthIn(min = 112.dp)
                     .clip(RoundedCornerShape(14.dp))
-                    .background(if (primary) Violet else MaterialTheme.colorScheme.surfaceVariant)
+                    .background(if (primary) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant)
                     .clickable { onGrade(grade) }
                     .padding(horizontal = 18.dp, vertical = 12.dp),
             ) {
@@ -298,7 +295,7 @@ private fun GradeRow(labels: List<String>, onGrade: (Grade) -> Unit) {
                     labels.getOrElse(i) { "" },
                     fontFamily = MonoFamily,
                     fontSize = 11.sp,
-                    color = if (primary) OnViolet.copy(alpha = 0.7f) else DimInkDark,
+                    color = if (primary) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f) else MaterialTheme.marginalia.dimInk,
                 )
                 Text(GradeNames[i], fontFamily = BodyFamily, fontWeight = FontWeight.Medium, fontSize = 15.sp, color = tint)
             }
@@ -329,7 +326,7 @@ private fun SummaryView(summary: ReviewUi.Summary, onDone: () -> Unit) {
 @Composable
 private fun Stat(value: String, label: String) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(value, fontFamily = DisplayFamily, fontWeight = FontWeight.SemiBold, fontSize = 40.sp, color = Color.White)
-        Text(label, fontFamily = MonoFamily, fontSize = 11.sp, letterSpacing = 1.1.sp, color = DimInkDark)
+        Text(value, fontFamily = DisplayFamily, fontWeight = FontWeight.SemiBold, fontSize = 40.sp, color = MaterialTheme.colorScheme.onSurface)
+        Text(label, fontFamily = MonoFamily, fontSize = 11.sp, letterSpacing = 1.1.sp, color = MaterialTheme.marginalia.dimInk)
     }
 }

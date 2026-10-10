@@ -1,5 +1,6 @@
 package com.serendeep.marginalia.search
 
+import com.serendeep.marginalia.ui.theme.marginalia
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -51,10 +52,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.serendeep.marginalia.data.SnippetSpan
 import com.serendeep.marginalia.highlights.HighlightItem
 import com.serendeep.marginalia.ui.theme.BodyFamily
-import com.serendeep.marginalia.ui.theme.DimInkDark
-import com.serendeep.marginalia.ui.theme.InkDark
 import com.serendeep.marginalia.ui.theme.MonoFamily
-import com.serendeep.marginalia.ui.theme.Violet
 
 /** [onOpen] receives the notebook and the page to land on, or null for its saved place. */
 @Composable
@@ -160,17 +158,17 @@ private fun SearchField(
             .border(1.dp, MaterialTheme.colorScheme.outline, shape)
             .padding(horizontal = 16.dp, vertical = 14.dp),
     ) {
-        Icon(Icons.Outlined.Search, null, tint = DimInkDark, modifier = Modifier.size(18.dp))
+        Icon(Icons.Outlined.Search, null, tint = MaterialTheme.marginalia.dimInk, modifier = Modifier.size(18.dp))
         Box(Modifier.weight(1f)) {
             if (value.isEmpty()) {
-                Text("Search notes, PDFs, highlights", fontFamily = BodyFamily, fontSize = 15.sp, color = DimInkDark)
+                Text("Search notes, PDFs, highlights", fontFamily = BodyFamily, fontSize = 15.sp, color = MaterialTheme.marginalia.dimInk)
             }
             BasicTextField(
                 value = value,
                 onValueChange = onValueChange,
                 singleLine = true,
-                textStyle = androidx.compose.ui.text.TextStyle(fontFamily = BodyFamily, fontSize = 15.sp, color = InkDark),
-                cursorBrush = SolidColor(Violet),
+                textStyle = androidx.compose.ui.text.TextStyle(fontFamily = BodyFamily, fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurface),
+                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                 keyboardActions = KeyboardActions(onSearch = { onSearch() }),
                 modifier = Modifier.fillMaxWidth().focusRequester(focus),
@@ -180,7 +178,7 @@ private fun SearchField(
             Icon(
                 Icons.Filled.Close,
                 contentDescription = "Clear",
-                tint = DimInkDark,
+                tint = MaterialTheme.marginalia.dimInk,
                 modifier = Modifier.size(18.dp).clickable { onValueChange("") },
             )
         }
@@ -195,7 +193,7 @@ private fun SectionLabel(text: String) {
         fontWeight = FontWeight.Medium,
         fontSize = 10.5.sp,
         letterSpacing = 1.26.sp,
-        color = DimInkDark,
+        color = MaterialTheme.marginalia.dimInk,
         modifier = Modifier.padding(top = 18.dp, bottom = 6.dp),
     )
 }
@@ -252,7 +250,7 @@ private fun PageRow(hit: PageResult, onClick: () -> Unit) {
             fontFamily = MonoFamily,
             fontSize = 10.5.sp,
             letterSpacing = 0.63.sp,
-            color = DimInkDark,
+            color = MaterialTheme.marginalia.dimInk,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(top = 4.dp),
@@ -282,7 +280,7 @@ private fun InkRow(hit: InkResult, onClick: () -> Unit) {
             fontFamily = MonoFamily,
             fontSize = 10.5.sp,
             letterSpacing = 0.63.sp,
-            color = DimInkDark,
+            color = MaterialTheme.marginalia.dimInk,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(top = 4.dp),
@@ -290,10 +288,12 @@ private fun InkRow(hit: InkResult, onClick: () -> Unit) {
     }
 }
 
+@Composable
 private fun emphasised(spans: List<SnippetSpan>): AnnotatedString = buildAnnotatedString {
+    val ink = MaterialTheme.colorScheme.onSurface
     spans.forEach { span ->
         if (span.match) {
-            withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = Color.White)) { append(span.text) }
+            withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = ink)) { append(span.text) }
         } else {
             append(span.text)
         }

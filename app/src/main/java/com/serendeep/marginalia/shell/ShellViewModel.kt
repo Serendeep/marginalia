@@ -19,6 +19,8 @@ import com.serendeep.marginalia.study.minutesByDay
 import com.serendeep.marginalia.study.observeDue
 import com.serendeep.marginalia.ink.PenColors
 import com.serendeep.marginalia.ink.PencilAction
+import com.serendeep.marginalia.ui.theme.THEME_MODE_KEY
+import com.serendeep.marginalia.ui.theme.ThemeMode
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
@@ -106,6 +108,9 @@ class ShellViewModel @Inject constructor(
     private val _handwritingSearch = MutableStateFlow(true)
     val handwritingSearch: StateFlow<Boolean> = _handwritingSearch.asStateFlow()
 
+    private val _themeMode = MutableStateFlow(ThemeMode.SYSTEM)
+    val themeMode: StateFlow<ThemeMode> = _themeMode.asStateFlow()
+
     val modelState: StateFlow<ModelState> = recognizer.state
 
     /** Downloads the handwriting model now (foreground, any network), then indexes what is waiting. */
@@ -126,6 +131,7 @@ class ShellViewModel @Inject constructor(
             _pencilAction.value = PenColors.actionFrom(prefs.getString(PenColors.ACTION_KEY, null))
             _goalMin.value = prefs.getInt(GOAL_KEY, DEFAULT_GOAL_MIN)
             _handwritingSearch.value = prefs.getBoolean(HANDWRITING_SEARCH_KEY, true)
+            _themeMode.value = ThemeMode.from(prefs.getString(THEME_MODE_KEY, null))
             _reminder.value = ReminderSettings(
                 prefs.getBoolean(REMINDER_ENABLED_KEY, true),
                 prefs.getInt(REMINDER_TIME_KEY, DEFAULT_REMINDER_MIN),
@@ -133,7 +139,8 @@ class ShellViewModel @Inject constructor(
         }
     }
 
-    fun saveSettings(goalMin: Int, reminder: ReminderSettings, pencilAction: PencilAction, handwritingSearch: Boolean) {
+    fun saveSettings(goalMin: Int, reminder: ReminderSettings, pencilAction: PencilAction, handwritingSearch: Boolean, themeMode: ThemeMode) {
+        _themeMode.value = themeMode
         _handwritingSearch.value = handwritingSearch
         _pencilAction.value = pencilAction
         _goalMin.value = goalMin
@@ -143,6 +150,7 @@ class ShellViewModel @Inject constructor(
                 .putInt(GOAL_KEY, goalMin)
                 .putBoolean(HANDWRITING_SEARCH_KEY, handwritingSearch)
                 .putString(PenColors.ACTION_KEY, pencilAction.name)
+                .putString(THEME_MODE_KEY, themeMode.name)
                 .putBoolean(REMINDER_ENABLED_KEY, reminder.enabled)
                 .putInt(REMINDER_TIME_KEY, reminder.minuteOfDay)
                 .apply()
