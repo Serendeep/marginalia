@@ -12,7 +12,7 @@
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.0-7F52FF?logo=kotlin&logoColor=white)](https://kotlinlang.org)
 
 
-https://github.com/user-attachments/assets/2c2c90d6-3aac-4872-a96d-f7fc41e34daa
+https://github.com/user-attachments/assets/caa3daa8-4017-45a3-808e-0d9144147aaa
 
 
 <img src="docs/screenshots/today.png" alt="Today dashboard with review queue, focus timer and study streak" width="48%">&nbsp;<img src="docs/screenshots/notebook.png" alt="A paper with highlighted text and handwritten notes in the margin" width="48%">
