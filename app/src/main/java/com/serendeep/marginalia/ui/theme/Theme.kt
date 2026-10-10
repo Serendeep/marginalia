@@ -12,6 +12,7 @@ import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
+import com.serendeep.marginalia.ink.InkTheme
 
 @Immutable
 data class PenPalette(
@@ -128,6 +129,7 @@ fun MarginaliaTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit,
 ) {
+    InkTheme.dark = darkTheme
     CompositionLocalProvider(
         LocalPenPalette provides if (darkTheme) DarkPens else LightPens,
         LocalDarkTheme provides darkTheme,

@@ -97,6 +97,7 @@ import com.serendeep.marginalia.ui.theme.GlassTintDark
 import com.serendeep.marginalia.ui.theme.GlassTintLight
 import com.serendeep.marginalia.ui.theme.InkLight
 import com.serendeep.marginalia.ui.theme.LocalDarkTheme
+import com.serendeep.marginalia.ui.theme.LocalDarkTheme
 import com.serendeep.marginalia.ui.theme.LocalPenPalette
 import com.serendeep.marginalia.ui.theme.MonoFamily
 import dev.chrisbanes.haze.HazeInputScale
@@ -128,6 +129,8 @@ fun NotebookScreen(
     var askSelection by remember { mutableStateOf<ByteArray?>(null) }
 
     LaunchedEffect(lectureId) { viewModel.openLecture(lectureId, startPage) }
+    val dark = LocalDarkTheme.current
+    LaunchedEffect(dark) { viewModel.retheme() }
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->

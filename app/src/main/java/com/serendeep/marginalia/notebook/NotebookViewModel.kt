@@ -890,6 +890,15 @@ class NotebookViewModel @Inject constructor(
 
     fun recolorSelection(rgb: Int) = editSelection { it.recolored(rgb) }
 
+    /** Redraws loaded strokes after a theme change so palette pens take the new theme's shade. */
+    fun retheme() {
+        val redraw = { list: List<RenderedStroke> ->
+            list.map { if (it.highlighted) it else it.copy(stroke = it.record.toStroke()) }
+        }
+        _strokes.value = redraw(_strokes.value)
+        _pageStrokes.value = redraw(_pageStrokes.value)
+    }
+
     fun duplicateSelection() {
         val sel = _selection.value ?: return
         viewModelScope.launch {
