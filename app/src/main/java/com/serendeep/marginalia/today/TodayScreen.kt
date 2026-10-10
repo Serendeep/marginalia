@@ -1,5 +1,6 @@
 package com.serendeep.marginalia.today
 
+import com.serendeep.marginalia.ui.theme.LocalDarkTheme
 import com.serendeep.marginalia.ui.theme.marginalia
 import android.Manifest
 import android.content.Context
@@ -84,8 +85,6 @@ import com.serendeep.marginalia.ui.theme.CoursePalette
 import com.serendeep.marginalia.ui.theme.DisplayFamily
 import com.serendeep.marginalia.ui.theme.Lime
 import com.serendeep.marginalia.ui.theme.MonoFamily
-import com.serendeep.marginalia.ui.theme.OnViolet
-import com.serendeep.marginalia.ui.theme.Violet
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.util.Locale
@@ -319,16 +318,23 @@ internal fun TileLabel(text: String, color: Color, modifier: Modifier = Modifier
 
 @Composable
 private fun ReviewTile(review: ReviewTileState, onStart: () -> Unit, modifier: Modifier) {
-    val brush = remember {
+    val dark = LocalDarkTheme.current
+    // Dark keeps the deep violet slab; light gets a soft violet wash so the tile doesn't sit like a hole in the paper.
+    val brush = remember(dark) {
         Brush.linearGradient(
-            0f to Color(0xFF251F49),
-            0.72f to Color(0xFF141417),
+            0f to if (dark) Color(0xFF251F49) else Color(0xFFE9E4FF),
+            0.72f to if (dark) Color(0xFF141417) else Color(0xFFFBFAFF),
             start = Offset.Zero,
             end = Offset(900f, 700f),
         )
     }
+    val ink = if (dark) Color.White else Color(0xFF1C1B22)
+    val muted = if (dark) ReviewMuted else Color(0xFF5B5872)
+    val track = if (dark) RingTrack else Color(0xFFDCD6F5)
+    val accent = MaterialTheme.colorScheme.primary
+    val onAccent = MaterialTheme.colorScheme.onPrimary
     val progress = review.progress
-    Tile(modifier, Modifier.background(brush), Color(0xFF2D2756)) {
+    Tile(modifier, Modifier.background(brush), if (dark) Color(0xFF2D2756) else Color(0xFFD9D3F7)) {
         Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(
                 Modifier
@@ -337,27 +343,27 @@ private fun ReviewTile(review: ReviewTileState, onStart: () -> Unit, modifier: M
                         val w = 12.dp.toPx()
                         val inset = Offset(w / 2, w / 2)
                         val arc = Size(size.width - w, size.height - w)
-                        drawArc(RingTrack, 0f, 360f, false, inset, arc, style = Stroke(w))
+                        drawArc(track, 0f, 360f, false, inset, arc, style = Stroke(w))
                         if (progress > 0f) {
-                            drawArc(Violet, -90f, 360f * progress, false, inset, arc, style = Stroke(w, cap = StrokeCap.Round))
+                            drawArc(accent, -90f, 360f * progress, false, inset, arc, style = Stroke(w, cap = StrokeCap.Round))
                         }
                     },
                 contentAlignment = Alignment.Center,
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("${review.due}", fontFamily = DisplayFamily, fontWeight = FontWeight.SemiBold, fontSize = 40.sp, color = Color.White)
-                    Text("due", fontFamily = BodyFamily, fontSize = 12.sp, color = ReviewMuted)
+                    Text("${review.due}", fontFamily = DisplayFamily, fontWeight = FontWeight.SemiBold, fontSize = 40.sp, color = ink)
+                    Text("due", fontFamily = BodyFamily, fontSize = 12.sp, color = muted)
                 }
             }
             Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.Center) {
-                TileLabel("Review queue", ReviewMuted)
+                TileLabel("Review queue", muted)
                 if (review.due > 0) {
                     val split = review.split
                     Text(
                         "${split.newCards} new · ${split.learning} learning · ${split.lapsed} lapsed",
                         fontFamily = BodyFamily,
                         fontSize = 12.5.sp,
-                        color = ReviewMuted,
+                        color = muted,
                         maxLines = 1,
                         modifier = Modifier.padding(top = 8.dp),
                     )
@@ -368,12 +374,12 @@ private fun ReviewTile(review: ReviewTileState, onStart: () -> Unit, modifier: M
                                 c.name,
                                 fontFamily = BodyFamily,
                                 fontSize = 12.sp,
-                                color = Color.White.copy(alpha = 0.85f),
+                                color = ink.copy(alpha = 0.85f),
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                                 modifier = Modifier.padding(start = 8.dp).weight(1f),
                             )
-                            Text("${c.due}", fontFamily = MonoFamily, fontSize = 11.sp, color = ReviewMuted)
+                            Text("${c.due}", fontFamily = MonoFamily, fontSize = 11.sp, color = muted)
                         }
                     }
                     Text(
@@ -381,11 +387,11 @@ private fun ReviewTile(review: ReviewTileState, onStart: () -> Unit, modifier: M
                         fontFamily = BodyFamily,
                         fontWeight = FontWeight.Medium,
                         fontSize = 13.sp,
-                        color = OnViolet,
+                        color = onAccent,
                         modifier = Modifier
                             .padding(top = 12.dp)
                             .clip(RoundedCornerShape(18.dp))
-                            .background(Violet)
+                            .background(accent)
                             .clickable(onClick = onStart)
                             .padding(horizontal = 18.dp, vertical = 8.dp),
                     )
@@ -395,7 +401,7 @@ private fun ReviewTile(review: ReviewTileState, onStart: () -> Unit, modifier: M
                         fontFamily = BodyFamily,
                         fontSize = 12.5.sp,
                         lineHeight = 20.sp,
-                        color = ReviewMuted,
+                        color = muted,
                         modifier = Modifier.padding(top = 10.dp),
                     )
                 }
