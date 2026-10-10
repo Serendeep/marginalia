@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.4.0](https://github.com/Serendeep/marginalia/compare/v1.3.0...v1.4.0) (2026-10-10)
+
+
+### Features
+
+* light theme ([4f54327](https://github.com/Serendeep/marginalia/commit/4f543275f57c17516837037ae4f26ef232a4ffc6))
+* pre-dawn night sky for the light theme ([201ef43](https://github.com/Serendeep/marginalia/commit/201ef4383006578bcbd36bf9c419e6198f5a4f13))
+
+
+### Bug Fixes
+
+* draw theme pens in the current theme's shade ([17efd86](https://github.com/Serendeep/marginalia/commit/17efd8655d0af723266eb46c28f720a3904eefcb))
+* draw theme pens in the current theme's shade ([cfadaf9](https://github.com/Serendeep/marginalia/commit/cfadaf97c10c57fd275fa2c22edcfa46efe85440))
+* soft violet review tile in the light theme ([693738f](https://github.com/Serendeep/marginalia/commit/693738f4fd8477f90b4f2f71e78a5aee7b775d48))
+
 ## [1.3.0](https://github.com/Serendeep/marginalia/compare/v1.2.0...v1.3.0) (2026-10-09)
 
 
