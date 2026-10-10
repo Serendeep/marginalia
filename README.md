@@ -16,7 +16,8 @@ https://github.com/user-attachments/assets/b2026201-a81f-4e13-bd22-6e01d67ba813
 
 
 <img src="docs/screenshots/today.png" alt="Today dashboard with review queue, focus timer and study streak" width="48%">&nbsp;<img src="docs/screenshots/notebook.png" alt="A paper with highlighted text and handwritten notes in the margin" width="48%">
-<img src="docs/screenshots/review.png" alt="Reviewing a flashcard with spaced-repetition grades" width="48%">&nbsp;<img src="docs/screenshots/search.png" alt="Search results across highlights, handwriting and PDF pages" width="48%">
+<img src="docs/screenshots/review.png" alt="Reviewing a card made from a figure, with a handwritten answer and spaced-repetition grades" width="48%">&nbsp;<img src="docs/screenshots/search.png" alt="Search results across highlights, handwriting and PDF pages" width="48%">
+<img src="docs/screenshots/ask.png" alt="Ask answering a question about the library with equations, numbered citations and a preview of the cited page" width="48%">&nbsp;<img src="docs/screenshots/light.png" alt="Today dashboard in the light theme" width="48%">
 
 </div>
 
