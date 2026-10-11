@@ -1,5 +1,6 @@
 package com.serendeep.marginalia.notebook
 
+import android.os.SystemClock
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.RectF
@@ -73,6 +74,8 @@ data class RenderedStroke(
     val stroke: Stroke,
     val highlighted: Boolean = false,
 )
+
+private const val ERASE_GROUP_GAP_MS = 400L
 
 private sealed interface EditOp {
     data class Add(val record: InkStroke) : EditOp
@@ -301,6 +304,7 @@ class NotebookViewModel @Inject constructor(
 
     private val ops = ArrayDeque<EditOp>()
     private val redos = ArrayDeque<EditOp>()
+    private var lastEraseAt = 0L
 
     private val _canUndo = MutableStateFlow(false)
     val canUndo: StateFlow<Boolean> = _canUndo.asStateFlow()
@@ -755,7 +759,7 @@ class NotebookViewModel @Inject constructor(
         if (removed.isEmpty()) return
 
         if (surface == InkSurface.MARGIN) _strokes.value = next else _pageStrokes.value = next
-        pushOp(EditOp.Erase(removed, added))
+        pushErase(removed, added)
         viewModelScope.launch {
             removeStrokes(removed.map { it.id })
             repository.saveStrokes(added)
@@ -763,6 +767,7 @@ class NotebookViewModel @Inject constructor(
     }
 
     fun undo() {
+        lastEraseAt = 0L
         val op = ops.removeLastOrNull() ?: return
         when (op) {
             is EditOp.Add -> {
@@ -939,6 +944,26 @@ class NotebookViewModel @Inject constructor(
         ops.addLast(op)
         redos.clear()
         syncUndoState()
+    }
+
+    /**
+     * Eraser moves arrive many times per second; folding them into the previous erase makes one
+     * swipe one undo step. Pieces cut earlier in the swipe and erased again never leave the group.
+     */
+    private fun pushErase(removed: List<InkStroke>, added: List<InkStroke>) {
+        val now = SystemClock.uptimeMillis()
+        val last = ops.lastOrNull()
+        if (last is EditOp.Erase && redos.isEmpty() && now - lastEraseAt < ERASE_GROUP_GAP_MS) {
+            val removedIds = removed.mapTo(HashSet()) { it.id }
+            val lastAddedIds = last.added.mapTo(HashSet()) { it.id }
+            ops[ops.lastIndex] = EditOp.Erase(
+                removed = last.removed + removed.filter { it.id !in lastAddedIds },
+                added = last.added.filter { it.id !in removedIds } + added,
+            )
+        } else {
+            pushOp(EditOp.Erase(removed, added))
+        }
+        lastEraseAt = now
     }
 
     private fun syncUndoState() {
