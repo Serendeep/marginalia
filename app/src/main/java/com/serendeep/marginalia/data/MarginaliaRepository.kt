@@ -341,7 +341,7 @@ class MarginaliaRepository @Inject constructor(
             pdfPage = pdfPage,
             pageXFraction = pageXFraction,
             pageYFraction = pageYFraction,
-            label = anchorDao.countByLecture(lectureId) + 1,
+            label = anchorDao.nextLabel(lectureId),
             createdAt = now(),
         )
         anchorDao.insert(anchor)
