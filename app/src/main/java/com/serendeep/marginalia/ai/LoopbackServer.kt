@@ -50,12 +50,15 @@ object LoopbackServer {
         val params = parseQuery(target.substringAfter('?', ""))
         val error = check(params)
         respond(socket, if (error == null) 200 else 400, page(error))
-        return params
+        // A request that fails the check is not the sign-in; keep waiting for the real one.
+        return if (error == null) params else null
     }
 
     fun parseQuery(query: String): Map<String, String> = query.split('&').filter { it.isNotEmpty() }.associate {
-        URLDecoder.decode(it.substringBefore('='), "UTF-8") to URLDecoder.decode(it.substringAfter('=', ""), "UTF-8")
+        decode(it.substringBefore('=')) to decode(it.substringAfter('=', ""))
     }
+
+    private fun decode(s: String): String = try { URLDecoder.decode(s, "UTF-8") } catch (_: IllegalArgumentException) { s }
 
     private fun respond(socket: Socket, status: Int, body: String) {
         val bytes = body.toByteArray(Charsets.UTF_8)
