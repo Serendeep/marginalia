@@ -7,10 +7,15 @@ import com.serendeep.marginalia.search.TextIndexer
 import com.serendeep.marginalia.reminder.ReminderScheduler
 import com.serendeep.marginalia.update.UpdateManager
 import dagger.hilt.android.HiltAndroidApp
+import android.util.Log
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+
+/** Keeps a failed background job (index, timer, sort) from taking the process down. */
+val backgroundErrors = CoroutineExceptionHandler { _, e -> Log.w("Marginalia", "background job failed", e) }
 
 @HiltAndroidApp
 class MarginaliaApp : Application() {

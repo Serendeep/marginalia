@@ -1,5 +1,6 @@
 package com.serendeep.marginalia.ai
 
+import com.serendeep.marginalia.backgroundErrors
 import android.content.Context
 import android.content.SharedPreferences
 import android.os.Process
@@ -99,7 +100,7 @@ class AutoSorter internal constructor(
             task.run()
         }, "auto-sorter")
     }.asCoroutineDispatcher()
-    private val scope = CoroutineScope(SupervisorJob() + dispatcher)
+    private val scope = CoroutineScope(SupervisorJob() + dispatcher + backgroundErrors)
     private val queue = Mutex()
 
     private val _enabled = MutableStateFlow(prefs.getBoolean(ENABLED_KEY, true))

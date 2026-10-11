@@ -1,5 +1,6 @@
 package com.serendeep.marginalia.study
 
+import com.serendeep.marginalia.backgroundErrors
 import android.os.SystemClock
 import com.serendeep.marginalia.data.MarginaliaRepository
 import com.serendeep.marginalia.data.SessionKind
@@ -31,7 +32,7 @@ data class FocusState(
 class FocusTimer @Inject constructor(
     private val repository: MarginaliaRepository,
 ) {
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default + backgroundErrors)
     private val _state = MutableStateFlow(FocusState())
     val state: StateFlow<FocusState> = _state.asStateFlow()
 
