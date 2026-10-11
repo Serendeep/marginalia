@@ -136,7 +136,7 @@ private fun Sidebar(screen: Screen, onNavigate: (Screen) -> Unit, viewModel: She
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
-                modifier = Modifier.padding(start = 8.dp, end = 8.dp, top = 6.dp, bottom = 16.dp),
+                modifier = Modifier.padding(start = 8.dp, end = 8.dp, bottom = 6.dp),
             ) {
                 if (nightly) NightlyStar() else Box(Modifier.size(10.dp).clip(RoundedCornerShape(3.dp)).background(MaterialTheme.marginalia.limeInk))
                 Text(
@@ -148,7 +148,7 @@ private fun Sidebar(screen: Screen, onNavigate: (Screen) -> Unit, viewModel: She
                     modifier = Modifier.weight(1f),
                 )
                 if (nightly) NightlyMoon()
-                IconButton(onClick = { settingsOpen = true }, modifier = Modifier.size(32.dp)) {
+                IconButton(onClick = { settingsOpen = true }) {
                     Icon(Icons.Outlined.Settings, contentDescription = "Settings", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
                 }
             }

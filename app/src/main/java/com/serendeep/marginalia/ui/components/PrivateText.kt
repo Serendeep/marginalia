@@ -53,7 +53,7 @@ fun PrivateText(
                 .then(if (canBlur && radius > 0.dp) Modifier.blur(radius) else Modifier)
                 .clearAndSetSemantics { contentDescription = if (shown) text else "$label hidden" },
         )
-        IconButton(onClick = { shown = !shown }, modifier = Modifier.size(36.dp)) {
+        IconButton(onClick = { shown = !shown }) {
             Icon(
                 if (shown) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility,
                 contentDescription = if (shown) "Hide $label" else "Show $label",

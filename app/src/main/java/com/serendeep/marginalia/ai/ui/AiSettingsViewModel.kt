@@ -158,7 +158,7 @@ class AiSettingsViewModel @Inject constructor(
     }
 
     fun saveCustom(baseUrl: String, apiKey: String) {
-        val url = baseUrl.trim()
+        val url = normalizeBaseUrl(baseUrl)
         val key = apiKey.trim()
         val c = settings.config.value
         if (c.baseUrl != url || c.apiKey != key) settings.update { it.copy(baseUrl = url, apiKey = key) }
@@ -181,4 +181,10 @@ class AiSettingsViewModel @Inject constructor(
     private companion object {
         const val LISTENER_HEAD_START_MS = 150L
     }
+}
+
+/** A bare host becomes an https address; anything else is kept as typed. */
+fun normalizeBaseUrl(raw: String): String {
+    val url = raw.trim()
+    return if (url.isEmpty() || url.contains("://")) url else "https://$url"
 }

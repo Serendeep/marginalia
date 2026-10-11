@@ -106,6 +106,7 @@ import dev.chrisbanes.haze.HazeStyle
 import dev.chrisbanes.haze.HazeTint
 import dev.chrisbanes.haze.hazeEffect
 import dev.chrisbanes.haze.hazeSource
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -510,6 +511,23 @@ fun NotebookScreen(
         )
     }
     LaserOverlay(trails)
+    val notice by viewModel.notice.collectAsStateWithLifecycle()
+    notice?.let { message ->
+        LaunchedEffect(message) {
+            delay(5_000)
+            viewModel.dismissNotice()
+        }
+        Text(
+            message,
+            color = MaterialTheme.colorScheme.onError,
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(24.dp)
+                .background(MaterialTheme.colorScheme.error, RoundedCornerShape(12.dp))
+                .padding(horizontal = 16.dp, vertical = 10.dp),
+        )
+    }
     }
 }
 

@@ -238,10 +238,13 @@ class ChatSession internal constructor(
         if (items != null) history = history + items
         live = null
         update(id) { it.copy(streaming = false, error = error) }
+        // The save is queued before the reply reads as idle, so a settle after idle sees it stored.
+        val chat = chatId?.let { c -> chatScope?.let { s -> ChatInfo(c, title, s, createdAt, now()) } }
+        if (chat != null) {
+            val json = ChatCodec.turn(_turns.value.first { it.id == id }, items.orEmpty())
+            saves.trySend { store.save(chat, id, json) }
+        }
         _streaming.value = false
-        val chat = ChatInfo(chatId ?: return, title, chatScope ?: return, createdAt, now())
-        val json = ChatCodec.turn(_turns.value.first { it.id == id }, items.orEmpty())
-        saves.trySend { store.save(chat, id, json) }
     }
 
     private fun flush(id: Int) {
