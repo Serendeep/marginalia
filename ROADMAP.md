@@ -33,13 +33,21 @@ welcome, see [CONTRIBUTING.md](CONTRIBUTING.md).
 - [x] Pen strokes on PDF pages no longer scroll the page
 - [x] Faster cold start (baseline profile) and R8-shrunk release builds
 
+## Done in 1.2 to 1.4
+
+- [x] In-app updates from GitHub Releases, with delta patches and Stable/Nightly channels
+- [x] Backup & restore: verified zip export, nightly automatic backups, safety snapshots
+- [x] Light theme
+- [x] Handwritten flashcard answers
+- [x] Drag-to-reorder notebooks in the library
+- [x] Saved chat history and an opt-in morning digest
+
 ## Next
 
-- [ ] Backup & restore: safe database export with integrity checks
-- [ ] Light theme
-- [ ] Handwritten flashcard answers
 - [ ] Fix link taps on rotated PDF pages
-- [ ] Drag-to-reorder notebooks in the library
+- [ ] Crash log you can attach to a bug report (release builds are shrunk, so stack traces need the mapping file)
+- [ ] Export annotated pages as a PDF with the ink drawn in
+- [ ] Translations: every string is still a Kotlin literal
 
 ## Later
 
