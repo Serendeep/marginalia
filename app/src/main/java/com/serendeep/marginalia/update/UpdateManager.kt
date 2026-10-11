@@ -254,7 +254,9 @@ class UpdateManager @Inject constructor(
     }
 
     private fun latest(): UpdateInfo? =
-        prefs.getString(KEY_LATEST, null)?.let(UpdateInfo::parse)?.takeIf { isNewer(it.versionCode, installedVersionCode) }
+        prefs.getString(KEY_LATEST, null)?.let(UpdateInfo::parse)
+            ?.takeIf { isNewer(it.versionCode, installedVersionCode) }
+            ?.takeIf { it.channel == null || it.channel == _channel.value.id }
 
     /** The newest update that still needs fetching, or null. */
     fun pendingInfo(): UpdateInfo? = latest()?.takeIf { !apkFile(it).exists() }
