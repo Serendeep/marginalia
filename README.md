@@ -62,7 +62,7 @@ See the [roadmap](ROADMAP.md) for what's next.
 
 ## Building
 
-You need JDK 17 and the Android SDK.
+You need JDK 17 or newer and the Android SDK.
 
 ```
 ./gradlew :app:installDebug
@@ -84,8 +84,9 @@ The connected suite (`./gradlew connectedDebugAndroidTest`) uninstalls the
 app when it finishes, **which deletes all app data. Run it on an emulator
 only**, never on a tablet you take notes on.
 
-The current emulator suite runs 28 tests, including database migration,
-lecture CRUD, PDF import, zoom, links, and ink behavior.
+CI runs the unit suite and the emulator suite on every pull request. The
+emulator suite covers database migrations, lecture CRUD, PDF import, zoom,
+links, search and ink editing.
 
 ## Releases
 

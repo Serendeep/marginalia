@@ -1,5 +1,6 @@
 package com.serendeep.marginalia.update
 
+import com.serendeep.marginalia.backgroundErrors
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -95,7 +96,7 @@ class UpdateManager @Inject constructor(
     private val snapshots: SafetySnapshot,
 ) {
     private val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO + backgroundErrors)
     private val checkLock = Mutex()
     @Volatile private var inForeground = false
     @Volatile private var patchFailedFor = 0L
@@ -253,7 +254,9 @@ class UpdateManager @Inject constructor(
     }
 
     private fun latest(): UpdateInfo? =
-        prefs.getString(KEY_LATEST, null)?.let(UpdateInfo::parse)?.takeIf { isNewer(it.versionCode, installedVersionCode) }
+        prefs.getString(KEY_LATEST, null)?.let(UpdateInfo::parse)
+            ?.takeIf { isNewer(it.versionCode, installedVersionCode) }
+            ?.takeIf { it.channel == null || it.channel == _channel.value.id }
 
     /** The newest update that still needs fetching, or null. */
     fun pendingInfo(): UpdateInfo? = latest()?.takeIf { !apkFile(it).exists() }

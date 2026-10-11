@@ -1,5 +1,6 @@
 package com.serendeep.marginalia.search
 
+import com.serendeep.marginalia.backgroundErrors
 import android.content.Context
 import android.graphics.RectF
 import android.os.Process
@@ -41,7 +42,7 @@ class TextIndexer @Inject constructor(
             task.run()
         }, "text-indexer")
     }.asCoroutineDispatcher()
-    private val scope = CoroutineScope(SupervisorJob() + dispatcher)
+    private val scope = CoroutineScope(SupervisorJob() + dispatcher + backgroundErrors)
     private val queue = Mutex()
 
     /** Indexes every document that is not indexed yet, in the background. */

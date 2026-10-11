@@ -1,5 +1,6 @@
 package com.serendeep.marginalia.ai
 
+import com.serendeep.marginalia.backgroundErrors
 import android.content.Context
 import android.content.SharedPreferences
 import android.os.Process
@@ -99,10 +100,10 @@ class AutoSorter internal constructor(
             task.run()
         }, "auto-sorter")
     }.asCoroutineDispatcher()
-    private val scope = CoroutineScope(SupervisorJob() + dispatcher)
+    private val scope = CoroutineScope(SupervisorJob() + dispatcher + backgroundErrors)
     private val queue = Mutex()
 
-    private val _enabled = MutableStateFlow(prefs.getBoolean(ENABLED_KEY, true))
+    private val _enabled = MutableStateFlow(prefs.getBoolean(ENABLED_KEY, false))
     val enabled: StateFlow<Boolean> = _enabled.asStateFlow()
 
     private val _results = MutableSharedFlow<SortResult>(extraBufferCapacity = 16)
@@ -140,7 +141,6 @@ class AutoSorter internal constructor(
         val courses = repository.courses()
         val unsorted = courses.firstOrNull { it.name == LibraryViewModel.UNSORTED_NAME } ?: return null
         if (lecture.courseId != unsorted.id) return null
-        markAttempted(lectureId)
 
         // Notebooks without a PDF are the user's own; there is nothing to read and nothing to sort.
         val document = repository.latestDocument(lectureId) ?: return null
@@ -153,7 +153,10 @@ class AutoSorter internal constructor(
             identifier = lecture.arxivId ?: lecture.doi,
             pages = pages,
         )
-        val decision = Prompts.parseSort(complete(ai, request) ?: return null) ?: return null
+        // Only a reply counts as an attempt, so an offline import is sorted next time.
+        val reply = complete(ai, request) ?: return null
+        markAttempted(lectureId)
+        val decision = Prompts.parseSort(reply) ?: return null
         return apply(lecture.title, lectureId, unsorted.id, decision, courses)
     }
 

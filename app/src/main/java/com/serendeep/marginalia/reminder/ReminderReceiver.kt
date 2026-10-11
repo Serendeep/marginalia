@@ -41,11 +41,8 @@ class ReminderReceiver : BroadcastReceiver() {
         val pending = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                if (intent.action == Intent.ACTION_BOOT_COMPLETED) {
-                    ReminderScheduler.arm(app)
-                } else {
-                    notifyIfWorthIt(app)
-                }
+                if (intent.action != Intent.ACTION_BOOT_COMPLETED) notifyIfWorthIt(app)
+                ReminderScheduler.arm(app)
             } finally {
                 pending.finish()
             }

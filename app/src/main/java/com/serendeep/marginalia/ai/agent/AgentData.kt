@@ -74,7 +74,7 @@ class RepositoryAgentData @Inject constructor(
         val source = PdfDocumentSource.open(context, File(document.localPath))
         return try {
             val bitmap = source.renderFullPage(page, widthPx)
-            ByteArrayOutputStream().also { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }.toByteArray()
+            ByteArrayOutputStream().also { bitmap.compress(Bitmap.CompressFormat.JPEG, 85, it) }.toByteArray()
         } finally {
             source.close()
         }

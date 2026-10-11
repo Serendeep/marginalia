@@ -28,7 +28,7 @@ class StrokeEditTest {
     fun setup() = runBlocking {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         db = Room.inMemoryDatabaseBuilder(context, MarginaliaDatabase::class.java).build()
-        repo = MarginaliaRepository(db.courseDao(), db.lectureDao(), db.documentDao(), db.strokeDao(), db.anchorDao(), db.studySessionDao(), db.searchDao(), db.highlightDao(), db.cardDao(), db.tagDao())
+        repo = MarginaliaRepository(db.courseDao(), db.lectureDao(), db.documentDao(), db.strokeDao(), db.anchorDao(), db.studySessionDao(), db.searchDao(), db.highlightDao(), db.cardDao(), db.tagDao(), db.chatDao())
         lectureId = repo.createLecture(repo.createCourse("C", 0, null).id, "L").id
     }
 

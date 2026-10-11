@@ -1,5 +1,6 @@
 package com.serendeep.marginalia.notebook
 
+import android.os.SystemClock
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.RectF
@@ -73,6 +74,8 @@ data class RenderedStroke(
     val stroke: Stroke,
     val highlighted: Boolean = false,
 )
+
+private const val ERASE_GROUP_GAP_MS = 400L
 
 private sealed interface EditOp {
     data class Add(val record: InkStroke) : EditOp
@@ -301,6 +304,7 @@ class NotebookViewModel @Inject constructor(
 
     private val ops = ArrayDeque<EditOp>()
     private val redos = ArrayDeque<EditOp>()
+    private var lastEraseAt = 0L
 
     private val _canUndo = MutableStateFlow(false)
     val canUndo: StateFlow<Boolean> = _canUndo.asStateFlow()
@@ -365,6 +369,7 @@ class NotebookViewModel @Inject constructor(
     /** Switches the notebook to a different lecture, resetting all per-lecture state. */
     fun openLecture(id: String, startPage: Int? = null) {
         if (lectureId == id) return
+        lectureId?.let(::savePage)
         this.startPage = startPage
         parkedHighlights.clear()
         lectureJob?.cancel()
@@ -446,16 +451,26 @@ class NotebookViewModel @Inject constructor(
         }
     }
 
-    /** Persists the page now and forgets the lecture, so the next open starts fresh. */
-    fun closeLecture() {
-        val id = lectureId ?: return
+    /**
+     * Persists the page and forgets the lecture, so the next open starts fresh. Keyed on [id] because
+     * the outgoing screen disposes after the incoming one has already opened another lecture.
+     */
+    fun closeLecture(id: String) {
+        if (lectureId != id) return
         tracker.stop()
         inkIndexer.onNotebookClosed()
-        if (!restoring && restoreChecked) {
-            val page = firstVisiblePage
-            viewModelScope.launch { repository.setLastPage(id, page) }
-        }
+        savePage(id)
+        lectureJob?.cancel()
+        lectureJob = null
+        canvasAnim?.cancel()
+        canvasAnim = null
         lectureId = null
+    }
+
+    private fun savePage(id: String) {
+        if (restoring || !restoreChecked) return
+        val page = firstVisiblePage
+        viewModelScope.launch { repository.setLastPage(id, page) }
     }
 
     fun setTool(tool: InkTool) {
@@ -744,7 +759,7 @@ class NotebookViewModel @Inject constructor(
         if (removed.isEmpty()) return
 
         if (surface == InkSurface.MARGIN) _strokes.value = next else _pageStrokes.value = next
-        pushOp(EditOp.Erase(removed, added))
+        pushErase(removed, added)
         viewModelScope.launch {
             removeStrokes(removed.map { it.id })
             repository.saveStrokes(added)
@@ -752,6 +767,7 @@ class NotebookViewModel @Inject constructor(
     }
 
     fun undo() {
+        lastEraseAt = 0L
         val op = ops.removeLastOrNull() ?: return
         when (op) {
             is EditOp.Add -> {
@@ -928,6 +944,26 @@ class NotebookViewModel @Inject constructor(
         ops.addLast(op)
         redos.clear()
         syncUndoState()
+    }
+
+    /**
+     * Eraser moves arrive many times per second; folding them into the previous erase makes one
+     * swipe one undo step. Pieces cut earlier in the swipe and erased again never leave the group.
+     */
+    private fun pushErase(removed: List<InkStroke>, added: List<InkStroke>) {
+        val now = SystemClock.uptimeMillis()
+        val last = ops.lastOrNull()
+        if (last is EditOp.Erase && redos.isEmpty() && now - lastEraseAt < ERASE_GROUP_GAP_MS) {
+            val removedIds = removed.mapTo(HashSet()) { it.id }
+            val lastAddedIds = last.added.mapTo(HashSet()) { it.id }
+            ops[ops.lastIndex] = EditOp.Erase(
+                removed = last.removed + removed.filter { it.id !in lastAddedIds },
+                added = last.added.filter { it.id !in removedIds } + added,
+            )
+        } else {
+            pushOp(EditOp.Erase(removed, added))
+        }
+        lastEraseAt = now
     }
 
     private fun syncUndoState() {

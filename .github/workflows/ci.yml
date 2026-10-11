@@ -2,6 +2,7 @@ name: CI
 
 on:
   push:
+    branches: [main]
   pull_request:
 
 permissions:
@@ -37,3 +38,39 @@ jobs:
         with:
           name: lint-report
           path: app/build/reports/lint-results-debug.html
+
+  instrumented:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Run connected tests on an emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          # Screenshot generators carry no assertions; they are run by hand when docs need refreshing.
+          script: ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.notClass=com.serendeep.marginalia.ui.theme.ThemeScreenshotsTest,com.serendeep.marginalia.ai.ui.AiScreenshotsTest,com.serendeep.marginalia.ai.ui.AnswerViewScreenshotTest --stacktrace
+
+      - name: Upload instrumented test report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: instrumented-test-report
+          path: app/build/reports/androidTests/connected/

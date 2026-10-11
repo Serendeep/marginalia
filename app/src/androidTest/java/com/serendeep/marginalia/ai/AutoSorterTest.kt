@@ -36,7 +36,7 @@ class AutoSorterTest {
         db = Room.inMemoryDatabaseBuilder(context, MarginaliaDatabase::class.java).build()
         repo = MarginaliaRepository(
             db.courseDao(), db.lectureDao(), db.documentDao(), db.strokeDao(), db.anchorDao(),
-            db.studySessionDao(), db.searchDao(), db.highlightDao(), db.cardDao(), db.tagDao(),
+            db.studySessionDao(), db.searchDao(), db.highlightDao(), db.cardDao(), db.tagDao(), db.chatDao(),
         )
     }
 

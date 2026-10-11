@@ -1,6 +1,6 @@
 package com.serendeep.marginalia.ai
 
-import android.util.Base64
+import com.serendeep.marginalia.ai.agent.imageDataUrl
 import com.serendeep.marginalia.ai.agent.Item
 import com.serendeep.marginalia.ai.agent.ToolSpec
 import com.serendeep.marginalia.ai.agent.TurnEvent
@@ -102,7 +102,7 @@ class ResponsesClient @Inject constructor(
             is Item.UserText -> {
                 val content = JSONArray().put(JSONObject().put("type", "input_text").put("text", item.text))
                 item.images.forEach {
-                    val url = "data:image/png;base64," + Base64.encodeToString(it, Base64.NO_WRAP)
+                    val url = imageDataUrl(it)
                     content.put(JSONObject().put("type", "input_image").put("image_url", url))
                 }
                 JSONObject().put("role", "user").put("content", content)
@@ -121,7 +121,7 @@ class ResponsesClient @Inject constructor(
         fun requestBody(model: String, r: AiRequest, effort: Effort? = r.effort): JSONObject {
             val content = JSONArray().put(JSONObject().put("type", "input_text").put("text", r.text))
             r.imagePng?.let {
-                val url = "data:image/png;base64," + Base64.encodeToString(it, Base64.NO_WRAP)
+                val url = imageDataUrl(it)
                 content.put(JSONObject().put("type", "input_image").put("image_url", url))
             }
             return JSONObject()

@@ -49,6 +49,7 @@ class Agent internal constructor(
         val added = mutableListOf<Item>()
         var round = 0
         var separate = false
+        var pageViews = 0
         while (true) {
             val finalTurn = round++ >= maxRounds
             val calls = mutableListOf<TurnEvent.ToolCall>()
@@ -95,6 +96,10 @@ class Agent internal constructor(
             val images = mutableListOf<ByteArray>()
             for (call in calls) {
                 val args = parseArgs(call.argsJson)
+                if (call.name == AgentTools.VIEW && ++pageViews > MAX_PAGE_VIEWS) {
+                    added += Item.ToolResult(call.callId, "Error: at most $MAX_PAGE_VIEWS pages can be viewed per reply")
+                    continue
+                }
                 val label = if (args == null) call.name else runCatching { tools.label(call.name, args) }.getOrDefault(call.name)
                 emit(AgentEvent.Status(label, call.name))
                 val out = if (args == null) ToolOutput("Error: arguments were not valid JSON") else execute(call.name, args)
@@ -102,10 +107,11 @@ class Agent internal constructor(
                 out.image?.let { images += it }
                 if (out.drafts.isNotEmpty()) emit(AgentEvent.Drafts(out.drafts))
             }
-            images.forEach { added += Item.UserText("Page image requested by the tool call above.", listOf(it)) }
+            images.forEach { added += Item.UserText(PAGE_IMAGE_NOTE, listOf(it)) }
             if (spoke) separate = true
         }
-        emit(AgentEvent.Done(added))
+        // Page images are only useful within this reply; replaying them on every later turn costs tokens.
+        emit(AgentEvent.Done(added.map { if (it is Item.UserText && it.text == PAGE_IMAGE_NOTE) Item.UserText(PAGE_IMAGE_NOTE) else it }))
     }.catch { e ->
         if (e is CancellationException) throw e
         emit(AgentEvent.Failed((e as? AiException)?.error ?: AiError(AiErrorKind.NETWORK, "Something went wrong — try again")))
@@ -133,6 +139,8 @@ class Agent internal constructor(
 
     companion object {
         const val MAX_ROUNDS = 8
+        const val MAX_PAGE_VIEWS = 3
+        private const val PAGE_IMAGE_NOTE = "Page image requested by the tool call above."
         const val TOOL_TIMEOUT_MS = 20_000L
         const val MAX_OUTPUT_CHARS = 6_000
 

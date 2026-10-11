@@ -2,6 +2,7 @@ package com.serendeep.marginalia.backup
 
 import android.content.Context
 import android.content.Intent
+import android.database.sqlite.SQLiteDatabase
 import android.net.Uri
 import com.serendeep.marginalia.data.MarginaliaDatabase
 import com.serendeep.marginalia.shell.PREFS
@@ -62,6 +63,8 @@ class BackupImporter @Inject constructor(
             throw if (e is BackupException) e else BackupException("Couldn't unpack the backup")
         }
 
+        checkDatabase(File(stage, DB_ENTRY), stage)
+
         // Everything below is quick renames so the closed database isn't reopened half-way.
         db.close()
         val dbFile = context.getDatabasePath(DB_NAME)
@@ -70,14 +73,19 @@ class BackupImporter @Inject constructor(
         suffixes.forEach { s -> File(dbFile.path + s).takeIf { it.exists() }?.renameTo(File(dbFile.path + s + ".old")) }
         if (!File(stage, DB_ENTRY).renameTo(dbFile)) {
             suffixes.forEach { s -> File(dbFile.path + s + ".old").takeIf { it.exists() }?.renameTo(File(dbFile.path + s)) }
-            throw BackupException("Couldn't replace the database")
+            // The database is closed, so the process has to restart either way; the old files are back in place.
+            restartApp()
         }
         suffixes.forEach { s -> File(dbFile.path + s + ".old").delete() }
+        // Folders move aside the same way, so a crash mid-swap leaves the originals on disk.
         for (dir in LIBRARY_DIRS) {
             val target = File(context.filesDir, dir)
-            target.deleteRecursively()
+            val old = File(context.filesDir, "$dir.old")
+            old.deleteRecursively()
+            if (target.exists()) target.renameTo(old)
             File(stage, "$FILES_PREFIX$dir").takeIf { it.exists() }?.renameTo(target)
         }
+        LIBRARY_DIRS.forEach { File(context.filesDir, "$it.old").deleteRecursively() }
         File(stage, PREFS_ENTRY).takeIf { it.exists() }?.let {
             BackupPrefs.restore(context.getSharedPreferences(PREFS, Context.MODE_PRIVATE), BackupPrefs.decode(it.readBytes()))
         }
@@ -87,6 +95,22 @@ class BackupImporter @Inject constructor(
     }
 
     private fun currentSchema() = db.openHelper.readableDatabase.version
+
+    /** The manifest is just a claim; the file itself has to be a readable SQLite database of a known version. */
+    private fun checkDatabase(file: File, stage: File) {
+        val ok = try {
+            SQLiteDatabase.openDatabase(file.path, null, SQLiteDatabase.OPEN_READONLY).use { sql ->
+                val sound = sql.rawQuery("PRAGMA quick_check", null).use { it.moveToFirst() && it.getString(0) == "ok" }
+                sound && sql.version in 1..currentSchema()
+            }
+        } catch (e: Exception) {
+            false
+        }
+        if (!ok) {
+            stage.deleteRecursively()
+            throw BackupException("The backup's database is damaged or from a newer version")
+        }
+    }
 
     private fun writeSafetyExport() =
         store.writeSnapshot(BackupName(BackupKind.BEFORE_RESTORE, null, BackupName.stampOf(System.currentTimeMillis())))

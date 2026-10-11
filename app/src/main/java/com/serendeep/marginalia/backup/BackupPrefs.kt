@@ -9,7 +9,7 @@ import org.json.JSONObject
  * are never written out and never overwritten on restore.
  */
 object BackupPrefs {
-    private val excludedPrefixes = listOf("ai_api_key", "update_", "remote_", "backup_", "notification_permission_asked")
+    private val excludedPrefixes = listOf("ai_", "update_", "remote_", "backup_", "notification_permission_asked")
 
     fun isExcluded(key: String) = excludedPrefixes.any { key.startsWith(it) }
 

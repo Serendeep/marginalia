@@ -1,5 +1,6 @@
 package com.serendeep.marginalia.study
 
+import com.serendeep.marginalia.backgroundErrors
 import com.serendeep.marginalia.data.MarginaliaRepository
 import com.serendeep.marginalia.data.SessionKind
 import kotlinx.coroutines.CoroutineScope
@@ -20,7 +21,7 @@ const val IDLE_MS = 2 * 60_000L
 class StudyTracker @Inject constructor(
     private val repository: MarginaliaRepository,
 ) {
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO + backgroundErrors)
     private val lock = Any()
     private var lectureId: String? = null
     private var open = false

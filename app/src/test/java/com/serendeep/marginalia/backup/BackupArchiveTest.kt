@@ -117,7 +117,7 @@ class BackupArchiveTest {
             "backup_auto_tree" to "content://x",
         )
         val kept = BackupPrefs.filter(all)
-        assertEquals(setOf("daily_goal_min", "handwriting_search", "pen_width", "recent_searches", "reminder_time_min", "ai_provider"), kept.keys)
+        assertEquals(setOf("daily_goal_min", "handwriting_search", "pen_width", "recent_searches", "reminder_time_min"), kept.keys)
 
         val encoded = BackupPrefs.encode(all)
         assertFalse(encoded.toString(Charsets.UTF_8).contains("SECRET"))

@@ -1,5 +1,6 @@
 package com.serendeep.marginalia.handwriting
 
+import com.serendeep.marginalia.backgroundErrors
 import android.content.Context
 import android.os.Process
 import com.serendeep.marginalia.data.InkBlockText
@@ -43,7 +44,7 @@ class InkIndexer @Inject constructor(
             task.run()
         }, "ink-indexer")
     }.asCoroutineDispatcher()
-    private val scope = CoroutineScope(SupervisorJob() + dispatcher)
+    private val scope = CoroutineScope(SupervisorJob() + dispatcher + backgroundErrors)
 
     @Volatile private var notebookOpen = false
     private var job: Job? = null
@@ -109,6 +110,8 @@ class InkIndexer @Inject constructor(
             }
             yield()
         }
+        // The lecture may have been deleted while recognition ran; its index rows would then violate the key.
+        if (repository.getLecture(lectureId) == null) return true
         withContext(NonCancellable) { repository.replaceInkText(lectureId, hash, rows) }
         return true
     }

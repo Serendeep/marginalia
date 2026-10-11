@@ -30,8 +30,9 @@ object ReminderScheduler {
             alarms.cancel(pending)
             return
         }
-        // Inexact on purpose: a study nudge doesn't need the exact-alarm permission.
-        alarms.setInexactRepeating(AlarmManager.RTC, nextTrigger(minute), AlarmManager.INTERVAL_DAY, pending)
+        // One-shot and inexact: the receiver re-arms after each fire, so the alarm follows wall-clock
+        // time across DST changes, and a study nudge doesn't need the exact-alarm permission.
+        alarms.set(AlarmManager.RTC, nextTrigger(minute), pending)
     }
 
     private fun pendingIntent(context: Context): PendingIntent = PendingIntent.getBroadcast(

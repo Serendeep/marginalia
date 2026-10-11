@@ -132,7 +132,7 @@ fun NotebookScreen(
     val dark = LocalDarkTheme.current
     LaunchedEffect(dark) { viewModel.retheme() }
     val lifecycleOwner = LocalLifecycleOwner.current
-    DisposableEffect(lifecycleOwner) {
+    DisposableEffect(lifecycleOwner, lectureId) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
                 Lifecycle.Event.ON_START -> viewModel.onForeground()
@@ -143,7 +143,7 @@ fun NotebookScreen(
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
-            viewModel.closeLecture()
+            viewModel.closeLecture(lectureId)
         }
     }
 

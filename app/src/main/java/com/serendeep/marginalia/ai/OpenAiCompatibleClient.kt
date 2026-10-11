@@ -1,6 +1,6 @@
 package com.serendeep.marginalia.ai
 
-import android.util.Base64
+import com.serendeep.marginalia.ai.agent.imageDataUrl
 import com.serendeep.marginalia.ai.agent.Item
 import com.serendeep.marginalia.ai.agent.ToolSpec
 import com.serendeep.marginalia.ai.agent.TurnEvent
@@ -114,7 +114,7 @@ class OpenAiCompatibleClient @Inject constructor(
                         } else {
                             JSONArray().put(JSONObject().put("type", "text").put("text", item.text)).also { parts ->
                                 item.images.forEach {
-                                    val url = "data:image/png;base64," + Base64.encodeToString(it, Base64.NO_WRAP)
+                                    val url = imageDataUrl(it)
                                     parts.put(JSONObject().put("type", "image_url").put("image_url", JSONObject().put("url", url)))
                                 }
                             }
@@ -154,7 +154,7 @@ class OpenAiCompatibleClient @Inject constructor(
             val user = if (r.imagePng == null) {
                 JSONObject().put("role", "user").put("content", r.text)
             } else {
-                val url = "data:image/png;base64," + Base64.encodeToString(r.imagePng, Base64.NO_WRAP)
+                val url = imageDataUrl(r.imagePng)
                 val parts = JSONArray()
                     .put(JSONObject().put("type", "text").put("text", r.text))
                     .put(JSONObject().put("type", "image_url").put("image_url", JSONObject().put("url", url)))

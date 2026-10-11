@@ -1,5 +1,6 @@
 package com.serendeep.marginalia.di
 
+import com.serendeep.marginalia.backgroundErrors
 import android.content.Context
 import com.serendeep.marginalia.ai.AiSettings
 import com.serendeep.marginalia.ai.TokenStore
@@ -34,7 +35,7 @@ object AiModule {
     @Provides
     @Singleton
     @AppScope
-    fun provideAppScope(): CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    fun provideAppScope(): CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default + backgroundErrors)
 
     @Provides
     fun provideAgentData(impl: RepositoryAgentData): AgentData = impl

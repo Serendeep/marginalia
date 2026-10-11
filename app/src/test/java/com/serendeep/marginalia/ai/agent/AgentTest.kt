@@ -143,7 +143,20 @@ class AgentTest {
         val items = (events.last() as AgentEvent.Done).newItems
         val firstUser = items.indexOfFirst { it is Item.UserText }
         assertTrue(items.subList(0, firstUser).count { it is Item.ToolResult } == 2)
-        assertEquals(listOf(image), (items[firstUser] as Item.UserText).images)
+        // The model saw the page in the next round; later turns only keep the note.
+        assertEquals(listOf(image), provider.calls[1].input.filterIsInstance<Item.UserText>().last().images)
+        assertTrue((items[firstUser] as Item.UserText).images.isEmpty())
+    }
+
+    @Test
+    fun pageViewsAreCappedPerReply() {
+        val provider = ScriptedProvider(pageImages = true) { round, _ ->
+            if (round == 0) (1..4).map { call("c$it", "view_page") } else listOf(TurnEvent.TextDelta("ok"))
+        }
+        val tools = FakeTools { _, _ -> ToolOutput("page", image = byteArrayOf(1)) }
+        val results = (run(provider, tools).last() as AgentEvent.Done).newItems.filterIsInstance<Item.ToolResult>()
+        assertEquals(listOf(false, false, false, true), results.map { it.output.startsWith("Error") })
+        assertEquals(3, provider.calls[1].input.count { it is Item.UserText && it.images.isNotEmpty() })
     }
 
     @Test

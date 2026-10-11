@@ -6,7 +6,7 @@ anything bigger, open an issue first so nobody builds the same thing twice.
 
 ## Building
 
-- JDK 17, Android Studio (or plain Gradle)
+- JDK 17 or newer, Android Studio (or plain Gradle)
 - Kotlin 2.0.21 · AGP 8.9.3 · compileSdk 36 · minSdk 29
 - `./gradlew :app:assembleDebug` builds; `./gradlew :app:installDebug` installs.
 
@@ -17,6 +17,7 @@ without Google Play Services.
 
 - Unit tests: `./gradlew test`
 - Connected tests: `./gradlew connectedDebugAndroidTest`, **emulator only.**
+  CI runs them on an emulator for every pull request.
   The connected suite uninstalls the app after each run, which **deletes all
   app data**. Never run it against a device you actually take notes on.
 

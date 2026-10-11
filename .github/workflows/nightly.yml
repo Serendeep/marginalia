@@ -62,7 +62,7 @@ jobs:
           test -n "$APP_VERSION"
           VERSION_NAME="$APP_VERSION-nightly.$COUNT+$SHORT"
           echo "VERSION_NAME=$VERSION_NAME" >> "$GITHUB_ENV"
-          ./gradlew assembleRelease \
+          ./gradlew testDebugUnitTest lintDebug assembleRelease \
             -PversionCodeOverride=$((COUNT * 10)) -Pchannel=nightly -PversionNameOverride="$VERSION_NAME" --stacktrace
 
       - name: Publish to the nightly pre-release
@@ -75,6 +75,9 @@ jobs:
           BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
           SHA=$(sha256sum "$APK" | cut -d' ' -f1)
           CERT=$("$BT/apksigner" verify --print-certs "$APK" | sed -n 's/.*certificate SHA-256 digest: //p' | head -1)
+          EXPECTED_CERT=$(sed -n 's/^val releaseCertSha256 = "\([0-9a-f]*\)".*/\1/p' app/build.gradle.kts)
+          # Installed apps only accept updates signed with the pinned certificate; a wrong keystore must not publish.
+          test "$CERT" = "$EXPECTED_CERT"
           VERSION_CODE=$("$BT/aapt2" dump badging "$APK" | sed -n "s/^package: .*versionCode='\([0-9]*\)'.*/\1/p" | head -1)
           test -n "$VERSION_CODE"
           echo "$SHA  app-release.apk" > app-release.apk.sha256
@@ -158,7 +161,8 @@ jobs:
             PATCH=""
             jq '.patches = []' latest.json > latest.next && mv latest.next latest.json
           fi
-          gh release upload "$TAG" "$APK" app-release.apk.sha256 remote-config.json --clobber
+          cp app/build/outputs/mapping/release/mapping.txt mapping.txt
+          gh release upload "$TAG" "$APK" app-release.apk.sha256 remote-config.json mapping.txt --clobber
           gh release upload "$TAG" latest.json --clobber
 
           # Drop patches left from earlier builds; they no longer match what is installed.
