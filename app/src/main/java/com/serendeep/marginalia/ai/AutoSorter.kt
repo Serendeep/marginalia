@@ -141,7 +141,6 @@ class AutoSorter internal constructor(
         val courses = repository.courses()
         val unsorted = courses.firstOrNull { it.name == LibraryViewModel.UNSORTED_NAME } ?: return null
         if (lecture.courseId != unsorted.id) return null
-        markAttempted(lectureId)
 
         // Notebooks without a PDF are the user's own; there is nothing to read and nothing to sort.
         val document = repository.latestDocument(lectureId) ?: return null
@@ -154,7 +153,10 @@ class AutoSorter internal constructor(
             identifier = lecture.arxivId ?: lecture.doi,
             pages = pages,
         )
-        val decision = Prompts.parseSort(complete(ai, request) ?: return null) ?: return null
+        // Only a reply counts as an attempt, so an offline import is sorted next time.
+        val reply = complete(ai, request) ?: return null
+        markAttempted(lectureId)
+        val decision = Prompts.parseSort(reply) ?: return null
         return apply(lecture.title, lectureId, unsorted.id, decision, courses)
     }
 
