@@ -18,6 +18,7 @@ class MarginaliaRepository @Inject constructor(
     private val highlightDao: HighlightDao,
     private val cardDao: CardDao,
     private val tagDao: TagDao,
+    private val chatDao: ChatDao,
 ) {
     fun observeCourses(): Flow<List<CourseEntity>> = courseDao.observeAll()
 
@@ -166,6 +167,7 @@ class MarginaliaRepository @Inject constructor(
         // The text index is virtual, so the cascade below cannot reach it.
         documents.forEach { dropIndex(it.id) }
         deleteInkText(lectureId)
+        chatDao.deleteScope(lectureId)
         lectureDao.deleteById(lectureId) // FK CASCADE removes documents/strokes/anchors
         files.forEach { runCatching { it.delete() } } // best-effort; rows are gone already
     }

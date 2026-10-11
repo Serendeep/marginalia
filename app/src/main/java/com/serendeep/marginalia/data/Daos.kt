@@ -463,6 +463,18 @@ interface ChatDao {
     @Query("DELETE FROM chats WHERE id = :id")
     suspend fun deleteChat(id: String)
 
+    @Query("DELETE FROM chat_turns WHERE chatId IN (SELECT id FROM chats WHERE scope = :scope)")
+    suspend fun deleteTurnsInScope(scope: String)
+
+    @Query("DELETE FROM chats WHERE scope = :scope")
+    suspend fun deleteChatsInScope(scope: String)
+
+    @Transaction
+    suspend fun deleteScope(scope: String) {
+        deleteTurnsInScope(scope)
+        deleteChatsInScope(scope)
+    }
+
     @Transaction
     suspend fun delete(id: String) {
         deleteTurns(id)
