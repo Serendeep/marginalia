@@ -4,6 +4,13 @@ import com.serendeep.marginalia.ai.AiError
 import org.json.JSONObject
 
 /** One entry of a provider-level conversation. */
+/** Images are PNG (lasso captures) or JPEG (rendered pages); the provider needs the right label. */
+fun imageDataUrl(bytes: ByteArray): String {
+    val png = bytes.size > 4 && bytes[0] == 0x89.toByte() && bytes[1] == 'P'.code.toByte()
+    val mime = if (png) "image/png" else "image/jpeg"
+    return "data:$mime;base64," + android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
+}
+
 sealed interface Item {
     class UserText(val text: String, val images: List<ByteArray> = emptyList()) : Item
     data class AssistantText(val text: String) : Item
