@@ -103,7 +103,7 @@ class AutoSorter internal constructor(
     private val scope = CoroutineScope(SupervisorJob() + dispatcher + backgroundErrors)
     private val queue = Mutex()
 
-    private val _enabled = MutableStateFlow(prefs.getBoolean(ENABLED_KEY, true))
+    private val _enabled = MutableStateFlow(prefs.getBoolean(ENABLED_KEY, false))
     val enabled: StateFlow<Boolean> = _enabled.asStateFlow()
 
     private val _results = MutableSharedFlow<SortResult>(extraBufferCapacity = 16)
