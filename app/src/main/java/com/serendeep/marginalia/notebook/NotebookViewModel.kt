@@ -365,6 +365,7 @@ class NotebookViewModel @Inject constructor(
     /** Switches the notebook to a different lecture, resetting all per-lecture state. */
     fun openLecture(id: String, startPage: Int? = null) {
         if (lectureId == id) return
+        lectureId?.let(::savePage)
         this.startPage = startPage
         parkedHighlights.clear()
         lectureJob?.cancel()
@@ -446,16 +447,26 @@ class NotebookViewModel @Inject constructor(
         }
     }
 
-    /** Persists the page now and forgets the lecture, so the next open starts fresh. */
-    fun closeLecture() {
-        val id = lectureId ?: return
+    /**
+     * Persists the page and forgets the lecture, so the next open starts fresh. Keyed on [id] because
+     * the outgoing screen disposes after the incoming one has already opened another lecture.
+     */
+    fun closeLecture(id: String) {
+        if (lectureId != id) return
         tracker.stop()
         inkIndexer.onNotebookClosed()
-        if (!restoring && restoreChecked) {
-            val page = firstVisiblePage
-            viewModelScope.launch { repository.setLastPage(id, page) }
-        }
+        savePage(id)
+        lectureJob?.cancel()
+        lectureJob = null
+        canvasAnim?.cancel()
+        canvasAnim = null
         lectureId = null
+    }
+
+    private fun savePage(id: String) {
+        if (restoring || !restoreChecked) return
+        val page = firstVisiblePage
+        viewModelScope.launch { repository.setLastPage(id, page) }
     }
 
     fun setTool(tool: InkTool) {
