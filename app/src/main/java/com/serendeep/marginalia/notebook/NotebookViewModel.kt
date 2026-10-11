@@ -1,5 +1,7 @@
 package com.serendeep.marginalia.notebook
 
+import kotlinx.coroutines.CoroutineExceptionHandler
+import android.util.Log
 import android.os.SystemClock
 import android.content.Context
 import android.graphics.Bitmap
@@ -115,7 +117,7 @@ class NotebookViewModel @Inject constructor(
         val draft = TextDraft(page, render)
         _textDraft.value = draft
         convertJob?.cancel()
-        convertJob = viewModelScope.launch(Dispatchers.Default) {
+        convertJob = viewModelScope.launch(Dispatchers.Default + saveErrors) {
             val text = recognizer.recognizeLines(sel.items.map { it.record }).joinToString("\n")
             _textDraft.value = TextDraft(page, render, text)
         }
@@ -141,7 +143,7 @@ class NotebookViewModel @Inject constructor(
      */
     fun stageLassoCard(page: Int?, back: String = "", render: suspend () -> Bitmap) {
         _tool.value = InkTool.PEN
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(Dispatchers.IO + saveErrors) {
             val bitmap = runCatching { render() }.getOrNull() ?: return@launch
             val id = newId()
             val file = File(File(context.filesDir, "cards").also { it.mkdirs() }, "$id.png")
@@ -159,7 +161,7 @@ class NotebookViewModel @Inject constructor(
         val draft = _lassoDraft.value ?: return
         val lecture = lectureId ?: return
         _lassoDraft.value = null
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(Dispatchers.IO + saveErrors) {
             repository.createCard(
                 source = CardSource.LASSO,
                 lectureId = lecture,
@@ -177,7 +179,7 @@ class NotebookViewModel @Inject constructor(
     fun askAboutLasso(onCrop: (ByteArray) -> Unit) {
         val draft = _lassoDraft.value ?: return
         _lassoDraft.value = null
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(Dispatchers.IO + saveErrors) {
             val bytes = runCatching { File(draft.imagePath).readBytes() }.getOrNull()
             File(draft.imagePath).delete()
             if (bytes != null) withContext(Dispatchers.Main) { onCrop(bytes) }
@@ -187,7 +189,7 @@ class NotebookViewModel @Inject constructor(
     fun cancelLassoCard() {
         val draft = _lassoDraft.value ?: return
         _lassoDraft.value = null
-        viewModelScope.launch(Dispatchers.IO) { File(draft.imagePath).delete() }
+        viewModelScope.launch(Dispatchers.IO + saveErrors) { File(draft.imagePath).delete() }
     }
 
     val focus: StateFlow<FocusState> = focusTimer.state
@@ -203,10 +205,19 @@ class NotebookViewModel @Inject constructor(
     private val _swatches = MutableStateFlow(List(PenColors.SWATCHES) { it })
     val swatches: StateFlow<List<Int>> = _swatches.asStateFlow()
 
+    private val _notice = MutableStateFlow<String?>(null)
+    val notice: StateFlow<String?> = _notice.asStateFlow()
+
+    // Disk-full or a broken database must not take the session's ink down with the process.
+    private val saveErrors = CoroutineExceptionHandler { _, e ->
+        Log.w("Marginalia", "notebook write failed", e)
+        _notice.value = "Couldn't save that change. Check free space, then try again"
+    }
+
     private var previousTool = InkTool.PEN
 
     init {
-        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+        viewModelScope.launch(Dispatchers.IO + saveErrors) {
             prefs.getString(ERASER_SIZE_KEY, null)
                 ?.let { runCatching { EraserSize.valueOf(it) }.getOrNull() }
                 ?.let { _eraserSize.value = it }
@@ -263,7 +274,7 @@ class NotebookViewModel @Inject constructor(
     val selection: StateFlow<SelectionState?> = _selection.asStateFlow()
 
     init {
-        viewModelScope.launch {
+        viewModelScope.launch(saveErrors) {
             var prev = _tool.value
             _tool.collect { now ->
                 if (now != prev) {
@@ -335,7 +346,7 @@ class NotebookViewModel @Inject constructor(
     fun markDone() {
         val id = lectureId ?: return
         markDoneDismissed.value = true
-        viewModelScope.launch { repository.setReadingStatus(id, ReadingStatus.DONE) }
+        viewModelScope.launch(saveErrors) { repository.setReadingStatus(id, ReadingStatus.DONE) }
     }
 
     fun dismissMarkDone() {
@@ -409,7 +420,7 @@ class NotebookViewModel @Inject constructor(
         _document.value = null
         _lectureTitle.value = "Notebook"
 
-        lectureJob = viewModelScope.launch {
+        lectureJob = viewModelScope.launch(saveErrors) {
             launch { repository.markOpened(id) }
             launch {
                 _currentPage.debounce(PAGE_SAVE_DEBOUNCE_MS).collect { page ->
@@ -470,7 +481,11 @@ class NotebookViewModel @Inject constructor(
     private fun savePage(id: String) {
         if (restoring || !restoreChecked) return
         val page = firstVisiblePage
-        viewModelScope.launch { repository.setLastPage(id, page) }
+        viewModelScope.launch(saveErrors) { repository.setLastPage(id, page) }
+    }
+
+    fun dismissNotice() {
+        _notice.value = null
     }
 
     fun setTool(tool: InkTool) {
@@ -513,7 +528,7 @@ class NotebookViewModel @Inject constructor(
         tracker.activity()
         _strokes.value = _strokes.value + RenderedStroke(record, stroke)
         pushOp(EditOp.Add(record))
-        val saved = viewModelScope.launch { repository.saveStroke(record) }
+        val saved = viewModelScope.launch(saveErrors) { repository.saveStroke(record) }
         if (_tool.value == InkTool.PEN) refinePenStroke(record, saved)
     }
 
@@ -536,7 +551,7 @@ class NotebookViewModel @Inject constructor(
         tracker.activity()
         _pageStrokes.value = _pageStrokes.value + RenderedStroke(record, stroke)
         pushOp(EditOp.Add(record))
-        val saved = viewModelScope.launch { repository.saveStroke(record) }
+        val saved = viewModelScope.launch(saveErrors) { repository.saveStroke(record) }
         when (_tool.value) {
             InkTool.PEN -> refinePenStroke(record, saved)
             InkTool.HIGHLIGHTER -> snapHighlighter(record, width, height, saved)
@@ -551,7 +566,7 @@ class NotebookViewModel @Inject constructor(
      * gesture deletes what it covers. All analysis runs off the main thread.
      */
     private fun refinePenStroke(record: InkStroke, saved: Job) {
-        viewModelScope.launch {
+        viewModelScope.launch(saveErrors) {
             val verdict = withContext(Dispatchers.Default) {
                 val points = record.batch.toPoints()
                 ShapeSnap.snap(points)?.let { Refinement.Snap(it.toBatch(ShapeSnap.PRESSURE)) }
@@ -621,7 +636,7 @@ class NotebookViewModel @Inject constructor(
      * sweeps; with no text underneath the swipe stays as drawn.
      */
     private fun snapHighlighter(record: InkStroke, width: Float, height: Float, saved: Job) {
-        viewModelScope.launch {
+        viewModelScope.launch(saveErrors) {
             val path = _document.value?.localPath
             val b = record.bounds
             val pad = record.brushSizeDp * BAND_REACH
@@ -691,7 +706,7 @@ class NotebookViewModel @Inject constructor(
     /** Reads the page text under [area] (page fractions) for a finished highlight; runs entirely off the ink path. */
     private fun captureHighlight(record: InkStroke, area: RectF) {
         val path = _document.value?.localPath ?: return
-        viewModelScope.launch {
+        viewModelScope.launch(saveErrors) {
             val text = indexer.textIn(path, record.pdfPage, area).replace(Regex("\\s+"), " ").trim()
             if (text.isEmpty()) return@launch
             val highlight = HighlightEntity(
@@ -760,7 +775,7 @@ class NotebookViewModel @Inject constructor(
 
         if (surface == InkSurface.MARGIN) _strokes.value = next else _pageStrokes.value = next
         pushErase(removed, added)
-        viewModelScope.launch {
+        viewModelScope.launch(saveErrors) {
             removeStrokes(removed.map { it.id })
             repository.saveStrokes(added)
         }
@@ -772,13 +787,13 @@ class NotebookViewModel @Inject constructor(
         when (op) {
             is EditOp.Add -> {
                 updateSurface(op.record.surface) { it.filterNot { stroke -> stroke.record.id == op.record.id } }
-                viewModelScope.launch { removeStrokes(listOf(op.record.id)) }
+                viewModelScope.launch(saveErrors) { removeStrokes(listOf(op.record.id)) }
             }
 
             is EditOp.AddGroup -> {
                 val ids = op.records.mapTo(HashSet()) { it.id }
                 updateSurface(op.records.first().surface) { it.filterNot { stroke -> stroke.record.id in ids } }
-                viewModelScope.launch { removeStrokes(ids) }
+                viewModelScope.launch(saveErrors) { removeStrokes(ids) }
             }
 
             is EditOp.Transform -> {
@@ -791,7 +806,7 @@ class NotebookViewModel @Inject constructor(
                 val restored = op.removed.map { RenderedStroke(it, it.toStroke()) }
                 val surface = op.removed.firstOrNull()?.surface ?: InkSurface.MARGIN
                 updateSurface(surface) { it.filterNot { stroke -> stroke.record.id in addedIds } + restored }
-                viewModelScope.launch {
+                viewModelScope.launch(saveErrors) {
                     removeStrokes(addedIds)
                     restoreStrokes(op.removed)
                 }
@@ -802,7 +817,7 @@ class NotebookViewModel @Inject constructor(
                 _strokes.value = _strokes.value.map {
                     if (it.record.id in ids) it.copy(record = it.record.copy(anchorId = op.anchor.id)) else it
                 }
-                viewModelScope.launch { repository.restoreAnchor(op.anchor, op.boundStrokeIds) }
+                viewModelScope.launch(saveErrors) { repository.restoreAnchor(op.anchor, op.boundStrokeIds) }
             }
         }
         redos.addLast(op)
@@ -815,12 +830,12 @@ class NotebookViewModel @Inject constructor(
         when (op) {
             is EditOp.Add -> {
                 updateSurface(op.record.surface) { it + RenderedStroke(op.record, op.record.toStroke()) }
-                viewModelScope.launch { restoreStrokes(listOf(op.record)) }
+                viewModelScope.launch(saveErrors) { restoreStrokes(listOf(op.record)) }
             }
 
             is EditOp.AddGroup -> {
                 updateSurface(op.records.first().surface) { list -> list + op.records.map { RenderedStroke(it, it.toStroke()) } }
-                viewModelScope.launch { restoreStrokes(op.records) }
+                viewModelScope.launch(saveErrors) { restoreStrokes(op.records) }
             }
 
             is EditOp.Transform -> {
@@ -833,7 +848,7 @@ class NotebookViewModel @Inject constructor(
                 val pieces = op.added.map { RenderedStroke(it, it.toStroke()) }
                 val surface = op.removed.firstOrNull()?.surface ?: InkSurface.MARGIN
                 updateSurface(surface) { it.filterNot { stroke -> stroke.record.id in removedIds } + pieces }
-                viewModelScope.launch {
+                viewModelScope.launch(saveErrors) {
                     removeStrokes(removedIds)
                     restoreStrokes(op.added)
                 }
@@ -844,7 +859,7 @@ class NotebookViewModel @Inject constructor(
                 _strokes.value = _strokes.value.map {
                     if (it.record.id in ids) it.copy(record = it.record.copy(anchorId = null)) else it
                 }
-                viewModelScope.launch { repository.removeAnchorAndUnbind(op.anchor.id) }
+                viewModelScope.launch(saveErrors) { repository.removeAnchorAndUnbind(op.anchor.id) }
             }
         }
         ops.addLast(op)
@@ -857,13 +872,13 @@ class NotebookViewModel @Inject constructor(
         updateSurface(records.first().surface) { list ->
             list.map { item -> byId[item.record.id]?.let { RenderedStroke(it, it.toStroke()) } ?: item }
         }
-        viewModelScope.launch { repository.saveStrokes(records) }
+        viewModelScope.launch(saveErrors) { repository.saveStrokes(records) }
     }
 
     /** Picks the strokes on one surface (a page, or the margin when [page] is null) mostly inside [polygon]. */
     fun selectInside(surface: InkSurface, page: Int?, polygon: List<Pair<Float, Float>>) {
         val pool = surfaceList(surface).filter { page == null || it.record.pdfPage == page }
-        viewModelScope.launch {
+        viewModelScope.launch(saveErrors) {
             val picked = withContext(Dispatchers.Default) {
                 if (polygon.size < 3) return@withContext emptyList()
                 val reach = Extent(polygon.minOf { it.first }, polygon.minOf { it.second }, polygon.maxOf { it.first }, polygon.maxOf { it.second })
@@ -888,7 +903,7 @@ class NotebookViewModel @Inject constructor(
     /** One undoable edit for a whole move, scale or recolour of the selection. */
     private fun editSelection(change: (InkStroke) -> InkStroke) {
         val sel = _selection.value ?: return
-        viewModelScope.launch {
+        viewModelScope.launch(saveErrors) {
             val before = sel.items.map { it.record }
             val (after, rendered) = withContext(Dispatchers.Default) {
                 val edited = before.map(change)
@@ -917,7 +932,7 @@ class NotebookViewModel @Inject constructor(
 
     fun duplicateSelection() {
         val sel = _selection.value ?: return
-        viewModelScope.launch {
+        viewModelScope.launch(saveErrors) {
             val (copies, rendered) = withContext(Dispatchers.Default) {
                 val moved = StrokeTransform.move(DUPLICATE_OFFSET_PX, DUPLICATE_OFFSET_PX)
                 val made = sel.items.map { it.record.transformed(moved).copy(id = newId(), startedAt = now(), endedAt = now()) }
@@ -936,7 +951,7 @@ class NotebookViewModel @Inject constructor(
         val ids = sel.ids
         updateSurface(sel.surface) { list -> list.filterNot { it.record.id in ids } }
         pushOp(EditOp.Erase(sel.items.map { it.record }, emptyList()))
-        viewModelScope.launch { removeStrokes(ids) }
+        viewModelScope.launch(saveErrors) { removeStrokes(ids) }
     }
 
     /** Records a fresh edit; anything undone before it can no longer be redone. */
@@ -986,7 +1001,7 @@ class NotebookViewModel @Inject constructor(
     fun removeAnchor(anchorId: String) {
         val anchor = _anchors.value.firstOrNull { it.id == anchorId } ?: return
         if (_activeAnchor.value?.id == anchorId) _activeAnchor.value = null
-        viewModelScope.launch {
+        viewModelScope.launch(saveErrors) {
             val bound = repository.removeAnchorAndUnbind(anchorId)
             val ids = bound.toSet()
             _strokes.value = _strokes.value.map {
@@ -999,7 +1014,7 @@ class NotebookViewModel @Inject constructor(
     /** Places an anchor on a page point; strokes written next bind to it until done. */
     fun placeAnchor(pdfPage: Int, xFraction: Float, yFraction: Float) {
         val id = lectureId ?: return
-        viewModelScope.launch {
+        viewModelScope.launch(saveErrors) {
             _activeAnchor.value = repository.createAnchor(id, documentId, pdfPage, xFraction, yFraction)
         }
     }
@@ -1007,7 +1022,7 @@ class NotebookViewModel @Inject constructor(
     fun finishAnchorBinding() {
         val anchor = _activeAnchor.value ?: return
         _activeAnchor.value = null
-        viewModelScope.launch {
+        viewModelScope.launch(saveErrors) {
             // An anchor nothing was written against is noise; drop it.
             val bound = _strokes.value.any { it.record.anchorId == anchor.id }
             if (!bound) repository.deleteAnchor(anchor.id)
@@ -1016,7 +1031,7 @@ class NotebookViewModel @Inject constructor(
 
     /** Briefly highlights the strokes bound to an anchor. */
     fun flashAnchor(anchorId: String) {
-        viewModelScope.launch {
+        viewModelScope.launch(saveErrors) {
             _strokes.value = _strokes.value.map {
                 if (it.record.anchorId == anchorId) {
                     it.copy(stroke = it.record.toStroke(colorOverride = HIGHLIGHT_COLOR), highlighted = true)
@@ -1147,7 +1162,7 @@ class NotebookViewModel @Inject constructor(
     private fun animateCanvasTo(target: Float) {
         canvasAnim?.cancel()
         if (target == _canvasOffset.value) return
-        canvasAnim = viewModelScope.launch {
+        canvasAnim = viewModelScope.launch(saveErrors) {
             val start = _canvasOffset.value
             val startedAt = now()
             while (true) {
