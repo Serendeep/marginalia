@@ -313,6 +313,9 @@ private fun CustomSection(
         colors = glassTextFieldColors(),
         modifier = Modifier.fillMaxWidth(),
     )
+    if (url.trim().startsWith("http://", ignoreCase = true)) {
+        StatusLine("Android blocks plain http. Use an https address; Tailscale Serve can give a local Ollama one", MaterialTheme.marginalia.errorInk)
+    }
     GlassButton("Test & load models", enabled = url.isNotBlank() && models !is ModelsState.Loading, onClick = { onTest(url, key) })
     when (models) {
         ModelsState.Loading -> CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.primary)
