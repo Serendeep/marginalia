@@ -1,5 +1,7 @@
 package com.serendeep.marginalia.search
 
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.material3.IconButton
 import com.serendeep.marginalia.ui.theme.marginalia
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -156,7 +158,8 @@ private fun SearchField(
             .clip(shape)
             .background(MaterialTheme.colorScheme.surface)
             .border(1.dp, MaterialTheme.colorScheme.outline, shape)
-            .padding(horizontal = 16.dp, vertical = 14.dp),
+            .heightIn(min = 48.dp)
+            .padding(start = 16.dp, end = 4.dp),
     ) {
         Icon(Icons.Outlined.Search, null, tint = MaterialTheme.marginalia.dimInk, modifier = Modifier.size(18.dp))
         Box(Modifier.weight(1f)) {
@@ -175,12 +178,9 @@ private fun SearchField(
             )
         }
         if (value.isNotEmpty()) {
-            Icon(
-                Icons.Filled.Close,
-                contentDescription = "Clear",
-                tint = MaterialTheme.marginalia.dimInk,
-                modifier = Modifier.size(18.dp).clickable { onValueChange("") },
-            )
+            IconButton(onClick = { onValueChange("") }) {
+                Icon(Icons.Filled.Close, contentDescription = "Clear search", tint = MaterialTheme.marginalia.dimInk, modifier = Modifier.size(18.dp))
+            }
         }
     }
 }
