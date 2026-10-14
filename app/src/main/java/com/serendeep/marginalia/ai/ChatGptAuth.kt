@@ -1,5 +1,6 @@
 package com.serendeep.marginalia.ai
 
+import android.util.Log
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -113,6 +114,7 @@ class ChatGptAuth @Inject constructor(private val store: TokenStore) {
         } catch (e: InvalidGrant) {
             _status.value = ChatGptStatus.Error("Sign-in expired — try connecting again")
         } catch (e: IOException) {
+            Log.w("ChatGptAuth", "sign-in failed: ${e.javaClass.simpleName}: ${e.message}")
             _status.value = ChatGptStatus.Error("Couldn't reach ChatGPT sign-in")
         }
     }
