@@ -1,5 +1,54 @@
 # Changelog
 
+## [1.4.0](https://github.com/Serendeep/marginalia/compare/v1.3.0...v1.4.0) (2026-10-14)
+
+
+### Features
+
+* light theme ([4f54327](https://github.com/Serendeep/marginalia/commit/4f543275f57c17516837037ae4f26ef232a4ffc6))
+* make auto-sort opt-in ([774570c](https://github.com/Serendeep/marginalia/commit/774570c8baef32abca3b1ec33b944ec41127540e))
+* move the update notice to a quiet line in the today header ([039b80c](https://github.com/Serendeep/marginalia/commit/039b80cde193754b502d95558f4946c76ef79b11))
+* pre-dawn night sky for the light theme ([201ef43](https://github.com/Serendeep/marginalia/commit/201ef4383006578bcbd36bf9c419e6198f5a4f13))
+* remove the ask card from today ([4f41878](https://github.com/Serendeep/marginalia/commit/4f41878418fe5bc319588359bf9c3e54220d2ef1))
+* show the update note as a small card in the corner of today ([73ec20f](https://github.com/Serendeep/marginalia/commit/73ec20f99c0ba277e02d53df668de9ee1ca4ecc0))
+* slide the update card in and hide it after the recommended timeout ([b25e49f](https://github.com/Serendeep/marginalia/commit/b25e49fd7f3b2c9778feeb9765916920680b042e))
+* swipe away the update card and tighten its link ([bf622b0](https://github.com/Serendeep/marginalia/commit/bf622b0f3ff3cc287a97f2cb594b683f7d808496))
+
+
+### Bug Fixes
+
+* check the restored database before swapping it in ([6fe7736](https://github.com/Serendeep/marginalia/commit/6fe77361d347178c31b30b34a0c8c641e9c26133))
+* count only answered requests as auto-sort attempts ([bf950ae](https://github.com/Serendeep/marginalia/commit/bf950ae7d5969dbfd73f894beaedb1627365881a))
+* delete a lecture's chats along with it ([7658958](https://github.com/Serendeep/marginalia/commit/76589587ac4a0faa51e95110a80fb1234f5b298e))
+* draw theme pens in the current theme's shade ([17efd86](https://github.com/Serendeep/marginalia/commit/17efd8655d0af723266eb46c28f720a3904eefcb))
+* draw theme pens in the current theme's shade ([cfadaf9](https://github.com/Serendeep/marginalia/commit/cfadaf97c10c57fd275fa2c22edcfa46efe85440))
+* drop the empty card behind the ask preview hint ([e2f1b62](https://github.com/Serendeep/marginalia/commit/e2f1b62d0e111645df83c4994e70f8f8c107515a))
+* drop the repeated course and status chips from today rows ([469ff44](https://github.com/Serendeep/marginalia/commit/469ff440e940e31c1066b0d16300eb33c345e9a4))
+* fade the sidebar list when more rows sit below ([9f86590](https://github.com/Serendeep/marginalia/commit/9f86590b035ac227b67dddfb3bb126501d59026c))
+* fill in https for bare hosts and warn about plain http endpoints ([49abc46](https://github.com/Serendeep/marginalia/commit/49abc46f455be1fc9ffbd3d91a4d961d54231429))
+* full-size touch targets for settings, search clear and reveal ([2c45c60](https://github.com/Serendeep/marginalia/commit/2c45c60cf0466c0d1896c7d5ea13d579ee9bf6b8))
+* ignore update feeds from the other channel ([b952911](https://github.com/Serendeep/marginalia/commit/b95291165fd8ac8a37953585c02cacb532959956))
+* keep AI provider settings out of backups ([1f2086f](https://github.com/Serendeep/marginalia/commit/1f2086f4b433c85f1b6a418e20b163efd4d869da))
+* keep ink after jumping from one notebook to another ([07bd346](https://github.com/Serendeep/marginalia/commit/07bd3463d34208196e1796c156442beff371e6ed))
+* keep listening for the sign-in after a stray request ([2077d56](https://github.com/Serendeep/marginalia/commit/2077d56f5350922da97279c47fca1662c9ed3d72))
+* keep the daily reminder on time across clock changes ([a71dbef](https://github.com/Serendeep/marginalia/commit/a71dbef3dbf4d0a228271a6c373e9a580162754c))
+* keep the nightly sidebar title on one line ([feb7a8b](https://github.com/Serendeep/marginalia/commit/feb7a8bbbf41f6b01ca478b1a346a559621b87f1))
+* keep words whole in ai answer tables ([103e65f](https://github.com/Serendeep/marginalia/commit/103e65fadb18b4c7b8b4e1cbd94fd21bad5a646c))
+* log failed background jobs instead of crashing ([e389ad0](https://github.com/Serendeep/marginalia/commit/e389ad03a2d5f2bf1aff3b20937a57153716a66f))
+* log why a chatgpt sign-in could not reach the server ([0a70953](https://github.com/Serendeep/marginalia/commit/0a70953daca170da8a9fc14d6a95e561e88e16f7))
+* number new anchors after the highest label ([b116933](https://github.com/Serendeep/marginalia/commit/b116933b3c57404fe182388084d1cb1202a507eb))
+* queue the chat save before the reply reads as idle ([720bf1b](https://github.com/Serendeep/marginalia/commit/720bf1b677a5aec572d01383c08804fb7c8f4e84))
+* show a notice instead of crashing when a notebook write fails ([6c9dc24](https://github.com/Serendeep/marginalia/commit/6c9dc249883f123eb4151d650c4a461936001d8e))
+* soft violet review tile in the light theme ([693738f](https://github.com/Serendeep/marginalia/commit/693738f4fd8477f90b4f2f71e78a5aee7b775d48))
+* steer auto-sort toward specific course names ([4354023](https://github.com/Serendeep/marginalia/commit/43540233eaf9ee4664844baefa8e1e6eb25952c5))
+* today and sidebar polish ([c8e06c2](https://github.com/Serendeep/marginalia/commit/c8e06c2e845c949b498fd1916f834b8d2fa82b1f))
+* undo an eraser swipe in one step ([3d7498a](https://github.com/Serendeep/marginalia/commit/3d7498aeb0686df197f3a66e04be6cbaaf1a6956))
+
+
+### Performance Improvements
+
+* send page images once and cap views per reply ([f007f3b](https://github.com/Serendeep/marginalia/commit/f007f3bd54cf71880c334f0378a0a3ec7e78eddb))
+
 ## [1.3.0](https://github.com/Serendeep/marginalia/compare/v1.2.0...v1.3.0) (2026-10-09)
 
 
