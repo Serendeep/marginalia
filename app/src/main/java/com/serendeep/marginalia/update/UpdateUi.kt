@@ -28,6 +28,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -97,53 +98,6 @@ private fun primaryLabel(phase: UpdatePhase) = when (phase) {
     UpdatePhase.READY -> "Restart to update"
     UpdatePhase.AVAILABLE -> "Download"
     else -> "Check now"
-}
-
-/** Sidebar row: the ready update, or a quiet note on what changed in the version that was just installed. */
-@Composable
-fun UpdateSidebarRow(vm: UpdateViewModel = hiltViewModel()) {
-    if (!vm.enabled) return
-    val status by vm.status.collectAsStateWithLifecycle()
-    val whatsNewUntil by vm.whatsNewUntil.collectAsStateWithLifecycle()
-    var notesOpen by remember { mutableStateOf(false) }
-    val act = rememberPrimaryAction(vm)
-    if (notesOpen) WhatsNewPanel({ notesOpen = false }, vm)
-    if (status.phase == UpdatePhase.READY) {
-        SidebarRow("Update ${status.info?.versionName.orEmpty()} ready", "Restart", act)
-    } else if (whatsNewUntil > System.currentTimeMillis()) {
-        SidebarRow("Updated to ${vm.versionName}", "What's new") {
-            notesOpen = true
-            vm.dismissWhatsNew()
-        }
-    }
-}
-
-@Composable
-private fun SidebarRow(label: String, action: String, act: () -> Unit) {
-    val shape = RoundedCornerShape(9.dp)
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(bottom = 6.dp)
-            .clip(shape)
-            .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f), shape)
-            .clickable(onClick = act)
-            .padding(horizontal = 10.dp, vertical = 8.dp),
-    ) {
-        Icon(Icons.Outlined.SystemUpdateAlt, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
-        Text(
-            label,
-            fontFamily = BodyFamily,
-            fontSize = 12.5.sp,
-            color = MaterialTheme.marginalia.chipText,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f),
-        )
-        Text(action, fontFamily = MonoFamily, fontSize = 10.5.sp, letterSpacing = 0.4.sp, color = MaterialTheme.colorScheme.primary)
-    }
 }
 
 /** Body of the Updates section in settings; applies its toggles immediately. */
@@ -283,6 +237,43 @@ fun UpdateBanners(modifier: Modifier = Modifier, vm: UpdateViewModel = hiltViewM
                 IconButton(onClick = { vm.dismissMessage(message.text) }) {
                     Icon(Icons.Filled.Close, contentDescription = "Dismiss", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
+            }
+        }
+    }
+}
+
+/** One quiet line beside the date on Today: a ready update to restart into, or a link to what just changed. */
+@Composable
+fun UpdateNote(vm: UpdateViewModel = hiltViewModel()) {
+    if (!vm.enabled) return
+    val status by vm.status.collectAsStateWithLifecycle()
+    val whatsNewUntil by vm.whatsNewUntil.collectAsStateWithLifecycle()
+    val act = rememberPrimaryAction(vm)
+    var notesOpen by remember { mutableStateOf(false) }
+    if (notesOpen) WhatsNewPanel({ notesOpen = false }, vm)
+    val ready = status.phase == UpdatePhase.READY
+    if (!ready && whatsNewUntil <= System.currentTimeMillis()) return
+    val dim = MaterialTheme.marginalia.dimInk
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text("·  ${if (ready) "UPDATE READY" else "UPDATED"}", fontFamily = MonoFamily, fontSize = 12.sp, letterSpacing = 0.72.sp, color = dim, maxLines = 1)
+        Text(
+            if (ready) "RESTART" else "WHAT'S NEW",
+            fontFamily = MonoFamily,
+            fontSize = 12.sp,
+            letterSpacing = 0.72.sp,
+            color = MaterialTheme.colorScheme.primary,
+            maxLines = 1,
+            modifier = Modifier
+                .minimumInteractiveComponentSize()
+                .clip(RoundedCornerShape(6.dp))
+                .clickable {
+                    if (ready) act() else { notesOpen = true; vm.dismissWhatsNew() }
+                }
+                .padding(horizontal = 8.dp, vertical = 4.dp),
+        )
+        if (!ready) {
+            IconButton(onClick = vm::dismissWhatsNew) {
+                Icon(Icons.Filled.Close, contentDescription = "Dismiss", tint = dim, modifier = Modifier.size(14.dp))
             }
         }
     }
