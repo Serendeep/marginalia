@@ -31,6 +31,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.rememberSwipeToDismissBoxState
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.MutableTransitionState
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.ui.platform.LocalAccessibilityManager
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -257,52 +264,70 @@ fun UpdateNote(modifier: Modifier = Modifier, vm: UpdateViewModel = hiltViewMode
     if (!ready && whatsNewUntil <= System.currentTimeMillis()) return
     val shape = RoundedCornerShape(12.dp)
     val swipe = rememberSwipeToDismissBoxState()
-    SwipeToDismissBox(
-        state = swipe,
-        backgroundContent = {},
+    val shown = remember { MutableTransitionState(false) }
+    shown.targetState = !vm.noteTimedOut
+    // Material's long snackbar time, stretched by the system for people who asked for longer timeouts.
+    val timeout = LocalAccessibilityManager.current
+        ?.calculateRecommendedTimeoutMillis(NOTE_TIMEOUT_MS, containsIcons = true, containsText = true, containsControls = true)
+        ?: NOTE_TIMEOUT_MS
+    LaunchedEffect(Unit) {
+        delay(timeout)
+        vm.noteTimedOut = true
+    }
+    AnimatedVisibility(
+        visibleState = shown,
         modifier = modifier,
-        gesturesEnabled = !ready,
-        onDismiss = { vm.dismissWhatsNew() },
+        enter = slideInVertically { it / 2 } + fadeIn(),
+        exit = slideOutVertically { it / 2 } + fadeOut(),
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier
-                .clip(shape)
-                .background(MaterialTheme.colorScheme.surface)
-                .border(1.dp, MaterialTheme.colorScheme.outline, shape)
-                .padding(start = 14.dp, end = if (ready) 8.dp else 0.dp, top = 4.dp, bottom = 4.dp),
+        SwipeToDismissBox(
+            state = swipe,
+            backgroundContent = {},
+            gesturesEnabled = !ready,
+            onDismiss = { vm.dismissWhatsNew() },
         ) {
-            Column(Modifier.weight(1f)) {
-                Text(if (ready) "Update ready" else "Updated", fontFamily = BodyFamily, fontSize = 13.sp, maxLines = 1)
-                Text(
-                    (if (ready) status.info?.versionName else vm.versionName).orEmpty(),
-                    fontFamily = MonoFamily,
-                    fontSize = 10.5.sp,
-                    color = MaterialTheme.marginalia.dimInk,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            Text(
-                if (ready) "Restart" else "What's new",
-                fontFamily = BodyFamily,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colorScheme.primary,
-                maxLines = 1,
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .clickable { if (ready) act() else { notesOpen = true; vm.dismissWhatsNew() } }
-                    .padding(horizontal = 6.dp, vertical = 14.dp),
-            )
-            if (!ready) {
-                IconButton(onClick = vm::dismissWhatsNew) {
-                    Icon(Icons.Filled.Close, contentDescription = "Dismiss", tint = MaterialTheme.marginalia.dimInk, modifier = Modifier.size(16.dp))
+                    .clip(shape)
+                    .background(MaterialTheme.colorScheme.surface)
+                    .border(1.dp, MaterialTheme.colorScheme.outline, shape)
+                    .padding(start = 14.dp, end = if (ready) 8.dp else 0.dp, top = 4.dp, bottom = 4.dp),
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(if (ready) "Update ready" else "Updated", fontFamily = BodyFamily, fontSize = 13.sp, maxLines = 1)
+                    Text(
+                        (if (ready) status.info?.versionName else vm.versionName).orEmpty(),
+                        fontFamily = MonoFamily,
+                        fontSize = 10.5.sp,
+                        color = MaterialTheme.marginalia.dimInk,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                Text(
+                    if (ready) "Restart" else "What's new",
+                    fontFamily = BodyFamily,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.primary,
+                    maxLines = 1,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable { if (ready) act() else { notesOpen = true; vm.dismissWhatsNew() } }
+                        .padding(horizontal = 6.dp, vertical = 14.dp),
+                )
+                if (!ready) {
+                    IconButton(onClick = vm::dismissWhatsNew) {
+                        Icon(Icons.Filled.Close, contentDescription = "Dismiss", tint = MaterialTheme.marginalia.dimInk, modifier = Modifier.size(16.dp))
+                    }
                 }
             }
         }
     }
 }
+
+private const val NOTE_TIMEOUT_MS = 10_000L
 
 @Composable
 private fun Banner(content: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit) {

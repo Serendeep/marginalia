@@ -1,6 +1,9 @@
 package com.serendeep.marginalia.update
 
 import android.content.Context
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import com.serendeep.marginalia.BuildConfig
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -34,6 +37,9 @@ class UpdateViewModel @Inject constructor(
     val releasesUrl: String get() = manager.releasesUrl
 
     fun dismissWhatsNew() = manager.dismissWhatsNew()
+
+    /** Set once the Today card has had its time on screen; it stays hidden until the next launch. */
+    var noteTimedOut by mutableStateOf(false)
 
     val installedVersionCode: Long = manager.installedVersionCode
 
