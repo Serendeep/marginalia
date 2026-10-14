@@ -29,6 +29,8 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -254,32 +256,49 @@ fun UpdateNote(modifier: Modifier = Modifier, vm: UpdateViewModel = hiltViewMode
     val ready = status.phase == UpdatePhase.READY
     if (!ready && whatsNewUntil <= System.currentTimeMillis()) return
     val shape = RoundedCornerShape(12.dp)
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-        modifier = modifier
-            .clip(shape)
-            .background(MaterialTheme.colorScheme.surface)
-            .border(1.dp, MaterialTheme.colorScheme.outline, shape)
-            .padding(start = 14.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
+    val swipe = rememberSwipeToDismissBoxState()
+    SwipeToDismissBox(
+        state = swipe,
+        backgroundContent = {},
+        modifier = modifier,
+        gesturesEnabled = !ready,
+        onDismiss = { vm.dismissWhatsNew() },
     ) {
-        Column(Modifier.weight(1f)) {
-            Text(if (ready) "Update ready" else "Updated", fontFamily = BodyFamily, fontSize = 13.sp, maxLines = 1)
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .clip(shape)
+                .background(MaterialTheme.colorScheme.surface)
+                .border(1.dp, MaterialTheme.colorScheme.outline, shape)
+                .padding(start = 14.dp, end = if (ready) 8.dp else 0.dp, top = 4.dp, bottom = 4.dp),
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(if (ready) "Update ready" else "Updated", fontFamily = BodyFamily, fontSize = 13.sp, maxLines = 1)
+                Text(
+                    (if (ready) status.info?.versionName else vm.versionName).orEmpty(),
+                    fontFamily = MonoFamily,
+                    fontSize = 10.5.sp,
+                    color = MaterialTheme.marginalia.dimInk,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
             Text(
-                (if (ready) status.info?.versionName else vm.versionName).orEmpty(),
-                fontFamily = MonoFamily,
-                fontSize = 10.5.sp,
-                color = MaterialTheme.marginalia.dimInk,
+                if (ready) "Restart" else "What's new",
+                fontFamily = BodyFamily,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.primary,
                 maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable { if (ready) act() else { notesOpen = true; vm.dismissWhatsNew() } }
+                    .padding(horizontal = 6.dp, vertical = 14.dp),
             )
-        }
-        GlassTextButton(if (ready) "Restart" else "What's new", onClick = {
-            if (ready) act() else { notesOpen = true; vm.dismissWhatsNew() }
-        })
-        if (!ready) {
-            IconButton(onClick = vm::dismissWhatsNew) {
-                Icon(Icons.Filled.Close, contentDescription = "Dismiss", tint = MaterialTheme.marginalia.dimInk, modifier = Modifier.size(16.dp))
+            if (!ready) {
+                IconButton(onClick = vm::dismissWhatsNew) {
+                    Icon(Icons.Filled.Close, contentDescription = "Dismiss", tint = MaterialTheme.marginalia.dimInk, modifier = Modifier.size(16.dp))
+                }
             }
         }
     }
