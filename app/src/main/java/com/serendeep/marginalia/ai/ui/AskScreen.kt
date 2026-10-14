@@ -45,23 +45,15 @@ data class PagePreview(val lectureId: String, val title: String, val page: Int)
 
 private const val PREVIEW_WIDTH_PX = 1100
 
-/** Chat on the left, the page behind the tapped citation on the right. A [pendingQuestion] is sent once, then reported handled. */
+/** Chat on the left, the page behind the tapped citation on the right. */
 @Composable
 fun AskScreen(
-    pendingQuestion: String?,
-    onPendingHandled: () -> Unit,
     onOpenAt: (lectureId: String, page: Int) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: ChatViewModel = hiltViewModel(),
 ) {
     var preview by remember { mutableStateOf<PagePreview?>(null) }
     LaunchedEffect(Unit) { viewModel.enter(LIBRARY_SCOPE) }
-    LaunchedEffect(pendingQuestion) {
-        if (pendingQuestion != null) {
-            viewModel.send(pendingQuestion)
-            onPendingHandled()
-        }
-    }
     val rendered by produceState<Rendered?>(null, preview) {
         value = null
         preview?.let { value = Rendered(viewModel.renderPage(it.lectureId, it.page - 1, PREVIEW_WIDTH_PX)) }

@@ -100,7 +100,6 @@ fun TodayScreen(
     onOpenLecture: (String) -> Unit,
     onOpenAt: (lectureId: String, page: Int) -> Unit,
     onNavigate: (Screen) -> Unit,
-    onAsk: (String) -> Unit,
     viewModel: TodayViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -183,9 +182,6 @@ fun TodayScreen(
                         }
                     }
                 }
-            }
-            if (com.serendeep.marginalia.ai.ui.rememberAiReady()) {
-                com.serendeep.marginalia.ai.ui.AskChatGptCard(onAsk, Modifier.padding(top = 16.dp))
             }
         }
     }

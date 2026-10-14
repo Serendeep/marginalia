@@ -102,7 +102,6 @@ class MainActivity : ComponentActivity() {
             }
             MarginaliaTheme(darkTheme = dark) {
                 var screen by remember { mutableStateOf<Screen>(Screen.Today) }
-                var pendingAsk by remember { mutableStateOf<String?>(null) }
                 val aiReady = com.serendeep.marginalia.ai.ui.rememberAiReady()
                 LaunchedEffect(aiReady, screen) { if (!aiReady && screen == Screen.Ask) screen = Screen.Today }
                 val pendingPdf = incomingPdfUri
@@ -153,7 +152,7 @@ class MainActivity : ComponentActivity() {
                                 val open: (String, Int?) -> Unit = { id, page -> screen = Screen.Notebook(id, shellScreen, page) }
                                 AppShell(screen = shellScreen, onNavigate = { screen = it }) {
                                     when (val s = shellScreen) {
-                                        Screen.Today -> TodayScreen(onOpenLecture = { open(it, null) }, onOpenAt = { id, page -> open(id, page) }, onNavigate = { screen = it }, onAsk = { pendingAsk = it; screen = Screen.Ask })
+                                        Screen.Today -> TodayScreen(onOpenLecture = { open(it, null) }, onOpenAt = { id, page -> open(id, page) }, onNavigate = { screen = it })
                                         is Screen.Library -> LibraryScreen(
                                             filter = s.filter,
                                             incomingPdfUri = pendingPdf,
@@ -163,8 +162,6 @@ class MainActivity : ComponentActivity() {
                                         Screen.Review -> ReviewScreen(onOpen = { id, page -> open(id, page) }, onDone = { screen = Screen.Today })
                                         Screen.Search -> SearchScreen(onOpen = open)
                                         Screen.Ask -> AskScreen(
-                                            pendingQuestion = pendingAsk,
-                                            onPendingHandled = { pendingAsk = null },
                                             onOpenAt = { id, page -> open(id, page) },
                                         )
                                         Screen.Highlights -> HighlightsScreen(onOpen = { id, page -> open(id, page) })
