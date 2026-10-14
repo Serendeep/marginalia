@@ -110,6 +110,7 @@ fun TodayScreen(
     AskNotificationPermissionOnce()
     cardFor?.let { HighlightCardSheet(it, onDismiss = { cardFor = null }) }
     // The bento spans the full width: beside the highlights column it gets too narrow on 1120dp tablets.
+    Box(Modifier.fillMaxSize()) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         com.serendeep.marginalia.update.UpdateBanners(Modifier.padding(start = 22.dp, end = 22.dp, top = 18.dp))
         DigestCard(digest, viewModel::dismissDigest, Modifier.padding(start = 22.dp, end = 22.dp, top = 18.dp))
@@ -184,6 +185,9 @@ fun TodayScreen(
             }
         }
     }
+    }
+    // Pinned to the corner under the highlights column, which is usually empty below its few rows.
+    com.serendeep.marginalia.update.UpdateNote(Modifier.align(Alignment.BottomEnd).padding(18.dp).width(264.dp))
     }
 }
 

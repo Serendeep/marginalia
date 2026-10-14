@@ -396,7 +396,6 @@ private fun TopBar(screen: Screen, viewModel: ShellViewModel, onSearch: () -> Un
     ) {
         Text(title, fontFamily = DisplayFamily, fontWeight = FontWeight.SemiBold, fontSize = 20.sp, letterSpacing = (-0.4).sp, maxLines = 1)
         Text(crumb, fontFamily = MonoFamily, fontSize = 12.sp, letterSpacing = 0.72.sp, color = MaterialTheme.marginalia.dimInk, maxLines = 1)
-        if (screen == Screen.Today) com.serendeep.marginalia.update.UpdateNote()
         Spacer(Modifier.weight(1f))
         if (screen != Screen.Search) Row(
             verticalAlignment = Alignment.CenterVertically,

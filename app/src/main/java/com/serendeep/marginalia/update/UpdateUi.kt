@@ -9,6 +9,7 @@ import android.provider.Settings
 import android.text.format.DateUtils
 import android.text.format.Formatter
 import androidx.compose.foundation.border
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -28,7 +29,6 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -242,9 +242,9 @@ fun UpdateBanners(modifier: Modifier = Modifier, vm: UpdateViewModel = hiltViewM
     }
 }
 
-/** One quiet line beside the date on Today: a ready update to restart into, or a link to what just changed. */
+/** Small card in the corner of Today: a ready update to restart into, or a link to what just changed. */
 @Composable
-fun UpdateNote(vm: UpdateViewModel = hiltViewModel()) {
+fun UpdateNote(modifier: Modifier = Modifier, vm: UpdateViewModel = hiltViewModel()) {
     if (!vm.enabled) return
     val status by vm.status.collectAsStateWithLifecycle()
     val whatsNewUntil by vm.whatsNewUntil.collectAsStateWithLifecycle()
@@ -253,27 +253,33 @@ fun UpdateNote(vm: UpdateViewModel = hiltViewModel()) {
     if (notesOpen) WhatsNewPanel({ notesOpen = false }, vm)
     val ready = status.phase == UpdatePhase.READY
     if (!ready && whatsNewUntil <= System.currentTimeMillis()) return
-    val dim = MaterialTheme.marginalia.dimInk
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text("·  ${if (ready) "UPDATE READY" else "UPDATED"}", fontFamily = MonoFamily, fontSize = 12.sp, letterSpacing = 0.72.sp, color = dim, maxLines = 1)
-        Text(
-            if (ready) "RESTART" else "WHAT'S NEW",
-            fontFamily = MonoFamily,
-            fontSize = 12.sp,
-            letterSpacing = 0.72.sp,
-            color = MaterialTheme.colorScheme.primary,
-            maxLines = 1,
-            modifier = Modifier
-                .minimumInteractiveComponentSize()
-                .clip(RoundedCornerShape(6.dp))
-                .clickable {
-                    if (ready) act() else { notesOpen = true; vm.dismissWhatsNew() }
-                }
-                .padding(horizontal = 8.dp, vertical = 4.dp),
-        )
+    val shape = RoundedCornerShape(12.dp)
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        modifier = modifier
+            .clip(shape)
+            .background(MaterialTheme.colorScheme.surface)
+            .border(1.dp, MaterialTheme.colorScheme.outline, shape)
+            .padding(start = 14.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(if (ready) "Update ready" else "Updated", fontFamily = BodyFamily, fontSize = 13.sp, maxLines = 1)
+            Text(
+                (if (ready) status.info?.versionName else vm.versionName).orEmpty(),
+                fontFamily = MonoFamily,
+                fontSize = 10.5.sp,
+                color = MaterialTheme.marginalia.dimInk,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        GlassTextButton(if (ready) "Restart" else "What's new", onClick = {
+            if (ready) act() else { notesOpen = true; vm.dismissWhatsNew() }
+        })
         if (!ready) {
             IconButton(onClick = vm::dismissWhatsNew) {
-                Icon(Icons.Filled.Close, contentDescription = "Dismiss", tint = dim, modifier = Modifier.size(14.dp))
+                Icon(Icons.Filled.Close, contentDescription = "Dismiss", tint = MaterialTheme.marginalia.dimInk, modifier = Modifier.size(16.dp))
             }
         }
     }
