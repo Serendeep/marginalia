@@ -135,8 +135,9 @@ private fun Sidebar(screen: Screen, onNavigate: (Screen) -> Unit, viewModel: She
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                modifier = Modifier.padding(start = 8.dp, end = 8.dp, bottom = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                // The settings button's touch target already insets its icon, so the row needs no end padding.
+                modifier = Modifier.padding(start = 8.dp, bottom = 6.dp),
             ) {
                 if (nightly) NightlyStar() else Box(Modifier.size(10.dp).clip(RoundedCornerShape(3.dp)).background(MaterialTheme.marginalia.limeInk))
                 Text(
@@ -145,6 +146,8 @@ private fun Sidebar(screen: Screen, onNavigate: (Screen) -> Unit, viewModel: She
                     fontWeight = FontWeight.Bold,
                     fontSize = 17.sp,
                     letterSpacing = (-0.34).sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
                 )
                 if (nightly) NightlyMoon()
