@@ -70,7 +70,6 @@ import androidx.lifecycle.repeatOnLifecycle
 import com.serendeep.marginalia.cards.HighlightCardSheet
 import com.serendeep.marginalia.data.HighlightRow
 import com.serendeep.marginalia.highlights.HighlightItem
-import com.serendeep.marginalia.library.ChipKind
 import com.serendeep.marginalia.library.LectureRow
 import com.serendeep.marginalia.library.LibraryFilter
 import com.serendeep.marginalia.library.RowModel
@@ -236,7 +235,7 @@ private fun ContinueRow(row: RowModel, viewModel: TodayViewModel, onOpen: (Strin
             "${(row.course?.name ?: "Notebook").uppercase(Locale.ROOT)} · ${relativeTime(row.touchedAt)}"
         },
         onClick = { onOpen(row.lecture.id) },
-        chip = ChipKind.Course,
+        chip = null,
     )
 }
 
@@ -247,7 +246,7 @@ private fun ToReadRow(row: RowModel, viewModel: TodayViewModel, onOpen: (String)
         imageLoader = viewModel.imageLoader,
         meta = remember(row.lecture.id) { "${(row.course?.name ?: "Notebook").uppercase(Locale.ROOT)} · NOT OPENED" },
         onClick = { onOpen(row.lecture.id) },
-        chip = ChipKind.Status,
+        chip = null,
         showProgress = false,
     )
 }
