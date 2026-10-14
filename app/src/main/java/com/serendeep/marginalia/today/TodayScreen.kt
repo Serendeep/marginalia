@@ -70,7 +70,6 @@ import androidx.lifecycle.repeatOnLifecycle
 import com.serendeep.marginalia.cards.HighlightCardSheet
 import com.serendeep.marginalia.data.HighlightRow
 import com.serendeep.marginalia.highlights.HighlightItem
-import com.serendeep.marginalia.library.ChipKind
 import com.serendeep.marginalia.library.LectureRow
 import com.serendeep.marginalia.library.LibraryFilter
 import com.serendeep.marginalia.library.RowModel
@@ -100,7 +99,6 @@ fun TodayScreen(
     onOpenLecture: (String) -> Unit,
     onOpenAt: (lectureId: String, page: Int) -> Unit,
     onNavigate: (Screen) -> Unit,
-    onAsk: (String) -> Unit,
     viewModel: TodayViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -112,6 +110,7 @@ fun TodayScreen(
     AskNotificationPermissionOnce()
     cardFor?.let { HighlightCardSheet(it, onDismiss = { cardFor = null }) }
     // The bento spans the full width: beside the highlights column it gets too narrow on 1120dp tablets.
+    Box(Modifier.fillMaxSize()) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         com.serendeep.marginalia.update.UpdateBanners(Modifier.padding(start = 22.dp, end = 22.dp, top = 18.dp))
         DigestCard(digest, viewModel::dismissDigest, Modifier.padding(start = 22.dp, end = 22.dp, top = 18.dp))
@@ -184,11 +183,11 @@ fun TodayScreen(
                     }
                 }
             }
-            if (com.serendeep.marginalia.ai.ui.rememberAiReady()) {
-                com.serendeep.marginalia.ai.ui.AskChatGptCard(onAsk, Modifier.padding(top = 16.dp))
-            }
         }
     }
+    }
+    // Pinned to the corner under the highlights column, which is usually empty below its few rows.
+    com.serendeep.marginalia.update.UpdateNote(Modifier.align(Alignment.BottomEnd).padding(18.dp).width(264.dp))
     }
 }
 
@@ -240,7 +239,7 @@ private fun ContinueRow(row: RowModel, viewModel: TodayViewModel, onOpen: (Strin
             "${(row.course?.name ?: "Notebook").uppercase(Locale.ROOT)} · ${relativeTime(row.touchedAt)}"
         },
         onClick = { onOpen(row.lecture.id) },
-        chip = ChipKind.Course,
+        chip = null,
     )
 }
 
@@ -251,7 +250,7 @@ private fun ToReadRow(row: RowModel, viewModel: TodayViewModel, onOpen: (String)
         imageLoader = viewModel.imageLoader,
         meta = remember(row.lecture.id) { "${(row.course?.name ?: "Notebook").uppercase(Locale.ROOT)} · NOT OPENED" },
         onClick = { onOpen(row.lecture.id) },
-        chip = ChipKind.Status,
+        chip = null,
         showProgress = false,
     )
 }

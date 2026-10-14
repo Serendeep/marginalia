@@ -118,16 +118,4 @@ class AiScreenshotsTest {
     fun notebookPanelChat() = shoot("notebook-ask") {
         Box(Modifier.width(460.dp).height(640.dp).padding(18.dp)) { chat(true, transcript, streaming = true)() }
     }
-
-    @Test
-    fun todayCardDisconnected() = shoot("today-card-disconnected") { todayCard(false)() }
-
-    @Test
-    fun todayCard() = shoot("today-card") { todayCard(true)() }
-
-    private fun todayCard(ready: Boolean) = @Composable {
-        Box(Modifier.width(300.dp).padding(18.dp)) {
-            AskChatGptCardContent(ready = ready, onAsk = {}, onSetup = {}, modifier = Modifier.fillMaxWidth())
-        }
-    }
 }

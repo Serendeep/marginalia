@@ -76,8 +76,10 @@ object Prompts {
             instructions = "You file documents into a student's library. Reply with ONLY a JSON object, no prose and no code " +
                 "fences: {\"course\": \"<existing course name>\"|null, \"newCourse\": {\"name\": \"...\", \"emoji\": \"...\"}|null, " +
                 "\"tags\": [\"up to $MAX_SORT_TAGS lowercase topic tags\"], \"title\": \"<clean document title>\"|null}. " +
-                "Set \"course\" to a name copied exactly from the existing courses when one fits; otherwise set it to null and " +
-                "suggest \"newCourse\" with a short name and one emoji. Set \"title\" only when the current title looks like a file name.",
+                "Set \"course\" to a name copied exactly from the existing courses when one fits, preferring the most specific " +
+                "match; a broad course only fits when nothing narrower does. Otherwise set it to null and suggest \"newCourse\" " +
+                "with a short name and one emoji, named for the document's specific subject the way a student would name a " +
+                "course (\"Explainable AI\", not \"Machine Learning\"). Set \"title\" only when the current title looks like a file name.",
             text = "Existing courses:\n$known\n\nCurrent title: $title\nFile name: $fileName\n" +
                 (identifier?.let { "Identifier: $it\n" } ?: "") + "\nFirst pages:\n$excerpt",
             task = AiTask.AUTO_SORT,

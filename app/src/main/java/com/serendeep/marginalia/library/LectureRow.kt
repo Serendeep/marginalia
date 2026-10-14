@@ -55,7 +55,7 @@ fun LectureRow(
     meta: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    chip: ChipKind = ChipKind.Course,
+    chip: ChipKind? = ChipKind.Course,
     showProgress: Boolean = true,
     menu: (@Composable () -> Unit)? = null,
 ) {
@@ -93,7 +93,7 @@ fun LectureRow(
             )
         }
         // Chips share the row with the title; whichever no longer fit drop out whole, course/status first to stay.
-        FlowRow(
+        if (chip != null) FlowRow(
             modifier = Modifier.weight(1f),
             horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
             maxLines = 1,

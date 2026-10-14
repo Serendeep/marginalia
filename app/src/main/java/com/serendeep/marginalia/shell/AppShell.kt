@@ -62,6 +62,11 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -132,11 +137,30 @@ private fun Sidebar(screen: Screen, onNavigate: (Screen) -> Unit, viewModel: She
             }
             .padding(horizontal = 12.dp, vertical = 14.dp),
     ) {
-        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        val scroll = rememberScrollState()
+        Column(
+            Modifier
+                .weight(1f)
+                // Fades the last rows when more sit below, so the list reads as cut off rather than ending on a heading.
+                .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+                .drawWithContent {
+                    drawContent()
+                    if (scroll.canScrollForward) {
+                        val fade = 40.dp.toPx()
+                        drawRect(
+                            Brush.verticalGradient(listOf(Color.Black, Color.Transparent), startY = size.height - fade, endY = size.height),
+                            blendMode = BlendMode.DstIn,
+                        )
+                    }
+                }
+                .verticalScroll(scroll),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                modifier = Modifier.padding(start = 8.dp, end = 8.dp, bottom = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                // The settings button's touch target already insets its icon, so the row needs no end padding.
+                modifier = Modifier.padding(start = 8.dp, bottom = 6.dp),
             ) {
                 if (nightly) NightlyStar() else Box(Modifier.size(10.dp).clip(RoundedCornerShape(3.dp)).background(MaterialTheme.marginalia.limeInk))
                 Text(
@@ -145,6 +169,8 @@ private fun Sidebar(screen: Screen, onNavigate: (Screen) -> Unit, viewModel: She
                     fontWeight = FontWeight.Bold,
                     fontSize = 17.sp,
                     letterSpacing = (-0.34).sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
                 )
                 if (nightly) NightlyMoon()
@@ -206,7 +232,6 @@ private fun Sidebar(screen: Screen, onNavigate: (Screen) -> Unit, viewModel: She
                 ) { onNavigate(Screen.Library(LibraryFilter.Status(status))) }
             }
         }
-        com.serendeep.marginalia.update.UpdateSidebarRow()
         com.serendeep.marginalia.ai.ui.AiSidebarItem()
         GoalCard(viewModel, settingsOpen) { settingsOpen = it }
     }

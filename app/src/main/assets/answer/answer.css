@@ -52,7 +52,8 @@ pre code { padding: 0; background: none; white-space: pre; overflow-wrap: normal
 
 .table-wrap { overflow-x: auto; margin: 0 0 10px; }
 table { border-collapse: collapse; font-size: 13px; line-height: 19px; min-width: 100%; }
-th, td { padding: 6px 10px; border: 1px solid var(--outline); text-align: left; vertical-align: top; }
+/* break-word, unlike the body's anywhere, keeps whole words when columns size themselves */
+th, td { padding: 6px 10px; border: 1px solid var(--outline); text-align: left; vertical-align: top; overflow-wrap: break-word; }
 th { background: var(--code-bg); font-weight: 600; }
 
 .katex { font-size: 1.05em; }
