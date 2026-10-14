@@ -90,13 +90,9 @@ fun PreviewPaneContent(
     modifier: Modifier = Modifier,
 ) {
     val shape = RoundedCornerShape(16.dp)
-    Column(
-        modifier
-            .fillMaxSize()
-            .clip(shape)
-            .background(MaterialTheme.colorScheme.surface)
-            .border(1.dp, glassBorder(), shape),
-    ) {
+    // Until a citation is tapped the pane is only a hint, so it gets no card of its own.
+    val card = if (preview == null) Modifier else Modifier.clip(shape).background(MaterialTheme.colorScheme.surface).border(1.dp, glassBorder(), shape)
+    Column(modifier.fillMaxSize().then(card)) {
         if (preview == null) {
             Box(Modifier.weight(1f).fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
                 Text(
