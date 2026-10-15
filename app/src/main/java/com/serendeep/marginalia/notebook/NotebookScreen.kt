@@ -459,7 +459,10 @@ fun NotebookScreen(
                 penDown = penDown,
                 canUndo = canUndo,
                 canRedo = canRedo,
-                onSelectPen = viewModel::selectPen,
+                // With strokes selected, a swatch recolours them instead of switching to the pen.
+                onSelectPen = { pen ->
+                    if (selection != null) viewModel.recolorSelection(swatchArgb[pen.ordinal]) else viewModel.selectPen(pen)
+                },
                 onHighlighter = viewModel::selectHighlighter,
                 onLaser = { viewModel.setTool(InkTool.LASER) },
                 onEraser = { viewModel.setTool(InkTool.ERASER) },
