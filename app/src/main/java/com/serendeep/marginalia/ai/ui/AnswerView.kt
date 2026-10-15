@@ -61,6 +61,8 @@ private fun answerTheme(ink: Color, muted: Color, outline: Color, accent: Color,
             .put("outline", outline.css())
             .put("violet", accent.css())
             .put("code-bg", accent.copy(alpha = if (dark) 0.13f else 0.10f).css())
+            .put("user-bg", accent.copy(alpha = if (dark) 0.24f else 0.14f).css())
+            .put("user-edge", accent.copy(alpha = if (dark) 0.34f else 0.24f).css())
             .put("hl-string", if (dark) "#7fd6b0" else "#1f7a56")
             .put("hl-number", if (dark) "#e0b46c" else "#9a6a12")
             .put("body", "\"Plex Sans\", sans-serif"),

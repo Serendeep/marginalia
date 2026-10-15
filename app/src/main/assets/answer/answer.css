@@ -27,7 +27,7 @@ body { font: 14px/21px var(--body); overflow-wrap: anywhere; -webkit-text-size-a
 .msg > :first-child { margin-top: 0; }
 .msg > :last-child { margin-bottom: 0; }
 
-.msg.user { align-self: flex-end; max-width: 85%; padding: 8px 12px; border-radius: 14px 14px 4px 14px; background: var(--code-bg); white-space: pre-wrap; }
+.msg.user { align-self: flex-end; max-width: 85%; padding: 8px 12px; border-radius: 14px 14px 4px 14px; background: var(--user-bg); border: 1px solid var(--user-edge); white-space: pre-wrap; }
 .msg.status { font: 500 11px/16px var(--mono); letter-spacing: 0.4px; color: var(--muted); }
 .msg.status.live:last-child { animation: pulse 1.4s ease-in-out infinite; }
 @keyframes pulse { 50% { opacity: 0.35; } }
@@ -50,15 +50,16 @@ code { font: 12.5px/1.5 var(--mono); background: var(--code-bg); padding: 1px 4p
 pre { margin: 0 0 10px; padding: 10px 12px; background: var(--code-bg); border-radius: 10px; overflow-x: auto; }
 pre code { padding: 0; background: none; white-space: pre; overflow-wrap: normal; }
 
-.table-wrap { overflow-x: auto; margin: 0 0 10px; }
+.table-wrap { overflow-x: auto; margin: 0 0 10px; padding-block: 0.3em; }
 table { border-collapse: collapse; font-size: 13px; line-height: 19px; min-width: 100%; }
 /* break-word, unlike the body's anywhere, keeps whole words when columns size themselves */
 th, td { padding: 6px 10px; border: 1px solid var(--outline); text-align: left; vertical-align: top; overflow-wrap: break-word; }
 th { background: var(--code-bg); font-weight: 600; }
 
 .katex { font-size: 1.05em; }
-.katex-display { margin: 8px 0; overflow-x: auto; overflow-y: hidden; }
-section:has(> eqn) { margin: 8px 0; overflow-x: auto; }
+/* Tall fractions, limits and matrices reach past KaTeX's line box; the padding keeps them inside the scroll clip. */
+.katex-display { margin: 4px 0; padding: 0.45em 0; overflow-x: auto; overflow-y: hidden; }
+section:has(> eqn) { margin: 8px 0; padding-block: 0.3em; overflow-x: auto; }
 
 .mmd { margin: 0 0 10px; }
 .mmd svg { max-width: 100%; height: auto; }
