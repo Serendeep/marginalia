@@ -38,7 +38,8 @@ object StrokeEraser {
             if (dx * dx + dy * dy <= radiusSq) {
                 hit = true
                 flush()
-            } else {
+            } else if (!survivors.lastOrNull().samePoint(p)) {
+                // Saved strokes can repeat a point exactly, which a rebuilt batch rejects.
                 survivors.add(p)
             }
         }
@@ -47,4 +48,7 @@ object StrokeEraser {
         return if (!hit) EraseResult(untouched = true, segments = emptyList())
         else EraseResult(untouched = false, segments = segments)
     }
+
+    private fun StrokeInput?.samePoint(p: StrokeInput): Boolean =
+        this != null && x == p.x && y == p.y && elapsedTimeMillis == p.elapsedTimeMillis
 }
