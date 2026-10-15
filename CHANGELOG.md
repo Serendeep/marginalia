@@ -1,5 +1,28 @@
 # Changelog
 
+## [1.5.0](https://github.com/Serendeep/marginalia/compare/v1.4.0...v1.5.0) (2026-10-15)
+
+
+### Features
+
+* add a non-modal mode to side panels ([f1e88cf](https://github.com/Serendeep/marginalia/commit/f1e88cf26fc5f099dedd6788d8baf8c281513b62))
+* keep writing while the ask panel is open ([d688732](https://github.com/Serendeep/marginalia/commit/d688732632cb0d44057246fe2e258a617d0c91ec))
+* keep writing while the ask panel is open ([7d99f6f](https://github.com/Serendeep/marginalia/commit/7d99f6fb7085959d1d1b1a2c45f0bea8ce442035))
+
+
+### Bug Fixes
+
+* give the user message in ask a solid bubble ([6f4d312](https://github.com/Serendeep/marginalia/commit/6f4d3124e4f1c2eb4348ad047f141eaff3ecf67e))
+* keep the version in the what's new title ([313cf55](https://github.com/Serendeep/marginalia/commit/313cf55f60ed4a7b5c6a182e9214e9975f22d9b9))
+* lay out the ask panel above the keyboard instead of panning the screen ([c649d18](https://github.com/Serendeep/marginalia/commit/c649d18db6f62655ee331e8f5f41e1fa604bb23e))
+* recolour the selection with the picked colour, not its index ([ce37cb5](https://github.com/Serendeep/marginalia/commit/ce37cb532d35f2d17d7f19166a86935997a72497))
+* recolour the selection with the picked colour, not its index ([f3c58b3](https://github.com/Serendeep/marginalia/commit/f3c58b3c43048260060467186a0d5fd25de23292))
+* show the release notes for a nightly built at a release ([c4d53d1](https://github.com/Serendeep/marginalia/commit/c4d53d14316c7307508d167aac50de50bf8c099b))
+* skip repeated points when erasing part of a stroke ([70e1fee](https://github.com/Serendeep/marginalia/commit/70e1fee5ea9ebd68fbafb173b454eefab17d7d18))
+* skip repeated points when erasing part of a stroke ([ca6d186](https://github.com/Serendeep/marginalia/commit/ca6d186e741a4e12dd2ddbc3052ce39982be28ad))
+* stop clipping the top of tall display math ([b686ac5](https://github.com/Serendeep/marginalia/commit/b686ac51fc26fcf64f0903e028a74c03b0ec0c72))
+* what's new notes, ask bubble and math clipping ([9d021dc](https://github.com/Serendeep/marginalia/commit/9d021dc18048a252d5f0066508659fc0d566c861))
+
 ## [1.4.0](https://github.com/Serendeep/marginalia/compare/v1.3.0...v1.4.0) (2026-10-14)
 
 
