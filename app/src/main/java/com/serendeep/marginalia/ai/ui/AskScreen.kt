@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
@@ -67,7 +68,7 @@ fun AskScreen(
             onCitation = { title, page ->
                 viewModel.resolve(title)?.let { preview = PagePreview(it, viewModel.title(it) ?: title, page) }
             },
-            modifier = Modifier.weight(0.6f),
+            modifier = Modifier.weight(0.6f).imePadding(),
         )
         PreviewPaneContent(
             preview = preview,

@@ -63,7 +63,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.lifecycle.Lifecycle
@@ -171,6 +173,8 @@ fun NotebookScreen(
     val tool by viewModel.tool.collectAsStateWithLifecycle()
     val selectedPen by viewModel.selectedPen.collectAsStateWithLifecycle()
     val penDown by viewModel.penDown.collectAsStateWithLifecycle()
+    val focusManager = LocalFocusManager.current
+    LaunchedEffect(penDown) { if (penDown) focusManager.clearFocus() }
     val anchors by viewModel.anchors.collectAsStateWithLifecycle()
     val activeAnchor by viewModel.activeAnchor.collectAsStateWithLifecycle()
     val canvasOffset by viewModel.canvasOffset.collectAsStateWithLifecycle()
@@ -500,6 +504,7 @@ fun NotebookScreen(
             title = lectureTitle,
             page = currentPage,
             pageCount = pageCount,
+            width = if (source != null) minOf(460, LocalConfiguration.current.screenWidthDp / 2).dp else 460.dp,
             source = source,
             selectionPng = askSelection,
             onJump = viewModel::requestPdfPage,

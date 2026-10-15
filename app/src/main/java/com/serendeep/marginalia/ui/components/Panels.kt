@@ -1,5 +1,6 @@
 package com.serendeep.marginalia.ui.components
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.animation.core.Spring
@@ -67,7 +68,10 @@ enum class PanelSide { START, END }
 private val PanelRadius = 20.dp
 private const val ScrimAlpha = 0.45f
 
-/** Full-height panel sliding in from an edge; browsable or long content with a pinned footer. With [scrollable] false the content manages its own scrolling. */
+/**
+ * Full-height panel sliding in from an edge; browsable or long content with a pinned footer. With [scrollable] false the content manages its own scrolling.
+ * With [modal] false it shares the caller's window without a scrim, so touches outside the panel reach what is behind it.
+ */
 @Composable
 fun SidePanel(
     onDismiss: () -> Unit,
@@ -77,6 +81,7 @@ fun SidePanel(
     width: Dp = 440.dp,
     footer: (@Composable RowScope.() -> Unit)? = null,
     scrollable: Boolean = true,
+    modal: Boolean = true,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val end = side == PanelSide.END
@@ -88,6 +93,7 @@ fun SidePanel(
     PanelHost(
         onDismiss = onDismiss,
         enter = spring(dampingRatio = 0.9f, stiffness = Spring.StiffnessMediumLow),
+        modal = modal,
     ) { progress, close ->
         Box(
             Modifier
@@ -244,13 +250,14 @@ private fun Modifier.consumeTaps(): Modifier =
     clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {}
 
 /**
- * Edge-to-edge dialog window that owns the scrim, enter spring and exit fade.
+ * Edge-to-edge dialog window that owns the scrim, enter spring and exit fade; non-modal it draws in place without either the dialog or the scrim.
  * [content] gets the animation progress (0..1) and a close that plays the exit first.
  */
 @Composable
 private fun PanelHost(
     onDismiss: () -> Unit,
     enter: AnimationSpec<Float>,
+    modal: Boolean = true,
     content: @Composable BoxScope.(progress: () -> Float, close: () -> Unit) -> Unit,
 ) {
     val progress = remember { Animatable(0f) }
@@ -266,6 +273,11 @@ private fun PanelHost(
                 latestDismiss()
             }
         }
+    }
+    if (!modal) {
+        BackHandler(onBack = close)
+        Box(Modifier.fillMaxSize()) { content({ progress.value }, close) }
+        return
     }
     Dialog(
         onDismissRequest = close,

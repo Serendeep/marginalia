@@ -14,25 +14,31 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.serendeep.marginalia.ai.AiTask
 import com.serendeep.marginalia.pdf.PdfDocumentSource
 import com.serendeep.marginalia.ui.components.PILL_ALPHA
+import com.serendeep.marginalia.ui.components.PanelSide
 import com.serendeep.marginalia.ui.components.SidePanel
 import com.serendeep.marginalia.ui.components.glassBorder
 import com.serendeep.marginalia.ui.theme.MonoFamily
 
 /** "Ask" pill beside the page indicator; [NotebookAskPanel] is what it opens. */
 @Composable
-fun NotebookAskPill(onClick: () -> Unit, modifier: Modifier = Modifier) {
+fun NotebookAskPill(onClick: () -> Unit, modifier: Modifier = Modifier, viewModel: ChatViewModel = hiltViewModel()) {
+    val streaming by viewModel.streaming.collectAsStateWithLifecycle()
     val shape = RoundedCornerShape(14.dp)
     Text(
-        "✦ ASK",
+        if (streaming) "✦ ASKING…" else "✦ ASK",
         fontFamily = MonoFamily,
         fontSize = 11.sp,
         letterSpacing = 1.2.sp,
@@ -57,6 +63,7 @@ fun NotebookAskPanel(
     title: String,
     page: Int,
     pageCount: Int,
+    width: Dp,
     source: PdfDocumentSource?,
     selectionPng: ByteArray?,
     onJump: (page: Int) -> Unit,
@@ -72,7 +79,16 @@ fun NotebookAskPanel(
         )
     }
     LaunchedEffect(lectureId) { viewModel.enter(lectureId) }
-    SidePanel(onDismiss = onDismiss, title = title, eyebrow = "ASK", width = 460.dp, scrollable = false) {
+    val focusManager = LocalFocusManager.current
+    SidePanel(
+        onDismiss = onDismiss,
+        title = title,
+        eyebrow = "ASK",
+        side = PanelSide.START,
+        width = width,
+        scrollable = false,
+        modal = false,
+    ) {
         Column(Modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             QuickActions(
                 hasPdf = source != null && pageCount > 0,
@@ -82,11 +98,17 @@ fun NotebookAskPanel(
                 target = target,
             )
             ChatPane(
-                onSend = { viewModel.send(it, AiTask.ASK, target) },
+                onSend = {
+                    viewModel.send(it, AiTask.ASK, target)
+                    focusManager.clearFocus()
+                },
                 onCitation = { cited, citedPage ->
                     when (val id = viewModel.resolve(cited)) {
                         null -> Unit
-                        lectureId -> onJump(citedPage - 1)
+                        lectureId -> {
+                            onDismiss()
+                            onJump(citedPage - 1)
+                        }
                         else -> onOpenAt(id, citedPage - 1)
                     }
                 },
