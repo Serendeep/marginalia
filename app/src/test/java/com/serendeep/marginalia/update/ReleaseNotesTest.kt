@@ -110,4 +110,10 @@ class ReleaseNotesTest {
         assertEquals(listOf("1.3.0-nightly.9+abc"), shown.map { it.version })
         assertTrue(ReleaseNotes.sinceLastSeen(v, "1.2.0", "1.3.0-nightly.9+abc", null).isEmpty())
     }
+
+    @Test
+    fun fallsBackToTheReleaseNotesForANightlyWithoutItsOwn() {
+        val v = ReleaseNotes.parse(changelog)
+        assertEquals(listOf("1.2.0"), ReleaseNotes.sinceLastSeen(v, "1.1.0", "1.2.0-nightly.9+abc", null).map { it.version })
+    }
 }

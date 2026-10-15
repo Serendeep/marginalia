@@ -81,7 +81,11 @@ object ReleaseNotes {
     /** What to show after an update: every changelog version since [lastSeen], newest first; [cached] covers builds the changelog does not list. */
     fun sinceLastSeen(changelog: List<VersionNotes>, lastSeen: String?, installed: String, cached: VersionNotes?): List<VersionNotes> {
         val installedIndex = changelog.indexOfFirst { it.version == installed }
-        if (installedIndex < 0) return listOfNotNull(cached?.takeIf { !it.isEmpty }?.copy(version = installed))
+        if (installedIndex < 0) {
+            cached?.takeIf { !it.isEmpty }?.let { return listOf(it.copy(version = installed)) }
+            // A nightly built at a release commit has no notes of its own; the release's notes cover it.
+            return listOfNotNull(changelog.firstOrNull { it.version == installed.substringBefore('-') })
+        }
         val seenIndex = changelog.indexOfFirst { it.version == lastSeen }
         val end = if (seenIndex > installedIndex) seenIndex else installedIndex + 1
         return changelog.subList(installedIndex, end)
