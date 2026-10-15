@@ -26,7 +26,8 @@ import java.time.format.FormatStyle
 @Composable
 fun WhatsNewPanel(onDismiss: () -> Unit, vm: UpdateViewModel) {
     val versions by produceState(emptyList<VersionNotes>()) { value = withContext(Dispatchers.IO) { vm.whatsNew() } }
-    NotesPanel("What's new in ${vm.versionName}", versions, vm, onDismiss)
+    // A nightly name like 1.4.0-nightly.279+1d0ed72 does not fit the one-line header.
+    NotesPanel("What's new in ${vm.versionName.substringBefore('-')}", versions, vm, onDismiss)
 }
 
 /** Panel with the full bundled release history. */
