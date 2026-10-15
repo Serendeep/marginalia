@@ -27,7 +27,7 @@ body { font: 14px/21px var(--body); overflow-wrap: anywhere; -webkit-text-size-a
 .msg > :first-child { margin-top: 0; }
 .msg > :last-child { margin-bottom: 0; }
 
-.msg.user { align-self: flex-end; max-width: 85%; padding: 8px 12px; border-radius: 14px 14px 4px 14px; background: var(--code-bg); white-space: pre-wrap; }
+.msg.user { align-self: flex-end; max-width: 85%; padding: 8px 12px; border-radius: 14px 14px 4px 14px; background: var(--user-bg); border: 1px solid var(--user-edge); white-space: pre-wrap; }
 .msg.status { font: 500 11px/16px var(--mono); letter-spacing: 0.4px; color: var(--muted); }
 .msg.status.live:last-child { animation: pulse 1.4s ease-in-out infinite; }
 @keyframes pulse { 50% { opacity: 0.35; } }
