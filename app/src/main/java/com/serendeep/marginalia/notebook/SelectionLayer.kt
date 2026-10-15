@@ -247,7 +247,7 @@ private fun MiniToolbar(
         if (picking) {
             ColorDots(colors) {
                 picking = false
-                actions.onRecolor(it)
+                actions.onRecolor(colors[it])
             }
         } else {
             ToolbarAction("Colour", "Recolour selection") { picking = true }
