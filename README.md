@@ -113,3 +113,6 @@ Before the first release, add these repository Actions secrets:
 
 Bug reports, screenshots of broken layouts, and PRs are all welcome: see
 [CONTRIBUTING.md](CONTRIBUTING.md). Licensed under [GPL-3.0](LICENSE).
+
+Marginalia is built by [Serendeep Rudraraju](https://serendeep.tech). The
+[case study](https://serendeep.tech/work/marginalia/) covers why it works the way it does.
